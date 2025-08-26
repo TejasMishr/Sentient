@@ -48,22 +48,22 @@ const tabs = [
 			"For complex projects that require a larger team of AI workers.",
 		icon: <IconUsersGroup size={18} />,
 		isProFeature: true
-	},
-	{
-		id: "long_form",
-		label: "Long-Form",
-		description:
-			"For complex, multi-step tasks that run over an extended period.",
-		icon: <IconClock size={18} />,
-		isProFeature: false // Free feature for now (considered for Pro in future)
 	}
+	// {
+	// 	id: "long_form",
+	// 	label: "Long-Form",
+	// 	description:
+	// 		"For complex, multi-step tasks that run over an extended period.",
+	// 	icon: <IconClock size={18} />,
+	// 	isProFeature: false // Free feature for now (considered for Pro in future)
+	// }
 ]
 
-const longFormPlaceholders = [
-	"Organize my upcoming business trip to New York next week.",
-	"Help me plan and execute a marketing campaign for our new product launch.",
-	"Onboard the new hire, John Doe, by setting up his accounts and sending him the required documents."
-]
+// const longFormPlaceholders = [
+// 	"Organize my upcoming business trip to New York next week.",
+// 	"Help me plan and execute a marketing campaign for our new product launch.",
+// 	"Onboard the new hire, John Doe, by setting up his accounts and sending him the required documents."
+// ]
 
 const oncePlaceholders = [
 	"Draft a follow-up email to the client about the new proposal.",
@@ -392,13 +392,12 @@ const TaskComposer = ({
 										)}
 									>
 										<TextLoop>
-											{(activeTab === "long_form"
-												? longFormPlaceholders
-												: activeTab === "once"
-													? oncePlaceholders
-													: activeTab === "recurring"
-														? recurringPlaceholders
-														: swarmPlaceholders
+											{(activeTab === "once"
+												? // ? longFormPlaceholders
+													oncePlaceholders
+												: activeTab === "recurring"
+													? recurringPlaceholders
+													: swarmPlaceholders
 											).map((p) => (
 												<span key={p}>{p}</span>
 											))}

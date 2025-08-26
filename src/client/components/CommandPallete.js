@@ -7,7 +7,8 @@ import {
 	IconChecklist,
 	IconPlugConnected,
 	IconAdjustments,
-	IconPlus
+	IconPlus,
+	IconBrain
 } from "@tabler/icons-react"
 import { useRouter } from "next/navigation"
 
@@ -36,11 +37,32 @@ const CommandPalette = ({ open, setOpen }) => {
 			onOpenChange={setOpen}
 			label="Global Command Menu"
 		>
+			{/* The 'label' prop provides the accessible name for the dialog, satisfying accessibility requirements. */}
 			<Command.Input placeholder="Type a command or search..." />
 			<Command.List>
 				<Command.Empty>No results found.</Command.Empty>
 
 				<Command.Group heading="Navigation">
+					<Command.Item
+						onSelect={() => runCommand(() => router.push("/chat"))}
+					>
+						<IconMessage className="mr-2 h-4 w-4" />
+						Go to Chat
+					</Command.Item>
+					<Command.Item
+						onSelect={() => runCommand(() => router.push("/tasks"))}
+					>
+						<IconChecklist className="mr-2 h-4 w-4" />
+						Go to Tasks
+					</Command.Item>
+					<Command.Item
+						onSelect={() =>
+							runCommand(() => router.push("/memories"))
+						}
+					>
+						<IconBrain className="mr-2 h-4 w-4" />
+						Go to Memories
+					</Command.Item>
 					<Command.Item
 						onSelect={() =>
 							runCommand(() => router.push("/integrations"))
@@ -48,12 +70,6 @@ const CommandPalette = ({ open, setOpen }) => {
 					>
 						<IconPlugConnected className="mr-2 h-4 w-4" />
 						Go to Integrations
-					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => router.push("/tasks"))}
-					>
-						<IconChecklist className="mr-2 h-4 w-4" />
-						Go to Tasks
 					</Command.Item>
 					<Command.Item
 						onSelect={() =>
@@ -67,15 +83,7 @@ const CommandPalette = ({ open, setOpen }) => {
 
 				<Command.Group heading="Actions">
 					<Command.Item
-						onSelect={() => {
-							runCommand(() => router.push("/tasks?action=add"))
-						}}
-					>
-						<IconMessage className="mr-2 h-4 w-4" />
-						New Chat
-					</Command.Item>
-					<Command.Item
-						onSelect={() => runCommand(() => router.push("/chat"))}
+						onSelect={() => runCommand(() => router.push("/tasks"))}
 					>
 						<IconPlus className="mr-2 h-4 w-4" />
 						New Task

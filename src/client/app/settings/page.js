@@ -231,12 +231,18 @@ const WhatsAppSettings = () => {
 				WhatsApp Notifications
 			</h2>
 			<p className="text-neutral-400 mb-6">
-				Receive important notifications, task updates, and reminders on WhatsApp.
+				Receive important notifications, task updates, and reminders on
+				WhatsApp.
 			</p>
 			<div className="bg-neutral-900/50 p-6 rounded-2xl border border-neutral-800">
 				<div className="space-y-4">
 					<p className="text-neutral-400 text-sm">
-						Receive important notifications, task updates, and reminders on WhatsApp. We're in the process of getting an official number, so for now, messages will come from our co-founder Sarthak (+91827507823), who may also occasionally reach out for feedback. Please enter your number with the country code.
+						Receive important notifications, task updates, and
+						reminders on WhatsApp. We're in the process of getting
+						an official number, so for now, messages will come from
+						our co-founder Sarthak (+91827507823), who may also
+						occasionally reach out for feedback. Please enter your
+						number with the country code.
 					</p>
 					{isNotifLoading ? (
 						<div className="flex justify-center mt-4">
@@ -324,18 +330,20 @@ const WhatsAppSettings = () => {
 
 const ShortcutsSettings = () => {
 	const shortcuts = {
-		Global: [
-			{ keys: ["Ctrl", "M"], description: "Open Chat" },
-			{ keys: ["Ctrl", "B"], description: "Toggle Notifications" },
-			{ keys: ["Esc"], description: "Close Modal / Chat" },
-			{ keys: ["Ctrl", "K"], description: "Open Command Palette" }
+		General: [
+			{ keys: ["Ctrl", "K"], description: "Open Search" },
+			{
+				keys: ["Ctrl", "Shift", "E"],
+				description: "Toggle Notifications"
+			},
+			{ keys: ["Esc"], description: "Close Modal / Popup" }
 		],
 		Navigation: [
-			{ keys: ["Ctrl", "H"], description: "Go to Chat" },
-			{ keys: ["Ctrl", "J"], description: "Go to Notes" },
-			{ keys: ["Ctrl", "A"], description: "Go to Tasks" },
-			{ keys: ["Ctrl", "I"], description: "Go to Integrations" },
-			{ keys: ["Ctrl", "S"], description: "Go to Settings" }
+			{ keys: ["Ctrl", "Shift", "1"], description: "Go to Chat" },
+			{ keys: ["Ctrl", "Shift", "2"], description: "Go to Tasks" },
+			{ keys: ["Ctrl", "Shift", "3"], description: "Go to Memories" },
+			{ keys: ["Ctrl", "Shift", "4"], description: "Go to Integrations" },
+			{ keys: ["Ctrl", "Shift", "5"], description: "Go to Settings" }
 		]
 	}
 

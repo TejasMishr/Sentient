@@ -13,7 +13,6 @@ import { AnimatePresence } from "framer-motion"
 import NotificationsOverlay from "@components/NotificationsOverlay"
 import { IconMenu2, IconLoader, IconX } from "@tabler/icons-react"
 import Sidebar from "@components/Sidebar"
-import CommandPalette from "./CommandPallete"
 import GlobalSearch from "./GlobalSearch"
 import { useGlobalShortcuts } from "@hooks/useGlobalShortcuts"
 import { cn } from "@utils/cn"
@@ -47,7 +46,6 @@ export default function LayoutWrapper({ children }) {
 	// ... (keep all your existing state declarations)
 	const [isNotificationsOpen, setNotificationsOpen] = useState(false)
 	const [isSearchOpen, setSearchOpen] = useState(false)
-	const [isCommandPaletteOpen, setCommandPaletteOpen] = useState(false)
 	const [isSidebarCollapsed, setSidebarCollapsed] = useState(true)
 	const [isMobileNavOpen, setMobileNavOpen] = useState(false)
 	const [unreadCount, setUnreadCount] = useState(0)
@@ -158,7 +156,7 @@ export default function LayoutWrapper({ children }) {
 		const checkStatus = async () => {
 			// No need to set isLoading(true) here, it's already true by default.
 			try {
-				const res = await fetch("/api/user/data", {method: "POST"})
+				const res = await fetch("/api/user/data", { method: "POST" })
 				if (!res.ok) throw new Error("Could not verify user status.")
 				const result = await res.json()
 				const data = result?.data || {}
@@ -297,8 +295,10 @@ export default function LayoutWrapper({ children }) {
 		setUnreadCount(0)
 	}, [])
 
-	useGlobalShortcuts(handleNotificationsOpen, () =>
-		setCommandPaletteOpen((prev) => !prev)
+	useGlobalShortcuts(
+		handleNotificationsOpen,
+		() => setSearchOpen(true) // New: Pass search open function
+		// Removed: Command palette toggle is no longer needed
 	)
 
 	// PWA Update Handler
@@ -475,12 +475,6 @@ export default function LayoutWrapper({ children }) {
 						<IconMenu2 size={20} />
 					</button>
 				</>
-			)}
-			{showNav && (
-				<CommandPalette
-					open={isCommandPaletteOpen}
-					setOpen={setCommandPaletteOpen}
-				/>
 			)}
 			<div
 				className={cn(

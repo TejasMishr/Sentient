@@ -7,12 +7,9 @@ import { usePathname, useRouter } from "next/navigation"
  * Custom hook to manage global keyboard shortcuts.
  * It intelligently adds/removes listeners based on the current route.
  * @param {function} onNotificationsOpen - Callback to open notifications.
- * @param {function} onCommandPaletteToggle - Callback to toggle the command palette.
+ * @param {function} onSearchOpen - Callback to open the global search.
  */
-export function useGlobalShortcuts(
-	onNotificationsOpen,
-	onCommandPaletteToggle
-) {
+export function useGlobalShortcuts(onNotificationsOpen, onSearchOpen) {
 	const router = useRouter()
 	const pathname = usePathname()
 
@@ -21,27 +18,44 @@ export function useGlobalShortcuts(
 
 	const handleKeyDown = useCallback(
 		(e) => {
+			// Use e.code for physical key presses, ignoring layout/shift changes for the key itself
 			if (e.ctrlKey) {
-				switch (e.key.toLowerCase()) {
-					case "t":
-						router.push("/tasks")
-						break
-					case "b":
-						onNotificationsOpen()
-						break
-					case "k":
-						onCommandPaletteToggle()
-						break
-					case "m":
-						router.push("/chat")
-						break
-					default:
-						return
+				if (e.shiftKey) {
+					switch (e.code) {
+						case "Digit1":
+							router.push("/chat")
+							break
+						case "Digit2":
+							router.push("/tasks")
+							break
+						case "Digit3":
+							router.push("/memories")
+							break
+						case "Digit4":
+							router.push("/integrations")
+							break
+						case "Digit5":
+							router.push("/settings")
+							break
+						case "KeyE": // E for Events/Notifications
+							onNotificationsOpen()
+							break
+						default:
+							return
+					}
+				} else {
+					switch (e.code) {
+						case "KeyK": // K for Kommand/Search
+							onSearchOpen()
+							break
+						default:
+							return
+					}
 				}
 				e.preventDefault()
 			}
 		},
-		[router, onNotificationsOpen, onCommandPaletteToggle]
+		[router, onNotificationsOpen, onSearchOpen]
 	)
 
 	useEffect(() => {

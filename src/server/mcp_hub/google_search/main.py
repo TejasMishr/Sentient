@@ -34,13 +34,6 @@ mcp = FastMCP(
 def get_google_search_system_prompt() -> str:
     return prompts.google_search_agent_system_prompt
 
-@mcp.prompt(name="google_search_user_prompt_builder")
-def build_google_search_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.google_search_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
 
 # --- Tool Definition ---
 

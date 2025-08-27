@@ -47,17 +47,6 @@ def get_gmail_system_prompt() -> str:
     """Provides the system prompt for the GMail agent."""
     return prompts.gmail_agent_system_prompt
 
-@mcp.prompt(name="gmail_user_prompt_builder")
-def build_gmail_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    """Builds a formatted user prompt for the GMail agent."""
-    content = prompts.gmail_agent_user_prompt.format(
-        query=query,
-        username=username,
-        previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
-
 # --- Tool Helper ---
 async def _execute_tool(ctx: Context, action_name: str, **kwargs) -> Dict[str, Any]:
     """Helper to handle auth and execution for all tools using Composio."""

@@ -28,13 +28,6 @@ mcp = FastMCP(
 def get_discord_system_prompt() -> str:
     return prompts.discord_agent_system_prompt
 
-@mcp.prompt(name="discord_user_prompt_builder")
-def build_discord_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.discord_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
 async def _execute_tool(ctx: Context, method_name: str, *args, **kwargs) -> Dict[str, Any]:
     try:
         user_id = auth.get_user_id_from_context(ctx)

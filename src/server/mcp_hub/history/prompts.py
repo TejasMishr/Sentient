@@ -10,14 +10,3 @@ INSTRUCTIONS:
 - **Time-based Search**: For `time_based_search`, you must provide `start_date` and `end_date` in ISO 8601 format (e.g., '2024-07-30T00:00:00Z').
 - **Synthesize Answers**: After retrieving information, summarize it for the user. Don't just dump the raw output.
 """
-
-history_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

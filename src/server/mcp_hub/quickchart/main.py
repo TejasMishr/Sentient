@@ -31,13 +31,6 @@ mcp = FastMCP(
 def get_quickchart_system_prompt() -> str:
     return prompts.quickchart_agent_system_prompt
 
-@mcp.prompt(name="quickchart_user_prompt_builder")
-def build_quickchart_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.quickchart_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
 
 # --- Tool Definitions ---
 
@@ -56,22 +49,7 @@ async def generate_chart(ctx: Context, chart_config: Dict[str, Any]) -> Dict[str
         logger.error(f"Tool generate_chart failed: {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}
 
-@mcp.tool
-async def download_chart(ctx: Context, chart_config: Dict[str, Any], output_path: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Generates a chart and downloads it as a PNG image to a local file path.
-    Requires a `chart_config` dictionary. If `output_path` is not specified, it saves to the user's Desktop or home directory.
-    """
-    logger.info(f"Executing tool: download_chart")
-    try:
-        auth.get_user_id_from_context(ctx)
-        chart_url = utils.generate_chart_url(chart_config)
-        saved_path = await utils.download_chart_image(chart_url, output_path)
-        return {"status": "success", "result": f"Chart saved successfully to: {saved_path}"}
-    except Exception as e:
-        logger.error(f"Tool download_chart failed: {e}", exc_info=True)
-        return {"status": "failure", "error": str(e)}
-
+# Removed download chart tool for now, will add it back when we have proper file management for indivisual users.
 
 # --- Server Execution ---
 if __name__ == "__main__":

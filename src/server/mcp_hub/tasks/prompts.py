@@ -8,17 +8,6 @@ INSTRUCTIONS:
 - 
 """
 
-tasks_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""
-
 RESOURCE_MANAGER_SYSTEM_PROMPT = """
 You are an expert Resource Manager and Task Dispatcher AI. Your role is to analyze a high-level goal and a collection of data items, and then create a detailed execution plan for a team of parallel worker agents.
 

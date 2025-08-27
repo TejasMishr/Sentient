@@ -29,13 +29,6 @@ mcp = FastMCP(
 def get_gmaps_system_prompt() -> str:
     return prompts.gmaps_agent_system_prompt
 
-@mcp.prompt(name="gmaps_user_prompt_builder")
-def build_gmaps_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.gmaps_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
 async def _execute_tool(ctx: Context, func, **kwargs) -> Dict[str, Any]:
     """Helper to handle auth and execution for all tools."""
     try:

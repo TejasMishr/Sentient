@@ -35,11 +35,6 @@ mcp = FastMCP(
 def get_history_system_prompt() -> str:
     return prompts.history_agent_system_prompt
 
-@mcp.prompt(name="history_user_prompt_builder")
-def build_history_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> str:
-    return prompts.history_agent_user_prompt.format(query=query, username=username, previous_tool_response=previous_tool_response)
-
-
 # --- Tool Definitions ---
 
 @mcp.tool()

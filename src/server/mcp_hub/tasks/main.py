@@ -43,10 +43,6 @@ mcp = FastMCP(
 def get_tasks_system_prompt() -> str:
     return prompts.tasks_agent_system_prompt
 
-@mcp.prompt(name="tasks_user_prompt_builder")
-def build_tasks_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> str:
-    return prompts.tasks_agent_user_prompt.format(query=query, username=username, previous_tool_response=previous_tool_response)
-
 @mcp.tool()
 async def create_task_from_prompt(ctx: Context, prompt: str) -> Dict[str, Any]:
     """

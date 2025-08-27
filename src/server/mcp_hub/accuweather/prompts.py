@@ -10,14 +10,3 @@ INSTRUCTIONS:
 - After receiving the tool's output, present the weather data to the user in a clear, human-readable format.
 - 
 """
-
-weather_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

@@ -13,15 +13,3 @@ INSTRUCTIONS:
 - **Drafts**: You have full control over drafts with `createDraft`, `listDrafts`, `updateDraft`, and `deleteDraft`.
 - Your entire response MUST be a single, valid JSON object.
 """
-
-# This user prompt template provides the structure for an LLM to receive a task.
-gmail_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

@@ -14,7 +14,7 @@ llm_cfg = {
 mcp_server_url = "http://127.0.0.1:9008/sse"
 
 # User ID for header consistency
-USER_ID = "chart_user"
+USER_ID = "google-oauth2|115437244827618197332"
 
 # --- Agent Setup ---
 tools = [{

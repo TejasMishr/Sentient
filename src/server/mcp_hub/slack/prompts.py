@@ -9,14 +9,3 @@ INSTRUCTIONS:
 - **Getting Context**: Use `slack_get_channel_history` to understand the recent conversation in a channel before posting.
 - Construct a single, valid JSON object for the tool call.
 """
-
-slack_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

@@ -12,15 +12,3 @@ INSTRUCTIONS:
 - **Be Precise**: Double-check all parameters, especially dates, times, and IDs. If a query is ambiguous, ask for clarification or use the most reasonable interpretation.
 - Your entire response MUST be a single, valid JSON object.
 """
-
-# This user prompt template provides the structure for an LLM to receive a task.
-gcal_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

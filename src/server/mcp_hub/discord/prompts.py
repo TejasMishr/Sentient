@@ -8,14 +8,3 @@ INSTRUCTIONS:
 - **Step 3: Send the Message**: Use `send_channel_message` with the `channel_id` and the message content.
 - Always construct a single, valid JSON object for the tool call.
 """
-
-discord_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

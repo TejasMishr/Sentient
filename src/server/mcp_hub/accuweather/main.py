@@ -31,13 +31,6 @@ mcp = FastMCP(
 def get_weather_system_prompt() -> str:
     return prompts.weather_agent_system_prompt
 
-@mcp.prompt(name="weather_user_prompt_builder")
-def build_weather_user_prompt(query: str, username: str, previous_tool_response: str = "{}") -> Message:
-    content = prompts.weather_agent_user_prompt.format(
-        query=query, username=username, previous_tool_response=previous_tool_response
-    )
-    return Message(role="user", content=content)
-
 # --- Tool Definitions ---
 
 @mcp.tool

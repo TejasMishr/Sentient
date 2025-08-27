@@ -37,14 +37,3 @@ INSTRUCTIONS:
 - **Generate the Chart**: Call `generate_chart` to get a URL, or `download_chart` to save the image file.
 - 
 """
-
-quickchart_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

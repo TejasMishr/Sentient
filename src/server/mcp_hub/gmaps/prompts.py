@@ -7,14 +7,3 @@ INSTRUCTIONS:
 - After getting directions, summarize the key information (total distance, duration) for the user.
 - Your entire response for a tool call MUST be a single, valid JSON object.
 """
-
-gmaps_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

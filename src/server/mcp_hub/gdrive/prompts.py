@@ -14,14 +14,3 @@ INSTRUCTIONS:
 - **Step 2: Read**: If the user wants to see the content of a specific file, use the `file_id` from the search results to call `gdrive_read_file`.
 - Your entire response MUST be a single, valid JSON object.
 """
-
-gdrive_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

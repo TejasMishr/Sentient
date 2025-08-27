@@ -45,14 +45,3 @@ The `content_blocks_json` parameter must be a JSON string representing a list `[
 ```
 - Your entire response for a tool call MUST be a single, valid JSON object.
 """
-
-notion_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

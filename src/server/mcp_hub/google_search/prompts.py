@@ -9,14 +9,3 @@ INSTRUCTIONS:
 - **Synthesize, Don't Just List**: After receiving search results, read the titles and snippets to understand the information. Formulate a comprehensive answer based on the findings. Cite the source title (e.g., "According to Wikipedia...") rather than just listing links.
 - 
 """
-
-google_search_agent_user_prompt = """
-User Query:
-{query}
-
-Username:
-{username}
-
-Previous Tool Response:
-{previous_tool_response}
-"""

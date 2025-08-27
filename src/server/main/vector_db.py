@@ -5,12 +5,20 @@ from chromadb.utils.embedding_functions import GoogleGenerativeAiEmbeddingFuncti
 from dotenv import load_dotenv
 
 
-# Conditionally load .env for local development
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev-local')
+logging.info(f"[Config] Initializing configuration for ENVIRONMENT='{ENVIRONMENT}'")
+server_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
 if ENVIRONMENT == 'dev-local':
-    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
-    if os.path.exists(dotenv_path):
-        load_dotenv(dotenv_path=dotenv_path)
+    # Prefer .env.local, fall back to .env
+    dotenv_local_path = os.path.join(server_root, '.env.local')
+    dotenv_path = os.path.join(server_root, '.env')
+    load_path = dotenv_local_path if os.path.exists(dotenv_local_path) else dotenv_path
+    if os.path.exists(load_path):
+        load_dotenv(dotenv_path=load_path)
+elif ENVIRONMENT == 'selfhost':
+    dotenv_path = os.path.join(server_root, '.env.selfhost')
+    load_dotenv(dotenv_path=dotenv_path)
 
 # --- Configuration ---
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")

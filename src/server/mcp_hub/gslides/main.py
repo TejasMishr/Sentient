@@ -8,6 +8,7 @@ from fastmcp import FastMCP, Context
 from qwen_agent.agents import Assistant
 from json_extractor import JsonExtractor
 from fastmcp.utilities.logging import configure_logging, get_logger
+from fastmcp.exceptions import ToolError
 
 from . import auth, prompts, utils
 

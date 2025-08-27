@@ -35,3 +35,22 @@ async def create_card_util(creds: Dict, list_id: str, name: str, desc: Optional[
     if desc:
         params["desc"] = desc
     return await _make_request(creds, "POST", "/cards", params=params)
+
+async def move_card_util(creds: Dict, card_id: str, target_list_id: str):
+    """Move a card to a different list."""
+    params = {"idList": target_list_id}
+    return await _make_request(creds, "PUT", f"/cards/{card_id}", params=params)
+
+async def update_card_name_util(creds: Dict, card_id: str, name: str):
+    """Update the name of a card."""
+    params = {"name": name}
+    return await _make_request(creds, "PUT", f"/cards/{card_id}", params=params)
+
+async def update_card_desc_util(creds: Dict, card_id: str, desc: str):
+    """Update the description of a card."""
+    params = {"desc": desc}
+    return await _make_request(creds, "PUT", f"/cards/{card_id}", params=params)
+
+async def delete_card_util(creds: Dict, card_id: str):
+    """Delete a card permanently."""
+    return await _make_request(creds, "DELETE", f"/cards/{card_id}")

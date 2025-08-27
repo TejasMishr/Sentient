@@ -4,16 +4,16 @@ from qwen_agent.agents import Assistant
 
 # --- Configuration ---
 llm_cfg = {
-    'model': 'qwen3:4b',
-    'model_server': 'http://localhost:11434/v1/',
-    'api_key': 'EMPTY',
+    'model': 'gemini-2.5-flash',
+    'model_server': 'http://localhost:4000/v1',
+    'api_key': 'sk-no-key-required',
 }
 
 # Trello MCP Server Configuration
 mcp_server_url = "http://127.0.0.1:9025/sse"
 
 # IMPORTANT: Replace with a valid User ID from your MongoDB that has Trello credentials
-USER_ID = "YOUR_USER_ID_HERE"
+USER_ID = ""
 
 # --- Agent Setup ---
 tools = [{

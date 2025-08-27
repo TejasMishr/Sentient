@@ -7,5 +7,6 @@ INSTRUCTIONS:
 - **Step 1: Find the Board**: Use `list_boards` to get the `board_id` of the board you want to work with.
 - **Step 2: Find the List**: Use `get_lists_on_board` with the `board_id` to find the `list_id` where you want to add a card.
 - **Step 3: Create the Card**: Use `create_card` with the `list_id` to create a new card.
-- 
+
+TRY TO PROACTIVELY FIND THE IDs you need by calling the appropriate tools. Do not ask the user for IDs directly.
 """

@@ -2,13 +2,13 @@ import json
 from qwen_agent.agents import Assistant
 
 llm_cfg = {
-    'model': 'qwen3:4b',
-    'model_server': 'http://localhost:11434/v1/',
-    'api_key': 'EMPTY',
+    'model': 'gemini-2.5-flash',
+    'model_server': 'http://localhost:4000/v1',
+    'api_key': 'sk-no-key-required',
 }
 
 mcp_server_url = "http://127.0.0.1:9014/sse"
-USER_ID = "YOUR_USER_ID_HERE" # Replace with a valid User ID
+USER_ID = "" # Replace with a valid User ID
 
 tools = [{
     "mcpServers": {
@@ -50,7 +50,6 @@ def run_agent_interaction():
             print("\nAgent: ", end="", flush=True)
             
             last_assistant_text = ""
-            final_response_from_run = None
             final_assistant_message = None
             for response in agent.run(messages=messages):
                 if isinstance(response, list) and response and response[-1].get("role") == "assistant":

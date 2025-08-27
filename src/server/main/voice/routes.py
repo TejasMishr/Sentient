@@ -86,14 +86,14 @@ class MyVoiceChatHandler(ReplyOnPause):
             model_options=SileroVadOptions(
                 threshold=0.6,  # Higher threshold for more aggressive VAD
                 min_speech_duration_ms=250,
-                min_silence_duration_ms=3000,   # wait 3s of silence
-                speech_pad_ms=400,              # give extra buffer before and after speech
+                min_silence_duration_ms=7000,   # wait 7s of silence
+                speech_pad_ms=600,              # give extra buffer before and after speech
                 max_speech_duration_s=15,
             ),
             algo_options=AlgoOptions(
                 audio_chunk_duration=0.5,
                 started_talking_threshold=0.2,
-                speech_threshold=0.05,          # consider only more solid chunks as pause
+                speech_threshold=0.1,          # consider only more solid chunks as pause
             ),
             can_interrupt=False, # Set to False to prevent user interruption while bot is speaking,
             output_sample_rate=16000

@@ -9,7 +9,7 @@ llm_cfg = {
 }
 
 mcp_server_url = "http://127.0.0.1:9016/sse"
-USER_ID = "kabeer" # Replace with a valid User ID from your MongoDB
+USER_ID = "YOUR_USER_ID_HERE" # Replace with a valid User ID from your MongoDB
 
 # --- Agent Setup ---
 tools = [{

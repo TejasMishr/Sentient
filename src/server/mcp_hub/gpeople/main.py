@@ -27,6 +27,12 @@ mcp = FastMCP(
     instructions="Provides tools to search, create, update, and delete contacts in the user's Google Contacts.",
 )
 
+# --- Prompt Registration ---
+@mcp.resource("prompt://gpeople-agent-system")
+def get_gpeople_system_prompt() -> str:
+    """Provides the system prompt for the GPeople agent."""
+    return prompts.gpeople_system_prompt
+
 # --- Tool Helper ---
 async def _execute_tool(ctx: Context, func, *args, **kwargs) -> Dict[str, Any]:
     try:

@@ -8,9 +8,9 @@ from qwen_agent.agents import Assistant
 #    Make sure you have an OpenAI-compatible API server running.
 #    (e.g., run `ollama serve` and `ollama pull qwen` in your terminal)
 llm_cfg = {
-    'model': 'qwen3:4b',  # or 'qwen:7b', 'qwen2:7b' etc.
-    'model_server': 'http://localhost:11434/v1/',
-    'api_key': 'EMPTY', # Ollama does not require an API key
+    'model': 'gemini-2.5-flash',
+    'model_server': 'http://localhost:4000/v1',
+    'api_key': 'sk-no-key-required',
 }
 
 # 2. Gmail MCP Server Configuration
@@ -21,7 +21,7 @@ mcp_server_url = "http://127.0.0.1:9001/sse"
 # 3. User Authentication
 #    IMPORTANT: Replace this with a valid User ID that exists in your MongoDB
 #    and has an associated Google token. This ID is sent in the 'X-User-ID' header.
-USER_ID = "YOUR_USER_ID_HERE"
+USER_ID = "google-oauth2|115437244827618197332"
 
 
 # --- Agent Setup ---

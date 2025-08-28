@@ -27,17 +27,11 @@ logger = logging.getLogger(__name__)
 
 def _extract_answer_from_llm_response(llm_output: str) -> str:
     """
-    Extracts content from the first <answer> tag in the LLM's output.
-    This ensures only the user-facing response is used for TTS.
+    Extracts the user-facing response from the LLM's output by stripping think tags.
     """
     if not llm_output:
         return ""
-    # Priority 1: Look for the <answer> tag.
-    match = re.search(r'<answer>([\s\S]*?)</answer>', llm_output, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-
-    # Fallback: If no <answer> tag, strip out all other known tags.
+    # Strip out any potential <think> tags from the output.
     return re.sub(r'<think>[\s\S]*?</think>', '', llm_output, flags=re.DOTALL).strip()
 
 @register_tool('json_validator')
@@ -186,18 +180,11 @@ async def _get_voice_stage1_response(messages: List[Dict[str, Any]], user_id: st
 
 def _extract_answer_from_llm_response(llm_output: str) -> str:
     """
-    Extracts content from the first <answer> tag in the LLM's output.
-    This ensures only the user-facing response is used for TTS.
+    Extracts the user-facing response from the LLM's output by stripping think tags.
     """
     if not llm_output:
         return ""
-    # Priority 1: Look for the <answer> tag.
-    match = re.search(r'<answer>([\s\S]*?)</answer>', llm_output, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-
-    # Fallback: If no <answer> tag, strip out all other known tags.
-    # This correctly handles cases where the final response is mixed with <think> tags.
+    # Strip out any potential <think> tags from the output.
     return re.sub(r'<think>[\s\S]*?</think>', '', llm_output, flags=re.DOTALL).strip()
 
 def _get_tool_lists(user_integrations: Dict) -> Tuple[Dict, Dict]:

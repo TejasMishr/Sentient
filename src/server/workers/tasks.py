@@ -645,13 +645,7 @@ async def async_generate_plan(task_id: str, user_id: str):
         if not final_history:
             raise Exception("Planner agent returned no history.")
 
-        # The planner prompt wraps the JSON in <answer> tags.
-        answer_match = re.search(r'<answer>([\s\S]*?)</answer>', final_response_str, re.DOTALL)
-        if answer_match:
-            json_str_to_parse = answer_match.group(1)
-        else:
-            # Fallback to cleaning the whole string if <answer> tags are missing
-            json_str_to_parse = clean_llm_output(final_response_str)
+        json_str_to_parse = clean_llm_output(final_response_str)
 
         plan_data = JsonExtractor.extract_valid_json(json_str_to_parse)
 

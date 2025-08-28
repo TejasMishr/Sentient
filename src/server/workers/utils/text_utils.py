@@ -54,13 +54,9 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
             if not text:
                 continue
 
-            # Priority 1: Check for an explicit <answer> tag.
-            answer_match = re.search(r'<answer>([\s\S]*?)</answer>', text, re.DOTALL)
-            if answer_match:
-                final_content = answer_match.group(1).strip()
-            else:
-                # Fallback: Use content outside of <think> tags.
-                final_content = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.DOTALL).strip()
+            # The final response is the content of the last assistant message,
+            # with any potential <think> tags stripped out.
+            final_content = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.DOTALL).strip()
             break # Stop after finding the first valid final content
 
     return {

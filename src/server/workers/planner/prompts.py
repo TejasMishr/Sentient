@@ -65,5 +65,4 @@ Final Instructions & Output Format:
 - If an action item is not actionable with the given tools (e.g., "Think about the marketing report"), do not create a plan for it.
 - Do not include any text outside of the JSON object. Your response must begin with `{{` and end with `}}`.
 - ALWAYS RETURN THE JSON OBJECT.
-- CRITICAL: Your final response MUST be the JSON object described above, wrapped in `<answer>` tags. For example: `<answer>{{"name": "...", ...}}</answer>`.
 """

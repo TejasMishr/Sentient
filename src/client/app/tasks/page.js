@@ -1,18 +1,15 @@
 "use client"
 
 import React, {
-	IconClock,
 	useState,
+	useMemo,
 	useEffect,
 	useCallback,
-	Suspense,
-	useMemo
+	Suspense
 } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { format, isSameDay, parseISO } from "date-fns"
 import {
 	IconLoader,
-	IconX,
 	IconSparkles,
 	IconCheck,
 	IconPlus
@@ -20,15 +17,12 @@ import {
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
-import { calculateNextRun } from "@utils/taskUtils"
 
 import TaskDetailsPanel from "@components/tasks/TaskDetailsPanel"
 import TaskViewSwitcher from "@components/tasks/TaskViewSwitcher"
 import ListView from "@components/tasks/ListView"
-import CalendarView from "@components/tasks/CalendarView"
-import TaskComposer from "@components/tasks/TaskComposer" // New component
+import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import DayDetailView from "@components/tasks/DayDetailView"
 import { usePlan } from "@hooks/usePlan"
 
 const proPlanFeatures = [
@@ -134,188 +128,52 @@ function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 
-	// Raw tasks from API
 	const [allTasks, setAllTasks] = useState([])
-	// Processed tasks for different views
-
-	const [integrations, setIntegrations] = useState([])
 	const [allTools, setAllTools] = useState([])
 	const [isLoading, setIsLoading] = useState(true)
-
-	const [view, setView] = useState("list") // 'list' or 'calendar'
+	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
 	const [isMobile, setIsMobile] = useState(false)
 
-	// --- NEW STATE MANAGEMENT FOR SMART PANEL & MODAL ---
-	const [rightPanelContent, setRightPanelContent] = useState({
-		type: "composer",
-		data: null
-	})
-	const [isModalOpen, setIsModalOpen] = useState(false)
-	// --- END NEW STATE ---
+	const selectedTaskId = searchParams.get("taskId")
+	const selectedTask = useMemo(() => {
+		return allTasks.find((t) => t.task_id === selectedTaskId) || null
+	}, [allTasks, selectedTaskId])
 
-	const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date())
+	const [isModalOpen, setIsModalOpen] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
+	const [isComposerOpen, setIsComposerOpen] = useState(false)
 	const { isPro } = usePlan()
 
-	// Processed tasks for different views are derived from allTasks
-	const {
-		oneTimeTasks,
-		recurringTasks,
-		triggeredTasks,
-		swarmTasks,
-		longFormTasks,
-		recurringInstances
-	} = useMemo(() => {
-		const oneTime = []
-		const recurring = []
-		const triggered = []
-		const swarm = []
-		const instances = []
-		const longForm = []
-		const subTasks = []
-
-		allTasks.forEach((task) => {
-			if (task.original_context?.source === "long_form_subtask") {
-				subTasks.push(task)
-				return
-			}
-
-			if (task.task_type === "swarm") {
-				swarm.push(task)
-			} else if (task.task_type === "long_form") {
-				longForm.push(task)
-			} else if (task.schedule?.type === "recurring") {
-				recurring.push(task)
-				// Process past runs from `runs` array
-				if (task.runs && Array.isArray(task.runs)) {
-					task.runs.forEach((run) => {
-						const runDate = run.execution_start_time
-							? parseISO(run.execution_start_time)
-							: null
-						if (runDate) {
-							instances.push({
-								...task,
-								status: run.status, // Use the run's specific status
-								scheduled_date: runDate,
-								instance_id: `${task.task_id}-${run.run_id}`
-							})
-						}
-					})
-				}
-				// Add next upcoming run
-				const nextRunDate = calculateNextRun(
-					task.schedule,
-					task.created_at,
-					task.runs
-				)
-				if (nextRunDate) {
-					instances.push({
-						...task,
-						status: "pending", // An upcoming run is pending
-						scheduled_date: nextRunDate,
-						instance_id: `${task.task_id}-next`
-					})
-				}
-			} else if (task.schedule?.type === "triggered") {
-				triggered.push(task)
-			} else {
-				// One-time tasks
-				const scheduledDate = task.schedule?.run_at
-					? parseISO(task.schedule.run_at)
-					: parseISO(task.created_at)
-				oneTime.push({
-					...task,
-					scheduled_date: scheduledDate,
-					instance_id: task.task_id
-				})
-			}
-		})
-
-		const subTasksByParentId = subTasks.reduce((acc, task) => {
-			const parentId = task.original_context.parent_task_id
-			if (!parentId) return acc
-			if (!acc[parentId]) {
-				acc[parentId] = []
-			}
-			acc[parentId].push(task)
-			// Sort subtasks by creation date, newest first
-			acc[parentId].sort(
-				(a, b) =>
-					new Date(b.created_at) - new Date(a.created_at)
-			)
-			return acc
-		}, {})
-
-		const longFormWithSubTasks = longForm.map((parentTask) => ({
-			...parentTask,
-			subTasks: subTasksByParentId[parentTask.task_id] || []
-		}))
-
-		return {
-			oneTimeTasks: oneTime,
-			recurringTasks: recurring,
-			triggeredTasks: triggered,
-			swarmTasks: swarm,
-			longFormTasks: longFormWithSubTasks,
-			recurringInstances: instances
-		}
-	}, [allTasks])
-
-	// --- NEW: Handle responsive layout and initial panel state ---
 	useEffect(() => {
 		const checkMobile = () => window.innerWidth < 768
 		setIsMobile(checkMobile())
 
-		if (checkMobile()) {
-			setRightPanelContent({ type: "hidden", data: null })
-		} else {
-			const taskId = searchParams.get("taskId")
-			if (!taskId) {
-				setRightPanelContent({ type: "composer", data: null })
-			}
+		// Open modal on mobile if a task is selected
+		if (checkMobile() && selectedTaskId) {
+			setIsModalOpen(true)
 		}
 
 		const handleResize = () => {
 			const mobile = checkMobile()
 			if (mobile !== isMobile) {
 				setIsMobile(mobile)
-				// If switching to mobile, hide the panel
-				if (mobile) {
-					setRightPanelContent({ type: "hidden", data: null })
-				} else {
-					// If switching to desktop and no task is selected, show composer
-					if (
-						rightPanelContent.type === "hidden" ||
-						rightPanelContent.type === "composer"
-					) {
-						setRightPanelContent({ type: "composer", data: null })
-					}
-				}
 			}
 		}
 
 		window.addEventListener("resize", handleResize)
 		return () => window.removeEventListener("resize", handleResize)
-	}, []) // Run only once on mount
+	}, [isMobile, selectedTaskId])
 
-	// --- NEW: Sync panel with URL ---
 	useEffect(() => {
 		const taskId = searchParams.get("taskId")
 		if (taskId) {
 			const task = allTasks.find((t) => t.task_id === taskId)
 			if (task) {
-				setRightPanelContent({ type: "details", data: task })
 				if (isMobile) setIsModalOpen(true)
 			}
 		} else {
-			// If URL is cleared, show composer on desktop, hide on mobile
-			if (!isMobile) {
-				setRightPanelContent({ type: "composer", data: null })
-			} else {
-				// Don't automatically open the composer modal on mobile when URL clears
-				setIsModalOpen(false)
-			}
+			setIsModalOpen(false)
 		}
 	}, [searchParams, allTasks, isMobile])
 
@@ -341,7 +199,6 @@ function TasksPageContent() {
 				display_name: i.display_name
 			}))
 			setAllTools(tools)
-			setIntegrations(integrationsData.integrations || [])
 		} catch (error) {
 			toast.error(`Error fetching data: ${error.message}`)
 		} finally {
@@ -412,7 +269,6 @@ function TasksPageContent() {
 		)
 	}
 
-	// --- REVISED: handleAddTask is now handleCreateTask and takes a payload ---
 	const handleCreateTask = async (payload) => {
 		const toastId = toast.loading("Creating task...")
 		try {
@@ -430,10 +286,8 @@ function TasksPageContent() {
 			const data = await response.json()
 
 			toast.success(data.message || "Task created!", { id: toastId })
-			if (isMobile)
-				setIsModalOpen(false) // Close modal on success
-			else setRightPanelContent({ type: "composer", data: null }) // Reset composer
-			await fetchTasks() // Refresh tasks list
+			await fetchTasks()
+			setView("tasks")
 		} catch (error) {
 			if (error.status === 429) {
 				toast.error(
@@ -446,7 +300,6 @@ function TasksPageContent() {
 			}
 		}
 	}
-	// --- END REVISED ---
 
 	const handleResumeTask = async (taskId) => {
 		await handleAction(
@@ -475,243 +328,93 @@ function TasksPageContent() {
 		)
 	}
 
-	// --- REVISED: handleSelectItem now updates URL and panel state ---
 	const handleSelectItem = (item) => {
 		const taskId = item.task_id
 		router.push(`/tasks?taskId=${taskId}`, { scroll: false })
-		setRightPanelContent({ type: "details", data: item })
 		if (isMobile) {
 			setIsModalOpen(true)
 		}
 	}
-	// --- END REVISED ---
 
-	const handleShowMoreClick = (date) => {
-		const tasksForDay = filteredCalendarTasks.filter(
-			(task) => isSameDay(task.scheduled_date, date) // prettier-ignore
-		)
-		setRightPanelContent({
-			type: "day",
-			data: { date, tasks: tasksForDay }
-		})
-		if (isMobile) setIsModalOpen(true)
-	}
-
-	// --- REVISED: handleCloseRightPanel now handles both mobile and desktop ---
 	const handleClosePanel = () => {
 		router.push("/tasks", { scroll: false }) // Clear URL param
-		if (isMobile) {
-			setIsModalOpen(false)
-		} else {
-			setRightPanelContent({ type: "composer", data: null })
-		}
-	}
-	// --- END REVISED ---
-
-	const handleCreateTaskFromEvent = async (event) => {
-		const prompt = `Help me prepare for this event from my calendar:
-
-Title: ${event.summary}
-Time: ${event.start} to ${event.end}
-Attendees: ${(event.attendees || []).join(", ")}
-Description: ${event.description || "No description."}`
-
-		await handleAction(
-			() =>
-				fetch("/api/tasks/add", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ prompt, assignee: "ai" })
-				}),
-			"Task created from calendar event!"
-		)
-		handleClosePanel() // Close the panel after creating the task
+		setIsModalOpen(false)
 	}
 
-	const handleAddTaskForDay = (date) => {
-		// Set the panel to show the composer with the default date
-		setRightPanelContent({
-			type: "composer",
-			data: { defaultDate: date }
-		})
-		// If on mobile, open the modal
-		if (isMobile) {
-			setIsModalOpen(true)
-		}
+	const handleExampleClick = (prompt) => {
+		handleCreateTask({ prompt })
 	}
 
-	const filteredOneTimeTasks = useMemo(() => {
-		if (!searchQuery.trim()) {
-			return oneTimeTasks
-		}
-		return oneTimeTasks.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [oneTimeTasks, searchQuery])
-
-	const filteredActiveWorkflows = useMemo(() => {
-		const allWorkflows = [
-			...swarmTasks,
-			...recurringTasks,
-			...triggeredTasks
-		]
-		if (!searchQuery.trim()) {
-			return allWorkflows
-		}
-		return allWorkflows.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [swarmTasks, recurringTasks, triggeredTasks, searchQuery])
-
-	const filteredLongFormTasks = useMemo(() => {
-		if (!searchQuery.trim()) {
-			return longFormTasks
-		}
-		return longFormTasks.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [longFormTasks, searchQuery])
-	const filteredCalendarTasks = useMemo(() => {
-		const allCalendarTasks = [...oneTimeTasks, ...recurringInstances]
-		if (!searchQuery.trim()) {
-			return allCalendarTasks
-		}
-		return allCalendarTasks.filter((task) =>
-			(task.name || task.summary)
-				?.toLowerCase()
-				.includes(searchQuery.toLowerCase())
-		)
-	}, [oneTimeTasks, recurringInstances, searchQuery])
-
-	// --- NEW: Render logic for panel/modal ---
-	const renderPanelContent = () => {
-		switch (rightPanelContent.type) {
-			case "composer":
-				return (
-					<TaskComposer
-						onTaskCreated={handleCreateTask}
-						isPro={isPro}
-						composerData={rightPanelContent.data}
-						onUpgradeClick={() => setUpgradeModalOpen(true)}
-						onClose={isMobile ? () => setIsModalOpen(false) : null}
-					/>
+	const renderTaskDetails = (task) => (
+		<TaskDetailsPanel
+			task={task}
+			allTools={allTools}
+			onClose={handleClosePanel}
+			onSave={handleUpdateTask}
+			onAnswerClarifications={handleAnswerClarifications}
+			onAnswerLongFormClarification={handleAnswerLongFormClarification}
+			onResumeTask={handleResumeTask}
+			onSelectTask={handleSelectItem}
+			onDelete={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/delete`, {
+							method: "POST",
+							body: JSON.stringify({ taskId }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task deleted."
 				)
-			case "details":
-				return (
-					<TaskDetailsPanel
-						task={rightPanelContent.data}
-						allTools={allTools}
-						integrations={integrations}
-						onClose={handleClosePanel}
-						onSave={handleUpdateTask}
-						onAnswerClarifications={handleAnswerClarifications}
-						onAnswerLongFormClarification={
-							handleAnswerLongFormClarification
-						}
-						onResumeTask={handleResumeTask}
-						onSelectTask={handleSelectItem}
-						onDelete={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/delete`, {
-										method: "POST",
-										body: JSON.stringify({ taskId }),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task deleted."
-							)
-						}
-						onApprove={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/approve`, {
-										method: "POST",
-										body: JSON.stringify({ taskId }),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task approved."
-							)
-						}
-						onRerun={(taskId) =>
-							handleAction(
-								() =>
-									fetch("/api/tasks/rerun", {
-										method: "POST",
-										headers: {
-											"Content-Type": "application/json"
-										},
-										body: JSON.stringify({ taskId })
-									}),
-								"Task re-run initiated."
-							)
-						}
-						onArchiveTask={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/update`, {
-										method: "POST",
-										body: JSON.stringify({
-											taskId,
-											status: "archived"
-										}),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task archived."
-							)
-						}
-						onSendChatMessage={(taskId, message) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/chat`, {
-										method: "POST",
-										body: JSON.stringify({
-											taskId,
-											message
-										}),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Message sent."
-							)
-						}
-					/>
+			}
+			onApprove={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/approve`, {
+							method: "POST",
+							body: JSON.stringify({ taskId }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task approved."
 				)
-			case "day":
-				return (
-					<DayDetailView
-						date={rightPanelContent.data.date}
-						tasks={rightPanelContent.data.tasks}
-						onSelectTask={handleSelectItem}
-						onClose={handleClosePanel}
-					/>
+			}
+			onRerun={(taskId) =>
+				handleAction(
+					() =>
+						fetch("/api/tasks/rerun", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ taskId })
+						}),
+					"Task re-run initiated."
 				)
-			default:
-				return null
-		}
-	}
-	// --- END NEW ---
+			}
+			onArchiveTask={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/update`, {
+							method: "POST",
+							body: JSON.stringify({
+								taskId,
+								status: "archived"
+							}),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task archived."
+				)
+			}
+			onSendChatMessage={(taskId, message) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/chat`, {
+							method: "POST",
+							body: JSON.stringify({ taskId, message }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Message sent."
+				)
+			}
+		/>
+	)
 
 	return (
 		<div className="flex-1 flex h-full text-white overflow-hidden">
@@ -729,31 +432,19 @@ Description: ${event.description || "No description."}`
 					<InteractiveNetworkBackground />
 				</div>
 				{/* Main Content Panel */}
-				<main className="flex-1 flex flex-col overflow-hidden relative">
+				<main className="flex-1 flex flex-col overflow-hidden relative w-full">
 					<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 					<header className="p-6 pt-20 md:pt-6 flex-shrink-0 flex items-center justify-between bg-transparent">
 						<h1 className="text-3xl font-bold text-white">Tasks</h1>
 						<div className="absolute top-6 left-1/2 -translate-x-1/2">
 							<TaskViewSwitcher view={view} setView={setView} />
 						</div>
-						{/* --- NEW: Desktop "+" button --- */}
-						<div className="hidden md:block">
-							<button
-								onClick={() => {
-									router.push("/tasks", { scroll: false })
-									setRightPanelContent({
-										type: "composer",
-										data: null
-									})
-								}}
-								className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
-							>
-								<IconPlus size={20} />
-							</button>
-						</div>
 					</header>
 
-					<div className="flex-1 overflow-y-auto custom-scrollbar">
+					<div
+						className="flex-1 overflow-y-auto custom-scrollbar px-4 md:px-6 pb-24"
+						key="list-view-container"
+					>
 						{isLoading ? (
 							<div className="flex justify-center items-center h-full">
 								<IconLoader className="w-8 h-8 animate-spin text-sentient-blue" />
@@ -766,75 +457,78 @@ Description: ${event.description || "No description."}`
 									animate={{ opacity: 1 }}
 									exit={{ opacity: 0 }}
 									transition={{ duration: 0.3 }}
-									className="h-full"
+									className="h-full max-w-7xl mx-auto"
 								>
-									{view === "list" ? (
-										<ListView
-											oneTimeTasks={filteredOneTimeTasks}
-											activeWorkflows={
-												filteredActiveWorkflows
-											}
-											longFormTasks={
-												filteredLongFormTasks
-											}
-											onSelectTask={handleSelectItem}
-											searchQuery={searchQuery}
-											onSearchChange={setSearchQuery}
-										/>
-									) : (
-										<CalendarView
-											tasks={filteredCalendarTasks}
-											onSelectTask={handleSelectItem}
-											onAddTaskForDay={
-												handleAddTaskForDay
-											}
-											onShowMoreClick={
-												handleShowMoreClick
-											}
-											onMonthChange={
-												setCurrentCalendarDate
-											}
-										/>
-									)}
+									<ListView
+										tasks={allTasks}
+										view={view}
+										onSelectTask={handleSelectItem}
+										searchQuery={searchQuery}
+										onSearchChange={setSearchQuery}
+										onExampleClick={handleExampleClick}
+									/>
 								</motion.div>
 							</AnimatePresence>
 						)}
 					</div>
-
-					{/* --- REMOVED CreateTaskInput --- */}
 				</main>
 
-				{/* --- NEW: Right Panel for Desktop --- */}
-				<aside className="hidden md:flex w-[500px] lg:w-[550px] bg-brand-black/50 backdrop-blur-sm border-l border-brand-gray flex-shrink-0 flex-col">
-					<AnimatePresence mode="wait">
+				{/* Floating Task Composer */}
+				<AnimatePresence>
+					{isComposerOpen && (
+						<TaskComposer
+							view={view}
+							onTaskCreated={(payload) => {
+								handleCreateTask(payload)
+								setIsComposerOpen(false) // Close on creation
+							}}
+							isPro={isPro}
+							onUpgradeClick={() => setUpgradeModalOpen(true)}
+							onClose={() => setIsComposerOpen(false)}
+						/>
+					)}
+				</AnimatePresence>
+
+				{/* Floating Action Button */}
+				<AnimatePresence>
+					{!isComposerOpen && (
 						<motion.div
-							key={rightPanelContent.type}
-							initial={{ opacity: 0, x: 50 }}
-							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: -50 }}
-							transition={{ duration: 0.3 }}
-							className="h-full"
+							initial={{ opacity: 0, y: 50, scale: 0.8 }}
+							animate={{ opacity: 1, y: 0, scale: 1 }}
+							exit={{ opacity: 0, y: 50, scale: 0.8 }}
+							transition={{ duration: 0.3, ease: "easeInOut" }}
+							className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50"
 						>
-							{renderPanelContent()}
+							<button
+								onClick={() => setIsComposerOpen(true)}
+								className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
+								aria-label="Create new task"
+							>
+								<IconPlus size={20} />
+								<span>Create Task</span>
+							</button>
 						</motion.div>
-					</AnimatePresence>
-				</aside>
-				{/* --- END NEW --- */}
+					)}
+				</AnimatePresence>
+				<AnimatePresence>
+					{!isMobile && selectedTask && (
+						<motion.div
+							initial={{ x: "100%" }}
+							animate={{ x: 0 }}
+							exit={{ x: "100%" }}
+							transition={{
+								type: "spring",
+								stiffness: 300,
+								damping: 30
+							}}
+							className="absolute top-0 right-0 h-full w-full max-w-[550px] bg-neutral-900/80 backdrop-blur-lg z-50"
+						>
+							{renderTaskDetails(selectedTask)}
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
 
-			{/* --- NEW: Floating Action Button for Mobile --- */}
-			<button
-				onClick={() => {
-					setRightPanelContent({ type: "composer", data: null })
-					setIsModalOpen(true)
-				}}
-				className="md:hidden fixed bottom-6 right-6 z-40 p-4 bg-brand-orange text-black rounded-full shadow-lg hover:bg-brand-orange/90 transition-transform hover:scale-105"
-			>
-				<IconPlus size={24} strokeWidth={2.5} />
-			</button>
-			{/* --- END NEW --- */}
-
-			{/* --- NEW: Modal for Mobile --- */}
 			<AnimatePresence>
 				{isMobile && isModalOpen && (
 					<motion.div
@@ -854,12 +548,11 @@ Description: ${event.description || "No description."}`
 							}}
 							className="absolute inset-0"
 						>
-							{renderPanelContent()}
+							{selectedTask && renderTaskDetails(selectedTask)}
 						</motion.div>
 					</motion.div>
 				)}
 			</AnimatePresence>
-			{/* --- END NEW --- */}
 		</div>
 	)
 }

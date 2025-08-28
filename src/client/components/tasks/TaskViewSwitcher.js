@@ -1,15 +1,15 @@
 "use client"
 
 import { AnimatePresence, motion } from "framer-motion"
-import { IconAlignBoxLeftMiddleFilled, IconCalendar } from "@tabler/icons-react"
+import { IconClipboardList, IconRepeat } from "@tabler/icons-react"
 
 const tabs = [
 	{
-		title: "List",
-		value: "list",
-		icon: <IconAlignBoxLeftMiddleFilled size={18} />
+		title: "Tasks",
+		value: "tasks",
+		icon: <IconClipboardList size={18} />
 	},
-	{ title: "Calendar", value: "calendar", icon: <IconCalendar size={18} /> }
+	{ title: "Workflows", value: "workflows", icon: <IconRepeat size={18} /> }
 ]
 
 const buttonVariants = {

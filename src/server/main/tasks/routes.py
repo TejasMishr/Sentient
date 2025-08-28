@@ -97,102 +97,35 @@ async def add_task(
 ):
     user_id, plan = user_id_and_plan
 
-    if request.task_type == "swarm":
-        # --- Check Usage Limit for Swarm Tasks ---
-        usage = await mongo_manager.get_or_create_daily_usage(user_id)
-        limit = PLAN_LIMITS[plan].get("swarm_tasks_daily", 0)
-        current_count = usage.get("swarm_tasks", 0)
+    if not request.prompt:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required.")
 
-        if current_count >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"You have reached your daily limit of {limit} swarm tasks. Please upgrade or try again tomorrow."
-            )
+    # Unified task creation logic: all UI-created tasks are now long-form.
+    # Plan limit checks will be handled by the orchestrator based on the sub-tasks it creates.
+    task_data = {
+        "name": request.prompt,
+        "description": f"Long-form task to achieve the goal: {request.prompt}",
+        "task_type": "long_form",
+        "auto_approve_subtasks": request.auto_approve_subtasks,
+        "orchestrator_state": {
+            "main_goal": request.prompt,
+            "current_state": "CREATED", # Initial state
+            "current_step": 0,
+            "context_store": {},
+            "waiting_config": None,
+        },
+        "dynamic_plan": [],
+        "clarification_requests": [],
+        "execution_log": []
+    }
+    task_id = await mongo_manager.add_task(user_id, task_data)
+    if not task_id:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create long-form task.")
 
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required for swarm tasks.")
+    # The orchestrator's first step is to plan.
+    start_long_form_task.delay(task_id, user_id)
 
-        task_data = {
-            "name": request.prompt, # Use prompt as the initial name
-            "description": f"Swarm task to achieve the goal: {request.prompt}",
-            "task_type": "swarm",
-            "swarm_details": {
-                "goal": request.prompt,
-                "items": [],
-                "total_agents": 0,
-                "completed_agents": 0,
-                "progress_updates": [],
-                "aggregated_results": []
-            }
-        }
-        task_id = await mongo_manager.add_task(user_id, task_data)
-        if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create swarm task.")
-
-        await mongo_manager.increment_daily_usage(user_id, "swarm_tasks")
-        orchestrate_swarm_task.delay(task_id, user_id)
-        return {"message": "Swarm task initiated! Planning will begin shortly.", "task_id": task_id}
-
-    elif request.task_type == "long_form":
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt describing the goal is required for long-form tasks.")
-
-        task_data = {
-            "name": request.prompt,
-            "description": f"Long-form task to achieve the goal: {request.prompt}",
-            "task_type": "long_form",
-            "auto_approve_subtasks": request.auto_approve_subtasks,
-            "orchestrator_state": {
-                "main_goal": request.prompt,
-                "current_state": "CREATED",
-                "current_step": 0,
-                "context_store": {},
-                "waiting_config": None,
-            },
-            "dynamic_plan": [],
-            "clarification_requests": [],
-            "execution_log": []
-        }
-        task_id = await mongo_manager.add_task(user_id, task_data)
-        if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create long-form task.")
-        start_long_form_task.delay(task_id, user_id)
-        return {"message": "Long-form task initiated! Planning will begin shortly.", "task_id": task_id}
-
-    elif request.task_type == "single":
-        # --- Check Usage Limit for One-Time Tasks ---
-        usage = await mongo_manager.get_or_create_daily_usage(user_id)
-        limit = PLAN_LIMITS[plan].get("one_time_tasks_daily", 0)
-        current_count = usage.get("one_time_tasks", 0)
-
-        if current_count >= limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"You have reached your daily limit of {limit} one-time tasks. Please upgrade or try again tomorrow."
-            )
-
-        if not request.prompt:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A prompt is required for single tasks.")
-
-        task_data = {
-            "name": request.prompt, # Use prompt as initial name
-            "description": request.prompt,
-            "schedule": request.schedule, # Pass the entire schedule object
-            "task_type": "single"
-        }
-        task_id = await mongo_manager.add_task(user_id, task_data)
-        if not task_id:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create task.")
-
-        # Increment usage after successful creation
-        await mongo_manager.increment_daily_usage(user_id, "one_time_tasks")
-
-        # The existing worker is perfect for this, as it refines details from a prompt and schedule.
-        refine_and_plan_ai_task.delay(task_id, user_id)
-        return {"message": "Task created! Planning will begin shortly.", "task_id": task_id}
-
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid task_type: {request.task_type}")
+    return {"message": "Task created successfully. The orchestrator will begin planning shortly.", "task_id": task_id}
 
 @router.post("/fetch-tasks")
 async def fetch_tasks(

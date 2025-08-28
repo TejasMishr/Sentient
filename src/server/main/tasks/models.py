@@ -10,9 +10,7 @@ class Answer(BaseModel):
     answer_text: str
 
 class AddTaskRequest(BaseModel):
-    prompt: str  # The main goal or description
-    task_type: str  # "single", "swarm", or "long_form"
-    schedule: Optional[Dict[str, Any]] = None # For one-time, recurring, triggered
+    prompt: str
     auto_approve_subtasks: Optional[bool] = False
 
 class ClarificationAnswerRequest(BaseModel):

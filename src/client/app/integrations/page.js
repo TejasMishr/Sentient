@@ -1499,68 +1499,6 @@ const IntegrationsPage = () => {
 				onClose={() => setUpgradeModalOpen(false)}
 			/>
 			<AnimatePresence>
-				{isInfoPanelOpen && (
-					<InfoPanel
-						onClose={() => setIsInfoPanelOpen(false)}
-						title={
-							<div className="flex items-center gap-2">
-								<IconSparkles /> About Integrations
-							</div>
-						}
-					>
-						<p className="text-neutral-300">
-							Integrations are the bridge between me and your
-							favorite apps. By connecting your tools, you grant
-							me the ability to access information and perform
-							actions on your behalf.
-						</p>
-						<div className="space-y-4">
-							<div className="flex items-start gap-4">
-								<IconPlug
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										How It Works
-									</h3>
-									<p className="text-neutral-400 text-sm mt-1">
-										When you make a request in the chat, I
-										automatically select the right tool for
-										the job. For example, if you ask me to
-										'summarize my unread emails', I'll use
-										the connected Gmail tool to fetch the
-										data and complete the task.
-									</p>
-								</div>
-							</div>
-							<div className="flex items-start gap-4">
-								<IconEye
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										Autopilot Mode
-									</h3>
-									<p className="text-neutral-400 text-sm mt-1">
-										For some integrations like Gmail and
-										Google Calendar, I can proactively
-										monitor for important events. When I
-										find something I think you'd want to act
-										on—like an urgent email or a meeting
-										request—I'll create a suggestion and
-										send you a notification. You can then
-										approve it to have me take care of it,
-										or dismiss it.
-									</p>
-								</div>
-							</div>
-						</div>
-					</InfoPanel>
-				)}
-			</AnimatePresence>
-			<AnimatePresence>
 				{disconnectingIntegration && (
 					// The `isolate` class creates a new stacking context, and `z-[70]`
 					// ensures this context is rendered above the MorphingDialog
@@ -1587,14 +1525,6 @@ const IntegrationsPage = () => {
 				)}
 			</AnimatePresence>
 			<SparkleEffect trigger={sparkleTrigger} />
-			<div className="fixed bottom-6 left-6 z-40">
-				<button
-					onClick={() => setIsInfoPanelOpen(true)}
-					className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-[var(--color-primary-surface)] pulse-glow-animation"
-				>
-					<IconHelpCircle size={22} />
-				</button>
-			</div>
 			<div className="flex-1 flex flex-col overflow-hidden relative w-full pt-16 md:pt-0">
 				<div className="absolute inset-0 z-[-1] network-grid-background">
 					<InteractiveNetworkBackground />

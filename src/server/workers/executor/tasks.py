@@ -169,7 +169,7 @@ def parse_agent_string_to_updates(content: str) -> List[Dict[str, Any]]:
 
     updates = []
     # This regex finds all tags and captures the tag name in group 2
-    regex = re.compile(r'(<(think|answer)[\s\S]*?>[\s\S]*?<\/\2>)', re.DOTALL)
+    regex = re.compile(r'(<(think)[\s\S]*?>[\s\S]*?<\/\2>)', re.DOTALL)
 
     last_index = 0
     for match in regex.finditer(content):
@@ -183,12 +183,6 @@ def parse_agent_string_to_updates(content: str) -> List[Dict[str, Any]]:
         think_match = re.search(r'<think>([\s\S]*?)</think>', tag_content, re.DOTALL)
         if think_match:
             updates.append({"type": "thought", "content": think_match.group(1).strip()})
-            last_index = match.end()
-            continue
-
-        answer_match = re.search(r'<answer>([\s\S]*?)</answer>', tag_content, re.DOTALL)
-        if answer_match:
-            updates.append({"type": "final_answer", "content": answer_match.group(1).strip()})
             last_index = match.end()
             continue
 
@@ -208,7 +202,6 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     final_content = ""
     tool_calls = []
     thoughts = []
-    final_answer = None
     
     for msg in messages:
         if msg.get("role") == "assistant":
@@ -227,8 +220,6 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
             for update in updates:
                 if update.get("type") == "thought":
                     thoughts.append(update["content"])
-                elif update.get("type") == "final_answer":
-                    final_answer = update["content"]
                 else: # Treat other parsed content as part of the final content
                     final_content += update["content"] + "\n"
         elif msg.get("role") == "function":
@@ -241,11 +232,7 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
                 "is_error": is_error
             })
 
-    # If a specific final answer was found, use that. Otherwise, use the accumulated content.
-    if final_answer:
-        final_content = final_answer
-    else:
-        final_content = final_content.strip()
+    final_content = final_content.strip()
 
     return {
         "tool_calls": tool_calls,
@@ -716,8 +703,7 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
         system_prompt = (
             "You are an autonomous sub-agent. Your goal is to complete a specific task given to you as part of a larger parallel operation. "
             "You have access to a specific, limited suite of tools. Follow the user's prompt precisely. "
-            "Your final output should be a single, concise result (e.g., a string, a number, a JSON object, or null). Do not add conversational filler. "
-            "If you generate a final answer, wrap it in <answer> tags."
+            "Your final output should be a single, concise result (e.g., a string, a number, a JSON object, or null). Do not add conversational filler."
         )
         
         item_context = json.dumps(item, indent=2, default=str)
@@ -738,30 +724,19 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
             final_response_list = response
 
         # 5. Parse and return the result
-        answer_match = re.search(r'<answer>([\s\S]*?)</answer>', final_content, re.DOTALL)
-        if answer_match:
-            result_str = answer_match.group(1).strip()
-            parsed_result = JsonExtractor.extract_valid_json(result_str)
-            if parsed_result is not None:
-                final_result = parsed_result
-            elif result_str.lower() == 'null':
+        last_message = final_response_list[-1] if final_response_list else {}
+        if last_message.get("role") == "function":
+            tool_result = JsonExtractor.extract_valid_json(last_message.get("content", "{}"))
+            if isinstance(tool_result, dict):
+                final_result = tool_result.get("result")
+            else:
+                final_result = last_message.get("content")
+        else:
+            cleaned_content = clean_llm_output(final_content)
+            if cleaned_content.lower() == 'null':
                 final_result = None
             else:
-                final_result = result_str
-        else:
-            last_message = final_response_list[-1] if final_response_list else {}
-            if last_message.get("role") == "function":
-                tool_result = JsonExtractor.extract_valid_json(last_message.get("content", "{}"))
-                if isinstance(tool_result, dict):
-                    final_result = tool_result.get("result")
-                else:
-                    final_result = last_message.get("content")
-            else:
-                cleaned_content = clean_llm_output(final_content)
-                if cleaned_content.lower() == 'null':
-                    final_result = None
-                else:
-                    final_result = cleaned_content
+                final_result = cleaned_content
         
         await push_update("completed", f"Finished work. Result: {str(final_result)[:100]}")
         return final_result

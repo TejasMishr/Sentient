@@ -68,9 +68,9 @@ async def create_document(ctx: Context, title: str, text: str = "") -> Dict:
     return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_DOCUMENT", title=title, text=text)
 
 @mcp.tool()
-async def get_document_by_id(ctx: Context, id: str) -> Dict:
+async def get_document_by_id(ctx: Context, document_id: str) -> Dict:
     """Retrieves an existing google document by its id."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_GET_DOCUMENT_BY_ID", id=id)
+    return await _execute_tool(ctx, "GOOGLEDOCS_GET_DOCUMENT_BY_ID", id=document_id)
 
 @mcp.tool()
 async def search_documents(ctx: Context, query: Optional[str] = None, created_after: Optional[str] = None, include_trashed: Optional[bool] = None, max_results: int = 10, modified_after: Optional[str] = None, order_by: str = "modifiedTime desc", shared_with_me: Optional[bool] = None, starred_only: Optional[bool] = None) -> Dict:
@@ -93,19 +93,22 @@ async def create_footer(ctx: Context, document_id: str, type: str, section_break
     return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_FOOTER", document_id=document_id, type=type, section_break_location=section_break_location)
 
 @mcp.tool()
-async def create_footnote(ctx: Context, documentId: str, endOfSegmentLocation: Optional[Dict] = None, location: Optional[Dict] = None) -> Dict:
+async def create_footnote(ctx: Context, document_id: str, endOfSegmentLocation: Optional[Dict] = None, location: Optional[Dict] = None) -> Dict:
     """Create a new footnote in a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_FOOTNOTE", documentId=documentId, endOfSegmentLocation=endOfSegmentLocation, location=location)
+    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_FOOTNOTE", documentId=document_id, endOfSegmentLocation=endOfSegmentLocation, location=location)
 
 @mcp.tool()
-async def create_header(ctx: Context, createHeader: Dict, documentId: str) -> Dict:
+async def create_header(ctx: Context, document_id: str, type: str, section_break_location: Optional[Dict] = None) -> Dict:
     """Create a new header in a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_HEADER", createHeader=createHeader, documentId=documentId)
+    createHeader_payload = {"type": type}
+    if section_break_location:
+        createHeader_payload["section_break_location"] = section_break_location
+    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_HEADER", createHeader=createHeader_payload, documentId=document_id)
 
 @mcp.tool()
-async def create_named_range(ctx: Context, documentId: str, name: str, rangeEndIndex: int, rangeStartIndex: int, rangeSegmentId: Optional[str] = None) -> Dict:
+async def create_named_range(ctx: Context, document_id: str, name: str, rangeEndIndex: int, rangeStartIndex: int, rangeSegmentId: Optional[str] = None) -> Dict:
     """Create a new named range in a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_NAMED_RANGE", documentId=documentId, name=name, rangeEndIndex=rangeEndIndex, rangeStartIndex=rangeStartIndex, rangeSegmentId=rangeSegmentId)
+    return await _execute_tool(ctx, "GOOGLEDOCS_CREATE_NAMED_RANGE", documentId=document_id, name=name, rangeEndIndex=rangeEndIndex, rangeStartIndex=rangeStartIndex, rangeSegmentId=rangeSegmentId)
 
 @mcp.tool()
 async def create_paragraph_bullets(ctx: Context, createParagraphBullets: Dict, document_id: str) -> Dict:
@@ -148,9 +151,9 @@ async def delete_table_column(ctx: Context, document_id: str, requests: List[Dic
     return await _execute_tool(ctx, "GOOGLEDOCS_DELETE_TABLE_COLUMN", document_id=document_id, requests=requests)
 
 @mcp.tool()
-async def delete_table_row(ctx: Context, documentId: str, tableCellLocation: Dict) -> Dict:
+async def delete_table_row(ctx: Context, document_id: str, tableCellLocation: Dict) -> Dict:
     """Delete a row from a table in a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_DELETE_TABLE_ROW", documentId=documentId, tableCellLocation=tableCellLocation)
+    return await _execute_tool(ctx, "GOOGLEDOCS_DELETE_TABLE_ROW", documentId=document_id, tableCellLocation=tableCellLocation)
 
 @mcp.tool()
 async def get_charts_from_spreadsheet(ctx: Context, spreadsheet_id: str) -> Dict:
@@ -158,19 +161,19 @@ async def get_charts_from_spreadsheet(ctx: Context, spreadsheet_id: str) -> Dict
     return await _execute_tool(ctx, "GOOGLEDOCS_GET_CHARTS_FROM_SPREADSHEET", spreadsheet_id=spreadsheet_id)
 
 @mcp.tool()
-async def insert_inline_image(ctx: Context, documentId: str, location: Dict, uri: str, objectSize: Optional[Dict] = None) -> Dict:
+async def insert_inline_image(ctx: Context, document_id: str, location: Dict, uri: str, objectSize: Optional[Dict] = None) -> Dict:
     """Insert an image from a given uri at a specified location."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_INLINE_IMAGE", documentId=documentId, location=location, uri=uri, objectSize=objectSize)
+    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_INLINE_IMAGE", documentId=document_id, location=location, uri=uri, objectSize=objectSize)
 
 @mcp.tool()
-async def insert_page_break(ctx: Context, documentId: str, insertPageBreak: Dict) -> Dict:
+async def insert_page_break(ctx: Context, document_id: str, insertPageBreak: Dict) -> Dict:
     """Insert a page break into a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_PAGE_BREAK", documentId=documentId, insertPageBreak=insertPageBreak)
+    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_PAGE_BREAK", documentId=document_id, insertPageBreak=insertPageBreak)
 
 @mcp.tool()
-async def insert_table_action(ctx: Context, columns: int, documentId: str, rows: int, index: Optional[int] = None, insertAtEndOfSegment: Optional[bool] = None, segmentId: Optional[str] = None, tabId: Optional[str] = None) -> Dict:
+async def insert_table_action(ctx: Context, columns: int, document_id: str, rows: int, index: Optional[int] = None, insertAtEndOfSegment: Optional[bool] = None, segmentId: Optional[str] = None, tabId: Optional[str] = None) -> Dict:
     """Insert a table into a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_TABLE_ACTION", columns=columns, documentId=documentId, rows=rows, index=index, insertAtEndOfSegment=insertAtEndOfSegment, segmentId=segmentId, tabId=tabId)
+    return await _execute_tool(ctx, "GOOGLEDOCS_INSERT_TABLE_ACTION", columns=columns, documentId=document_id, rows=rows, index=index, insertAtEndOfSegment=insertAtEndOfSegment, segmentId=segmentId, tabId=tabId)
 
 @mcp.tool()
 async def insert_table_column(ctx: Context, document_id: str, requests: List[Dict]) -> Dict:
@@ -208,9 +211,9 @@ async def update_document_style(ctx: Context, document_id: str, document_style: 
     return await _execute_tool(ctx, "GOOGLEDOCS_UPDATE_DOCUMENT_STYLE", document_id=document_id, document_style=document_style, fields=fields, tab_id=tab_id)
 
 @mcp.tool()
-async def update_table_row_style(ctx: Context, documentId: str, updateTableRowStyle: Dict) -> Dict:
+async def update_table_row_style(ctx: Context, document_id: str, updateTableRowStyle: Dict) -> Dict:
     """Update the style of a table row in a google document."""
-    return await _execute_tool(ctx, "GOOGLEDOCS_UPDATE_TABLE_ROW_STYLE", documentId=documentId, updateTableRowStyle=updateTableRowStyle)
+    return await _execute_tool(ctx, "GOOGLEDOCS_UPDATE_TABLE_ROW_STYLE", documentId=document_id, updateTableRowStyle=updateTableRowStyle)
 
 if __name__ == "__main__":
     host = os.getenv("MCP_SERVER_HOST", "127.0.0.1")

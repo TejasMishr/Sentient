@@ -18,6 +18,7 @@ export const INTEGRATION_CAPABILITIES = {
 	trello: "Let me help you manage your projects in Trello. Once connected, I can list your boards and the lists on them, and create new cards with titles and descriptions to help you capture ideas and tasks as they come up.",
 	whatsapp:
 		"By connecting your WhatsApp account, I can fully manage your chats for you. I can send messages to your contacts and groups, read recent conversations, and even manage your profile, all through natural language commands.",
+	gtasks: "With Google Tasks connected, I can manage your to-do lists. I can create new task lists, add tasks with details like due dates and notes, list all your tasks, and mark tasks as complete or delete them, helping you stay organized.",
 	internet_search:
 		"This is a built-in tool that allows me to access the internet to find real-time, factual information on any topic. This helps me answer questions about current events, look up specific data, and provide you with the most up-to-date answers.",
 	memory: "My core memory is a built-in capability that allows me to learn about you. I can remember personal facts, your preferences, and important context from our conversations to provide a truly personalized and intelligent experience.",

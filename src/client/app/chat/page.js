@@ -34,7 +34,8 @@ import {
 	IconNews,
 	IconBrandDiscord,
 	IconBrandWhatsapp,
-	IconCalendarEvent
+	IconCalendarEvent,
+	IconListCheck
 } from "@tabler/icons-react"
 import {
 	IconBrandSlack,
@@ -77,6 +78,7 @@ const toolIcons = {
 	discord: IconBrandDiscord,
 	whatsapp: IconBrandWhatsapp,
 	gcalendar_alt: IconCalendarEvent,
+	gtasks: IconListCheck,
 	default: IconTool
 }
 

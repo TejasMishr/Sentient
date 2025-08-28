@@ -82,32 +82,6 @@ async def send_text_message(ctx: Context, chat_id: str, text: str, reply_to_mess
         return {"status": "failure", "error": str(e)}
 
 @mcp.tool()
-async def send_media(ctx: Context, chat_id: str, media_type: str, url: str, caption: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Sends a media file (image, video, or document) from a public URL from the user's WhatsApp account.
-    `media_type` must be one of 'image', 'video', or 'file'.
-    The `chat_id` must be in the format 'phonenumber@c.us' or 'groupid@g.us'.
-    """
-    try:
-        user_id = auth.get_user_id_from_context(ctx)
-        sanitized_session = user_id.replace("|", "_")
-        media_type_lower = media_type.lower()
-        endpoint_map = {
-            'image': '/api/sendImage',
-            'video': '/api/sendVideo',
-            'file': '/api/sendFile'
-        }
-        if media_type_lower not in endpoint_map:
-            raise ToolError("Invalid media_type. Must be 'image', 'video', or 'file'.")
-        
-        payload = {"chatId": chat_id, "file": {"url": url}, "caption": caption, "session": sanitized_session}
-        result = await utils.waha_request("POST", endpoint_map[media_type_lower], session=sanitized_session, json_data=payload)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.error(f"Tool send_media failed: {e}", exc_info=True)
-        return {"status": "failure", "error": str(e)}
-
-@mcp.tool()
 async def get_chats(ctx: Context, limit: int = 100) -> Dict[str, Any]:
     """
     Retrieves a list of the user's most recent chats, including direct messages and groups.
@@ -137,47 +111,7 @@ async def get_chat_history(ctx: Context, chat_id: str, limit: int = 50) -> Dict[
     except Exception as e:
         logger.error(f"Tool get_chat_history failed: {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}
-
-@mcp.tool()
-async def manage_chat(ctx: Context, chat_id: str, action: str) -> Dict[str, Any]:
-    """
-    Performs an action on a chat. `action` must be one of 'archive', 'unarchive', 'delete', or 'mark_unread'.
-    The `chat_id` must be in the format 'phonenumber@c.us' or 'groupid@g.us'.
-    """
-    try:
-        user_id = auth.get_user_id_from_context(ctx)
-        sanitized_session = user_id.replace("|", "_")
-        action_lower = action.lower()
-        action_map = {
-            'archive': ("POST", f"/api/{{session}}/chats/{chat_id}/archive"),
-            'unarchive': ("POST", f"/api/{{session}}/chats/{chat_id}/unarchive"),
-            'delete': ("DELETE", f"/api/{{session}}/chats/{chat_id}"),
-            'mark_unread': ("POST", f"/api/{{session}}/chats/{chat_id}/unread"),
-        }
-        if action_lower not in action_map:
-            raise ToolError("Invalid action. Must be 'archive', 'unarchive', 'delete', or 'mark_unread'.")
-        
-        method, endpoint = action_map[action_lower]
-        result = await utils.waha_request(method, endpoint, session=sanitized_session)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.error(f"Tool manage_chat failed: {e}", exc_info=True)
-        return {"status": "failure", "error": str(e)}
-
-@mcp.tool()
-async def get_unread_messages(ctx: Context, limit: int = 20) -> Dict[str, Any]:
-    """
-    Retrieves the most recent unread messages from all chats.
-    Returns a list of message objects, including their content, sender, and chat_id.
-    """
-    try:
-        user_id = auth.get_user_id_from_context(ctx)
-        sanitized_session = user_id.replace("|", "_")
-        result = await utils.waha_request("GET", "/api/{session}/messages", session=sanitized_session, params={"unread": True, "limit": limit})
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.error(f"Tool get_unread_messages failed: {e}", exc_info=True)
-        return {"status": "failure", "error": str(e)}
+   
 
 @mcp.tool()
 async def set_typing_presence(ctx: Context, chat_id: str, duration_seconds: int = 10) -> Dict[str, Any]:
@@ -188,8 +122,8 @@ async def set_typing_presence(ctx: Context, chat_id: str, duration_seconds: int 
     try:
         user_id = auth.get_user_id_from_context(ctx)
         sanitized_session = user_id.replace("|", "_")
-        endpoint = f"/api/{{session}}/chats/{chat_id}/presence"
-        result = await utils.waha_request("POST", endpoint, session=sanitized_session, json_data={"presence": "composing", "duration": duration_seconds})
+        endpoint = "/api/{session}/presence"
+        result = await utils.waha_request("POST", endpoint, session=sanitized_session, json_data={"chatId": chat_id, "presence": "typing"})
         return {"status": "success", "result": result}
     except Exception as e:
         logger.error(f"Tool set_typing_presence failed: {e}", exc_info=True)
@@ -239,23 +173,6 @@ async def manage_message(ctx: Context, message_id: str, action: str, content: Op
 # ==============================================================================
 # B. Contact Management Tools
 # ==============================================================================
-
-@mcp.tool()
-async def send_location(ctx: Context, chat_id: str, latitude: float, longitude: float, name: Optional[str] = None, address: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Sends a location pin to a specified contact or group.
-    Requires the `chat_id`, `latitude`, and `longitude`.
-    Optionally include a `name` for the location (e.g., 'Eiffel Tower') and an `address`.
-    """
-    try:
-        user_id = auth.get_user_id_from_context(ctx)
-        sanitized_session = user_id.replace("|", "_")
-        payload = {"chatId": chat_id, "latitude": latitude, "longitude": longitude, "name": name, "address": address, "session": sanitized_session}
-        result = await utils.waha_request("POST", "/api/sendLocation", session=sanitized_session, json_data=payload)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.error(f"Tool send_location failed: {e}", exc_info=True)
-        return {"status": "failure", "error": str(e)}
 
 @mcp.tool()
 async def get_contacts(ctx: Context) -> Dict[str, Any]:
@@ -325,25 +242,6 @@ async def get_chat_id_by_name(ctx: Context, contact_name: str) -> Dict[str, Any]
 
         return {"status": "failure", "error": f"Contact with name '{contact_name}' not found."}
     except Exception as e:
-        return {"status": "failure", "error": str(e)}
-
-@mcp.tool()
-async def manage_contact(ctx: Context, contact_id: str, action: str) -> Dict[str, Any]:
-    """
-    Blocks or unblocks a contact. `action` must be 'block' or 'unblock'.
-    `contact_id` can be a phone number or a chatId.
-    """
-    try:
-        user_id = auth.get_user_id_from_context(ctx)
-        sanitized_session = user_id.replace("|", "_")
-        action_lower = action.lower()
-        if action_lower not in ['block', 'unblock']:
-            raise ToolError("Invalid action. Must be 'block' or 'unblock'.")
-        endpoint = f"/api/contacts/{action_lower}"
-        result = await utils.waha_request("POST", endpoint, session=sanitized_session, json_data={"contactId": contact_id, "session": sanitized_session})
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.error(f"Tool manage_contact failed: {e}", exc_info=True)
         return {"status": "failure", "error": str(e)}
 
 # ==============================================================================

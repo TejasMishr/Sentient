@@ -90,6 +90,14 @@ DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET")
 TODOIST_CLIENT_ID = os.getenv("TODOIST_CLIENT_ID")
 TODOIST_CLIENT_SECRET = os.getenv("TODOIST_CLIENT_SECRET")
 
+# --- Composio Auth Config IDs ---
+GMAIL_AUTH_CONFIG_ID = os.getenv("GMAIL_AUTH_CONFIG_ID")
+GDRIVE_AUTH_CONFIG_ID = os.getenv("GDRIVE_AUTH_CONFIG_ID")
+GCALENDAR_AUTH_CONFIG_ID = os.getenv("GCALENDAR_AUTH_CONFIG_ID")
+GDOCS_AUTH_CONFIG_ID = os.getenv("GDOCS_AUTH_CONFIG_ID")
+GTASKS_AUTH_CONFIG_ID = os.getenv("GTASKS_AUTH_CONFIG_ID") # New: Google Tasks Auth Config ID
+GSHEETS_AUTH_CONFIG_ID = os.getenv("GSHEETS_AUTH_CONFIG_ID")
+
 # --- WhatsApp ---
 WAHA_URL = os.getenv("WAHA_URL")
 WAHA_API_KEY = os.getenv("WAHA_API_KEY")
@@ -153,6 +161,18 @@ INTEGRATIONS_CONFIG = {
         "mcp_server_config": {
             "name": "gdocs_server",
             "url": os.getenv("GDOCS_MCP_SERVER_URL", "http://localhost:9004/sse")
+        }
+    },
+    "gtasks": {
+        "display_name": "Google Tasks",
+        "description": "Connect to manage your to-do lists and tasks. The agent can create, list, update, and delete tasks and task lists on your behalf.",
+        "auth_type": "composio",
+        "icon": "IconListCheck",
+        "auth_config_env_var": "GTASKS_AUTH_CONFIG_ID",
+        "category": "Productivity",
+        "mcp_server_config": {
+            "name": "gtasks_server",
+            "url": os.getenv("GTASKS_MCP_SERVER_URL", "http://localhost:9028/sse")
         }
     },
     "gslides": {

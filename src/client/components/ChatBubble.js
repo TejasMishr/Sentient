@@ -19,7 +19,7 @@ import {
 	IconChartPie,
 	IconBrandTrello,
 	IconNews,
-	IconListCheck,
+	IconListCheck as IconListCheckTabler,
 	IconBrandDiscord,
 	IconBrandWhatsapp,
 	IconCalendarEvent,
@@ -60,6 +60,7 @@ const toolIcons = {
 	todoist: IconListCheck,
 	discord: IconBrandDiscord,
 	whatsapp: IconBrandWhatsapp,
+	gtasks: IconListCheckTabler,
 	gcalendar_alt: IconCalendarEvent,
 	default: IconTool
 }

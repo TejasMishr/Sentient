@@ -71,7 +71,8 @@ async def _search_pages_async(client, query: str):
 
 async def _read_page_content_async(client, page_id: str):
     response = await client.blocks.children.list(block_id=page_id)
-    return utils.simplify_block_children(response)
+    simplified_list = utils.simplify_block_children(response)
+    return utils.format_simplified_blocks_to_text(simplified_list)
 
 async def _query_database_async(client, database_id: str, filter_json: Optional[str]):
     filter_obj = json.loads(filter_json) if filter_json else None
@@ -94,9 +95,8 @@ async def _get_workspace_async(client):
     response = await client.users.me()
     return response.get("bot", {}).get("owner", {})
 
-async def _update_page_async(client, page_id: str, properties: Dict): # Changed properties_json: str to properties: Dict
-    # properties = json.loads(properties_json) # Removed this line
-    response = await client.pages.update(page_id=page_id, properties=properties)
+async def _update_page_async(client, page_id: str, properties: Dict):
+    response = await client.pages.update(page_id=page_id, **properties)
     return {"page_id": response.get("id"), "url": response.get("url")}
 
 async def _get_databases_async(client, query: Optional[str]):
@@ -206,7 +206,10 @@ async def getWorkspace(ctx: Context) -> Dict:
 
 @mcp.tool
 async def updatePage(ctx: Context, page_id: str, properties_json: str) -> Dict:
-    """Update an existing Notion page by modifying its properties."""
+    """
+    Updates an existing Notion page. Can modify top-level attributes like 'icon', 'cover', 'archived', or page properties within a nested 'properties' object.
+    The `properties_json` should be a JSON string of the arguments for the Notion API's page update endpoint.
+    """
     logger.info(f"Executing tool: updatePage with page_id='{page_id}'")
     properties = JsonExtractor.extract_valid_json(properties_json)
     if not properties:

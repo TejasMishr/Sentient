@@ -59,6 +59,11 @@ def _create_repo_sync(github, name: str, description: str, private: bool, has_is
     repo = github.get_user().create_repo(name, description=description, private=private, has_issues=has_issues, has_projects=has_projects, has_wiki=has_wiki)
     return repo.html_url
 
+def _add_collaborator_sync(github, owner_repo: str, username: str, permission: str):
+    repo = github.get_repo(owner_repo)
+    repo.add_to_collaborators(username, permission=permission)
+    return f"{username} invited to {owner_repo} with {permission} permissions."
+
 def _remove_collaborator_sync(github, owner_repo: str, username: str):
     repo = github.get_repo(owner_repo)
     repo.remove_from_collaborators(username)
@@ -107,8 +112,14 @@ def _unprotect_branch_sync(github, owner_repo: str, branch: str):
     return f"Protection removed from {branch}"
 
 def _protect_branch_sync(github, owner_repo: str, branch: str, required_status_checks: Optional[List[str]], enforce_admins: bool, required_pull_request_reviews: int):
+    # The GitHub API expects `required_status_checks` to be a dict or None, not a list.
+    # We construct the expected payload here.
+    status_checks_payload = None
+    if required_status_checks:  # Checks for not None and not empty
+        status_checks_payload = {"strict": False, "contexts": required_status_checks}
+
     branch_obj = github.get_repo(owner_repo).get_branch(branch)
-    branch_obj.edit_protection(required_status_checks=required_status_checks or [], enforce_admins=enforce_admins, required_approving_review_count=required_pull_request_reviews)
+    branch_obj.edit_protection(required_status_checks=status_checks_payload, enforce_admins=enforce_admins, required_approving_review_count=required_pull_request_reviews)
     return f"Protection applied to {branch}"
 
 def _update_repo_settings_sync(github, owner_repo: str, **kwargs):
@@ -197,6 +208,14 @@ async def createRepo(ctx: Context, name: str, description: str = "", private: bo
     """
     logger.info(f"Executing tool: createRepo with name='{name}'")
     return await _execute_tool(ctx, _create_repo_sync, name, description, private, has_issues, has_projects, has_wiki)
+
+@mcp.tool
+async def addCollaborator(ctx: Context, owner_repo: str, username: str, permission: str = "push") -> Dict:
+    """
+    Adds a collaborator to a repository with specified permissions. Permissions can be 'pull', 'push', 'admin', 'maintain', or 'triage'.
+    """
+    logger.info(f"Executing tool: addCollaborator to '{owner_repo}' for user='{username}' with permission='{permission}'")
+    return await _execute_tool(ctx, _add_collaborator_sync, owner_repo, username, permission)
 
 @mcp.tool
 async def removeCollaborator(ctx: Context, owner_repo: str, username: str) -> Dict:

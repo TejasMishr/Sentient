@@ -4,45 +4,58 @@ def _simplify_rich_text(rich_text_array: List[Dict]) -> str:
     """Converts a Notion rich text array to a simple string."""
     return "".join(item.get("plain_text", "") for item in rich_text_array)
 
-def _simplify_block(block: Dict) -> str:
-    """Converts a Notion block object to a simplified string representation."""
+def _simplify_block(block: Dict) -> Dict:
+    """Converts a Notion block object to a simplified dictionary."""
     block_type = block.get("type")
-    if not block_type or not block.get(block_type):
-        return ""
-
-    content = block[block_type]
-    rich_text = content.get("rich_text")
-
-    if rich_text:
-        text = _simplify_rich_text(rich_text)
-        if block_type == "heading_1":
-            return f"# {text}"
-        if block_type == "heading_2":
-            return f"## {text}"
-        if block_type == "heading_3":
-            return f"### {text}"
-        if block_type == "bulleted_list_item":
-            return f"- {text}"
-        if block_type == "numbered_list_item":
-            return f"{content.get('number', '1')}. {text}"
+    text_content = ""
+    extra_data = {}
+    if block_type and block.get(block_type):
+        content = block[block_type]
+        rich_text = content.get("rich_text")
+        if rich_text:
+            text_content = _simplify_rich_text(rich_text)
         if block_type == "to_do":
-            checked = "[x]" if content.get("checked") else "[ ]"
-            return f"{checked} {text}"
-        if block_type == "quote":
-            return f"> {text}"
+            extra_data["checked"] = content.get("checked", False)
         if block_type == "code":
-            return f"```{content.get('language', '')}\n{text}\n```"
-        return text
-    return "" # For blocks without rich_text like dividers, images, etc.
+            extra_data["language"] = content.get("language", "")
 
-def simplify_block_children(response: Dict) -> str:
-    """Simplifies a list of blocks from a Notion API response into a single string."""
-    simplified_content = []
-    for block in response.get("results", []):
-        simplified_block = _simplify_block(block)
-        if simplified_block:
-            simplified_content.append(simplified_block)
-    return "\n".join(simplified_content)
+    return {
+        "id": block.get("id"),
+        "type": block_type,
+        "content": text_content,
+        "has_children": block.get("has_children", False),
+        "extra": extra_data
+    }
+
+def simplify_block_children(response: Dict) -> List[Dict]:
+    """Simplifies a list of blocks from a Notion API response into a list of simplified block dictionaries."""
+    return [_simplify_block(block) for block in response.get("results", [])]
+
+def format_simplified_blocks_to_text(simplified_blocks: List[Dict]) -> str:
+    """Formats a list of simplified block dictionaries into a markdown-like string."""
+    lines = []
+    for block in simplified_blocks:
+        block_type = block.get("type")
+        text = block.get("content", "")
+
+        line = text
+        if block_type == "heading_1": line = f"# {text}"
+        elif block_type == "heading_2": line = f"## {text}"
+        elif block_type == "heading_3": line = f"### {text}"
+        elif block_type == "bulleted_list_item": line = f"- {text}"
+        elif block_type == "numbered_list_item": line = f"1. {text}" # Simplified numbering
+        elif block_type == "to_do":
+            checked = "[x]" if block.get("extra", {}).get("checked") else "[ ]"
+            line = f"{checked} {text}"
+        elif block_type == "quote": line = f"> {text}"
+        elif block_type == "code":
+            lang = block.get("extra", {}).get("language", "")
+            line = f"```{lang}\n{text}\n```"
+
+        if line:
+            lines.append(line)
+    return "\n".join(lines)
+
 
 def simplify_search_results(response: Dict) -> List[Dict]:
     """Simplifies a list of pages or databases from a Notion search API response."""

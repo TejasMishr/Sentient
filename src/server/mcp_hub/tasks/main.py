@@ -10,8 +10,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from . import auth, prompts
 from main.dependencies import mongo_manager # This is the main server's mongo manager
 from main.llm import run_agent, LLMProviderDownError
-from main.tasks.prompts import TASK_CREATION_PROMPT
-from workers.tasks import generate_plan_from_context, start_long_form_task
+from workers.long_form_tasks import start_long_form_task
+from workers.tasks import generate_plan_from_context
 from workers.utils.text_utils import clean_llm_output
 
 from fastmcp.utilities.logging import configure_logging, get_logger
@@ -97,7 +97,7 @@ async def create_workflow(ctx: Context, prompt: str) -> Dict[str, Any]:
         current_time_str = datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
 
         # 2. Call LLM to parse prompt into structured data
-        system_prompt = TASK_CREATION_PROMPT.format(
+        system_prompt = prompts.TASK_CREATION_PROMPT.format(
             user_name=user_name,
             user_timezone=user_timezone_str,
             current_time=current_time_str

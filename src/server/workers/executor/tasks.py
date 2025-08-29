@@ -274,7 +274,9 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     user_location_raw = personal_info.get("location", "Not specified")
     user_location = f"latitude: {user_location_raw.get('latitude')}, longitude: {user_location_raw.get('longitude')}" if isinstance(user_location_raw, dict) else user_location_raw
 
-    required_tools_from_plan = {step['tool'] for step in task.get('plan', [])}
+    plan_to_execute = current_run.get("plan", [])
+
+    required_tools_from_plan = {step['tool'] for step in plan_to_execute}
     user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {}
     active_mcp_servers = {}
     for tool_name in required_tools_from_plan:
@@ -304,7 +306,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         f"Your task ID is '{task_id}' and the current run ID is '{run_id}'.\n\n"
         f"The original context that triggered this plan is:\n---BEGIN CONTEXT---\n{original_context_str}\n---END CONTEXT---\n\n"
         f"**Primary Objective:** '{plan_description}'\n\n"
-        f"**The Plan to Execute:**\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(task.get("plan", []))]) + "\n\n"
+        f"**The Plan to Execute:**\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(plan_to_execute)]) + "\n\n"
         "**EXECUTION STRATEGY:**\n"
         "1.  **Think Step-by-Step:** Before each action, you MUST explain your reasoning and what you are about to do. Your thought process MUST be wrapped in `<think>` tags.\n"
         "2.  **Execution Flow:** You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
@@ -370,6 +372,9 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
             last_history_len = len(current_history)
         if not final_history:
             raise Exception("Agent run produced no history, indicating an immediate failure.")
+
+        # Log the full history for debugging
+        logger.info(f"Executor agent for task {task_id} produced final history: \n{json.dumps(final_history, indent=2, default=str)}")
 
         assistant_turn_start_index = next((i + 1 for i in range(len(final_history) - 1, -1, -1) if final_history[i].get('role') == 'user'), 0)
         assistant_messages = final_history[assistant_turn_start_index:]
@@ -593,7 +598,7 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                     }
 
                 from workers.long_form_tasks import execute_orchestrator_cycle
-                from mcp_hub.orchestrator.state_manager import mark_step_as_complete, add_execution_log
+                from mcp_hub.orchestrator.state_manager import mark_step_as_complete, add_execution_log, update_orchestrator_state
 
                 await mark_step_as_complete(parent_task_id, user_id, parent_step_id, structured_result)
                 await add_execution_log(
@@ -603,6 +608,10 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                     {"sub_task_id": task_id, "step_id": parent_step_id},
                     f"Sub-task completed with summary: {structured_result.get('summary', 'N/A')}"
                 )
+                # Clear the waiting flag on the parent task so the orchestrator can resume
+                await update_orchestrator_state(parent_task_id, user_id, {
+                    "waiting_for_subtask": None
+                })
                 execute_orchestrator_cycle.delay(parent_task_id)
                 logger.info(f"Triggered orchestrator cycle for parent task {parent_task_id}.")
 

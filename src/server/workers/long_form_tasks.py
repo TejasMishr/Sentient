@@ -76,6 +76,11 @@ async def async_execute_orchestrator_cycle(task_id: str):
         orchestrator_state = task.get("orchestrator_state", {})
         current_state = orchestrator_state.get("current_state")
 
+        # NEW: Check for waiting_for_subtask flag to enforce sequential execution
+        if orchestrator_state.get("waiting_for_subtask"):
+            logger.info(f"Orchestrator cycle for task {task_id} skipped. Waiting for sub-task {orchestrator_state['waiting_for_subtask']} to complete.")
+            return
+
         # If the task is in a terminal or waiting state, do not run the cycle.
         # The cycle will be re-triggered by user action, a timeout handler, or a sub-task completion.
         if current_state in ["COMPLETED", "FAILED", "SUSPENDED", "PAUSED", "WAITING"]:
@@ -140,43 +145,36 @@ async def async_execute_orchestrator_cycle(task_id: str):
             if isinstance(chunk, list) and chunk:
                 final_agent_response = chunk
 
-        # Find the last tool call made by the agent in this turn
-        last_tool_call_message = None
         if final_agent_response:
-            last_tool_call_message = next((msg for msg in reversed(final_agent_response) if msg.get("role") == "assistant" and msg.get("function_call")), None)
-
-        if not last_tool_call_message:
-            logger.error(f"Orchestrator agent for task {task_id} did not produce a valid tool call. Last response: {final_agent_response}")
-            raise Exception("Orchestrator agent failed to decide on a next step.")
-
-        # 4. Extract the tool call result from the agent's response history
-        tool_call = last_tool_call_message["function_call"]
-        tool_name = tool_call.get("name")
-
-        logger.info(f"Orchestrator agent for task {task_id} decided to call tool: {tool_name}")
-
-        # Find the corresponding function/tool result message in the history
-        tool_result_message = next((msg for msg in reversed(final_agent_response) if msg.get("role") == "function" and msg.get("name") == tool_name), None)
-
-        if not tool_result_message:
-            logger.error(f"Orchestrator agent for task {task_id} made a tool call but no result was found. History: {final_agent_response}")
-            raise Exception("Orchestrator agent tool call did not yield a result.")
-
-        tool_content = tool_result_message.get("content", "{}")
-        tool_result = None
-        if not tool_content or not tool_content.strip():
-            logger.warning(f"Orchestrator tool '{tool_name}' for task {task_id} returned empty content. Assuming failure.")
-            tool_result = {"status": "failure", "error": "Tool returned an empty response."}
+            logger.info(f"Orchestrator agent for task {task_id} produced final history: \n{json.dumps(final_agent_response, indent=2, default=str)}")
         else:
-            tool_result = JsonExtractor.extract_valid_json(tool_content)
-            if not tool_result:
-                logger.error(f"Failed to decode JSON from tool '{tool_name}' for task {task_id}. Content: {tool_content}")
-                raise Exception(f"Orchestrator tool '{tool_name}' returned invalid JSON: {tool_content}")
+            logger.error(f"Orchestrator agent for task {task_id} did not produce a response.")
+            raise Exception("Orchestrator agent failed to produce a response.")
 
-        if tool_result.get("status") != "success":
-            raise Exception(f"Orchestrator tool '{tool_name}' failed: {tool_result.get('error')}")
+        # Process the agent's turn sequentially
+        if final_agent_response:
+            for i, msg in enumerate(final_agent_response):
+                if msg.get("role") == "assistant" and msg.get("function_call"):
+                    tool_call = msg["function_call"]
+                    tool_name = tool_call.get("name")
+                    logger.info(f"Orchestrator agent for task {task_id} called tool: {tool_name}")
 
-        logger.info(f"Orchestrator tool '{tool_name}' for task {task_id} executed successfully.")
+                    # Find the corresponding result which should be the next message in the history
+                    tool_result = None
+                    if i + 1 < len(final_agent_response):
+                        next_msg = final_agent_response[i+1]
+                        if next_msg.get("role") == "function" and next_msg.get("name") == tool_name:
+                            tool_content = next_msg.get("content", "{}")
+                            tool_result = JsonExtractor.extract_valid_json(tool_content)
+
+                    if not tool_result:
+                        logger.error(f"Could not find a valid result for tool call '{tool_name}' for task {task_id}. History might be malformed.")
+                        raise Exception(f"Orchestrator tool call '{tool_name}' did not yield a valid result.")
+
+                    if tool_result.get("status") != "success":
+                        raise Exception(f"Orchestrator tool '{tool_name}' failed: {tool_result.get('error')}")
+
+                    logger.info(f"Orchestrator tool '{tool_name}' for task {task_id} executed successfully.")
 
     except Exception as e:
         logger.error(f"Error in orchestrator cycle for task {task_id}: {e}", exc_info=True)

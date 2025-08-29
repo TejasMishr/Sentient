@@ -1,13 +1,13 @@
 import os
-import logging
 from dotenv import load_dotenv
 from fastmcp import FastMCP, Context
+from fastmcp.utilities.logging import configure_logging, get_logger
 
 from . import tools
 
 # --- Logging and Environment Setup ---
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+configure_logging(level="INFO")
+logger = get_logger(__name__)
 
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'dev-local')
 if ENVIRONMENT == 'dev-local':

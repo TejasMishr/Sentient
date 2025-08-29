@@ -229,13 +229,13 @@ function TasksPageContent() {
 
 	useEffect(() => {
 		const handleBackendUpdate = () => {
-			console.log("Received task_list_updated event, fetching tasks...")
+			console.log("Received tasksUpdatedFromBackend event, fetching tasks...")
 			toast.success("Task list updated from backend.")
 			fetchTasks()
 		}
-		window.addEventListener("task_list_updated", handleBackendUpdate)
+		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
 		return () => {
-			window.removeEventListener("task_list_updated", handleBackendUpdate)
+			window.removeEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
 		}
 	}, [fetchTasks])
 

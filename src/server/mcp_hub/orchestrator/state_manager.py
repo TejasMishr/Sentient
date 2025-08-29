@@ -33,7 +33,27 @@ async def update_orchestrator_state(task_id: str, user_id: str, state_updates: D
             }
             if orchestrator_state in status_map:
                 payload['status'] = status_map[orchestrator_state]
-        await db.update_task_field(task_id, user_id, payload)
+
+        # Handle unsetting keys if value is None
+        set_payload = {}
+        unset_payload = {}
+        for key, value in payload.items():
+            if value is None:
+                unset_payload[key] = ""
+            else:
+                set_payload[key] = value
+
+        update_op = {}
+        if set_payload:
+            update_op["$set"] = set_payload
+        if unset_payload:
+            update_op["$unset"] = unset_payload
+
+        if update_op:
+            await db.tasks_collection.update_one(
+                {"task_id": task_id, "user_id": user_id},
+                update_op
+            )
     finally:
         await db.close()
 

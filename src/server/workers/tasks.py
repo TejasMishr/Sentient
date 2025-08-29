@@ -101,47 +101,6 @@ def cud_memory_task(user_id: str, information: str, source: Optional[str] = None
     # ensuring the event loop and DB connections are managed correctly for the task's lifecycle.
     run_async(async_cud_memory_task(user_id, information, source))
 
-@celery_app.task(name="start_long_form_task")
-def start_long_form_task(task_id: str, user_id: str):
-    """
-    Celery task entry point for initializing a new long-form task.
-    This will eventually become the orchestrator's first step.
-    """
-    logger.info(f"Celery worker received 'start_long_form_task' for task_id: {task_id}")
-    run_async(async_start_long_form_task(task_id, user_id))
-
-async def async_start_long_form_task(task_id: str, user_id: str):
-    """
-    The async logic for initializing a long-form task.
-    For Phase 1, it just logs and updates the state.
-    """
-    db_manager = MongoManager()
-    try:
-        logger.info(f"Starting long-form task {task_id} for user {user_id}. This is the initial step of the orchestrator.")
-
-        initial_log_entry = {
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "action": "Task Initiated",
-            "details": {"message": "Orchestrator has started and is in the initial planning phase."},
-            "agent_reasoning": "The task has been created. The first step is to analyze the main goal and create an initial high-level plan."
-        }
-
-        update_payload = {
-            "long_form_details.current_state": "ACTIVE",
-            "long_form_details.execution_log": [initial_log_entry]
-        }
-        await db_manager.update_task(task_id, update_payload)
-        await push_task_list_update(user_id, task_id, "long_form_started")
-        logger.info(f"Long-form task {task_id} moved to ACTIVE state.")
-    except Exception as e:
-        logger.error(f"Error starting long-form task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task(task_id, {
-            "long_form_details.current_state": "FAILED",
-            "error": f"Failed to start orchestrator: {str(e)}"
-        })
-    finally:
-        await db_manager.close()
-
 @celery_app.task(name="orchestrate_swarm_task")
 def orchestrate_swarm_task(task_id: str, user_id: str):
     """
@@ -534,7 +493,7 @@ async def async_generate_plan(task_id: str, user_id: str):
 
         user_profile = await db_manager.user_profiles_collection.find_one(
             {"user_id": user_id},
-            {"userData.personalInfo": 1} # Projection to get only necessary data
+            {"userData.personalInfo": 1, "userData.integrations": 1} # Projection to get only necessary data
         )
         if not user_profile:
             logger.error(f"User profile not found for user_id '{user_id}' associated with task {task_id}. Cannot generate plan.")

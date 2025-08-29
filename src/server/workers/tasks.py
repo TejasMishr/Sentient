@@ -24,7 +24,7 @@ from main.db import MongoManager
 from workers.celery_app import celery_app
 from workers.planner.llm import get_planner_agent
 from workers.planner.db import PlannerMongoManager, get_all_mcp_descriptions
-from workers.executor.tasks import execute_task_plan, run_single_item_worker, aggregate_results_callback
+from workers.executor.tasks import async_execute_task_plan, run_single_item_worker, aggregate_results_callback, execute_task_plan
 from main.vector_db import get_conversation_summaries_collection
 from mcp_hub.tasks.prompts import ITEM_EXTRACTOR_SYSTEM_PROMPT, RESOURCE_MANAGER_SYSTEM_PROMPT
 from workers.utils.text_utils import clean_llm_output
@@ -360,7 +360,7 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
             logger.warning(f"Could not parse details for AI task {task_id}, proceeding with raw description.")
 
         # Now trigger the planning step, which is the main purpose of AI-assigned tasks
-        generate_plan_from_context.delay(task_id, user_id)
+        await async_generate_plan(task_id, user_id)
         logger.info(f"Refinement complete for AI task {task_id}, dispatched to planner.")
 
     except LLMProviderDownError as e:
@@ -616,35 +616,28 @@ async def async_generate_plan(task_id: str, user_id: str):
         # --- FIX: New logic for pre-execution checks (Bug 5) ---
         auto_approve = task.get("original_context", {}).get("auto_approve", False)
         
-        # Check for tool connectivity ONLY if auto-approval is intended
-        if auto_approve:
+        # Check for tool connectivity ONLY if auto-approval is intended and it's not a change request
+        # Change requests should always go to manual approval.
+        is_auto_approvable = auto_approve and not is_change_request
+
+        missing_tools = []
+        if is_auto_approvable:
             required_tools_from_plan = {step['tool'] for step in plan_data.get('plan', [])}
             user_integrations = user_profile.get("userData", {}).get("integrations", {})
-            
-            missing_tools = []
+
             for tool_name in required_tools_from_plan:
                 config = INTEGRATIONS_CONFIG.get(tool_name, {})
                 auth_type = config.get("auth_type")
                 is_connected = user_integrations.get(tool_name, {}).get("connected", False)
                 is_builtin = auth_type == "builtin"
-                
+
                 if not is_connected and not is_builtin:
                     missing_tools.append(config.get("display_name", tool_name))
-            
-            if missing_tools:
-                logger.warning(f"Task {task_id}: Auto-approval blocked. Missing tools: {missing_tools}.")
-                # Do NOT auto-approve. The status is already 'approval_pending'.
-                # Notify the user about the required connections.
-                await notify_user(
-                    user_id, 
-                    f"Task '{plan_data.get('name', '...')[:50]}...' requires you to connect: {', '.join(missing_tools)}.",
-                    task_id,
-                    notification_type="taskNeedsApproval"
-                )
-                auto_approve = False # Prevent the next block from running
+        
+        # Update the task with the generated plan first, regardless of auto-approval.
+        await db_manager.update_task_with_plan(task_id, plan_data, is_change_request)
 
-        # --- Modified auto-approval logic ---
-        if auto_approve:
+        if is_auto_approvable and not missing_tools:
             logger.info(f"Task {task_id} is a sub-task with auto-approval enabled and all tools connected. Approving now.")
             # This logic is copied and adapted from /approve-task endpoint
             now = datetime.datetime.now(datetime.timezone.utc)
@@ -669,17 +662,22 @@ async def async_generate_plan(task_id: str, user_id: str):
                 "next_execution_at": None,
             }
             await db_manager.update_task_field(task_id, user_id, update_payload)
-            execute_task_plan.delay(task_id, user_id, new_run['run_id'])
+            await async_execute_task_plan(task_id, user_id, new_run['run_id'])
             await notify_user(user_id, f"Auto-approved and started task: '{plan_data.get('name', '...')[:50]}...'", task_id, notification_type="taskStarted")
             return # End execution here for auto-approved tasks
-
-        await db_manager.update_task_with_plan(task_id, plan_data, is_change_request) # noqa: E501
-
-        # Notify user that a plan is ready for their approval (if not auto-approved)
-        await notify_user(
-            user_id, f"I've created a new plan for you: '{plan_data.get('name', '...')[:50]}...'", task_id,
-            notification_type="taskNeedsApproval"
-        )
+        else:
+            # If not auto-approved, notify user for manual approval.
+            if missing_tools:
+                 await notify_user(
+                    user_id,
+                    f"Task '{plan_data.get('name', '...')[:50]}...' requires you to connect: {', '.join(missing_tools)}.",
+                    task_id,
+                    notification_type="taskNeedsApproval"
+                )
+            else:
+                await notify_user(
+                    user_id, f"I've created a new plan for you: '{plan_data.get('name', '...')[:50]}...'", task_id,
+                    notification_type="taskNeedsApproval")
 
         # CRITICAL: Notify the frontend to refresh its task list.
         # A run_id doesn't exist yet, as this is the planning stage. We pass a placeholder.

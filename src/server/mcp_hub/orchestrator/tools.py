@@ -8,7 +8,7 @@ from fastmcp.utilities.logging import get_logger
 
 from . import state_manager, waiting_manager, auth
 from workers.utils.api_client import notify_user
-from workers.tasks import refine_and_plan_ai_task
+from workers.tasks import async_refine_and_plan_ai_task
 from mcp_hub.orchestrator.prompts import COMPLETION_EVALUATION_PROMPT
 from main.llm import run_agent as run_main_agent
 from json_extractor import JsonExtractor
@@ -37,7 +37,7 @@ async def update_plan(ctx: Context, next_step_description: str, reasoning: str, 
     return {"status": "success", "message": "New step added to the plan."}
 
 async def update_context(ctx: Context, key: str, value: Any, reasoning: str) -> Dict:
-    """Store information in the task's context store"""
+    """Store information like email thread IDs, document IDs, etc. in the task's context store. This is crucial information about the current task that will be required for subsequent steps."""
     logger.info(f"Executing tool: update_context with key='{key}', value='{json.dumps(value, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -46,7 +46,7 @@ async def update_context(ctx: Context, key: str, value: Any, reasoning: str) -> 
     return {"status": "success", "message": f"Context updated for key '{key}'."}
 
 async def get_context(ctx: Context, key: str = None) -> Dict:
-    """Retrieve information from task's context store"""
+    """Retrieve information like email thread IDs, document IDs, etc. from task's context store. Always use this tool when you start a new cycle to get the latest context."""
     logger.info(f"Executing tool: get_context with key='{key}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -57,14 +57,17 @@ async def get_context(ctx: Context, key: str = None) -> Dict:
     return {"status": "success", "result": context_store}
 
 async def create_subtask(ctx: Context, step_id: str, subtask_description: str, context: Optional[Dict] = None, reasoning: str = "") -> Dict:
-    """Create a sub-task for a specific step of a long-form task."""
+    """
+    Creates and COMPLETELY EXECUTES a sub-task. This is a BLOCKING call.
+    The orchestrator will wait until the sub-task is finished and will receive its final result.
+    """
     subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT contact or notify the user directly—your output goes back to the orchestrator."
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
     db = state_manager.PlannerMongoManager()
+    sub_task_id = None
     try:
-        # Get parent task to check for auto-approval flag
         parent_task = await db.get_task(task_id, user_id)
         if not parent_task:
             raise ToolError(f"Parent task with ID {task_id} not found for user.")
@@ -73,7 +76,7 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
         sub_task_data = {
             "name": subtask_description,
             "description": subtask_description,
-            "task_type": "single",  # Sub-tasks are always single-shot
+            "task_type": "single",
             "original_context": {
                 "source": "long_form_subtask",
                 "parent_task_id": task_id,
@@ -84,33 +87,50 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
         }
         sub_task_id = await db.add_task(user_id, sub_task_data)
 
-        # Link sub_task_id to the parent task's step
         await db.tasks_collection.update_one(
             {"task_id": task_id, "user_id": user_id, "dynamic_plan.step_id": step_id},
             {"$set": {"dynamic_plan.$.sub_task_id": sub_task_id}}
         )
 
-        # Set a waiting flag on the parent task to enforce sequential execution
-        await state_manager.update_orchestrator_state(task_id, user_id, {
-            "waiting_for_subtask": sub_task_id
-        })
-
-        refine_and_plan_ai_task.delay(sub_task_id, user_id)
         await state_manager.add_execution_log(task_id, user_id, "subtask_created", {"sub_task_id": sub_task_id, "description": subtask_description}, reasoning)
-        return {"status": "success", "result": {"sub_task_id": sub_task_id}}
+
+        # === BEGIN SYNCHRONOUS EXECUTION ===
+        logger.info(f"Orchestrator is now BLOCKING, awaiting completion of sub-task {sub_task_id}")
+        await async_refine_and_plan_ai_task(sub_task_id, user_id)
+        logger.info(f"Sub-task {sub_task_id} has completed its lifecycle.")
+
+        # Fetch the completed sub-task to get its result
+        completed_subtask = await db.get_task(sub_task_id, user_id)
+        if not completed_subtask:
+            raise ToolError(f"Could not retrieve completed sub-task {sub_task_id} from database.")
+
+        final_run = completed_subtask.get("runs", [])[-1] if completed_subtask.get("runs") else {}
+        final_result = final_run.get("result", {"summary": "Sub-task finished but produced no result."})
+
+        return {"status": "success", "result": final_result}
+
+    except Exception as e:
+        logger.error(f"Error during synchronous sub-task execution for parent {task_id}: {e}", exc_info=True)
+        if sub_task_id:
+            await db.update_task_field(sub_task_id, user_id, {"status": "error", "error": f"Orchestrator-level error: {e}"})
+        # Propagate the error back to the orchestrator agent
+        raise ToolError(f"Sub-task execution failed: {e}")
     finally:
         await db.close()
 
-async def wait_for_response(ctx: Context, waiting_for: str, timeout_minutes: int, max_retries: int = 3, reasoning: str = "", context: Optional[Dict[str, Any]] = None) -> Dict:
-    """Put the task in waiting state with timeout"""
-    logger.info(f"Executing tool: wait_for_response with waiting_for='{waiting_for}', timeout_minutes='{timeout_minutes}', max_retries='{max_retries}', reasoning='{reasoning}', context='{json.dumps(context, default=str)}'")
+async def wait(ctx: Context, wait_for_event: str, timeout_minutes: int, max_retries: int = 3, reasoning: str = "", context: Optional[Dict[str, Any]] = None) -> Dict:
+    """
+    Puts the task in a waiting state for an EXTERNAL event (e.g., a human email reply).
+    DO NOT use this to wait for sub-tasks. `create_subtask` handles that automatically.
+    """
+    logger.info(f"Executing tool: wait with wait_for_event='{wait_for_event}', timeout_minutes='{timeout_minutes}', max_retries='{max_retries}', reasoning='{reasoning}', context='{json.dumps(context, default=str)}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
-    await waiting_manager.set_waiting_state(task_id, user_id, waiting_for, timeout_minutes, max_retries, context=context)
-    await state_manager.add_execution_log(task_id, user_id, "waiting_started", {"waiting_for": waiting_for, "timeout_minutes": timeout_minutes, "context": context}, reasoning)
+    await waiting_manager.set_waiting_state(task_id, user_id, wait_for_event, timeout_minutes, max_retries, context=context)
+    await state_manager.add_execution_log(task_id, user_id, "waiting_started", {"waiting_for": wait_for_event, "timeout_minutes": timeout_minutes, "context": context}, reasoning)
     return {
         "status": "success",
-        "message": f"Task is now waiting for '{waiting_for}'. DO NOT CONTINUE OR MAKE FURTHER CALLS IN THIS CYCLE."
+        "message": f"Task is now waiting for '{wait_for_event}'. DO NOT CONTINUE OR MAKE FURTHER CALLS NOW. THIS IS THE USER SPEAKING. YOU HAVE TO STOP NOW. DO NOT SEND ANY MORE RESPONSES IN THIS CYCLE."
     }
 
 async def ask_user_clarification(ctx: Context, question: str, urgency: str = "normal", reasoning: str = "") -> Dict:
@@ -151,7 +171,7 @@ async def ask_user_clarification(ctx: Context, question: str, urgency: str = "no
 
         return {
             "status": "success",
-            "message": "Clarification requested from user. Task is suspended. DO NOT CONTINUE OR MAKE FURTHER CALLS IN THIS CYCLE."
+            "message": "Clarification requested from user. Task is suspended. DO NOT CONTINUE OR MAKE FURTHER CALLS NOW. THIS IS THE USER SPEAKING. YOU HAVE TO STOP NOW. DO NOT SEND ANY MORE RESPONSES IN THIS CYCLE."
         }
     finally:
         await db.close()

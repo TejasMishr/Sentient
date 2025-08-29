@@ -396,7 +396,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
             await add_progress_update(db, task_id, run_id, user_id, {"type": "info", "content": "Execution finished. Generating final report..."}, block_id=block_id)
             await update_task_run_status(db, task_id, run_id, "completed", user_id, block_id=block_id)
             capture_event(user_id, "task_execution_succeeded", {"task_id": task_id, "run_id": run_id})
-            generate_task_result.delay(task_id, run_id, user_id)
+            await async_generate_task_result(task_id, run_id, user_id)
 
         from workers.tasks import calculate_next_run
         schedule_type = task.get('schedule', {}).get('type')
@@ -609,7 +609,8 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                 )
                 # Clear the waiting flag on the parent task so the orchestrator can resume
                 await update_orchestrator_state(parent_task_id, user_id, {
-                    "waiting_for_subtask": None
+                    "waiting_for_subtask": None,
+                    "current_state": "ACTIVE" # Wake up the parent task
                 })
                 execute_orchestrator_cycle.delay(parent_task_id)
                 logger.info(f"Triggered orchestrator cycle for parent task {parent_task_id}.")

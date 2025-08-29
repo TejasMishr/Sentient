@@ -315,8 +315,9 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         "5.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it.\n"
         "6.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
         "7.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This is not a tool call. Your final response MUST be wrapped in `<answer>` tags. For example: `<answer>I have successfully scheduled the meeting and sent an invitation to John Doe.</answer>`.\n"
-        "8.  **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
-        "9. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing. For example: `<answer>Task failed. I could not find the client's email address in memory or through any available tools.</answer>`\n"
+        "8.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
+        "9.  **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
+        "10. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing. For example: `<answer>Task failed. I could not find the client's email address in memory or through any available tools.</answer>`\n"
         "\nNow, begin your work. Think step-by-step and start executing the plan."
     )
 
@@ -586,16 +587,14 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
             parent_step_id = original_context.get("parent_step_id")
 
             if parent_task_id and parent_step_id:
-                logger.info(f"Subtask {task_id} for step {parent_step_id} completed. Updating parent task {parent_task_id}.")
-
                 # --- NEW: Enrich result with execution details ---
                 full_subtask_doc = await db.tasks.find_one({"task_id": task_id, "user_id": user_id})
                 if full_subtask_doc:
                     decrypt_doc(full_subtask_doc, SENSITIVE_TASK_FIELDS)
                     structured_result["sub_task_execution_details"] = {
-                        "runs": full_subtask_doc.get("runs", []),
-                        "chat_history": full_subtask_doc.get("chat_history", [])
+                        "runs": full_subtask_doc.get("runs", [])
                     }
+                logger.info(f"Subtask {task_id} for step {parent_step_id} completed. Updating parent task {parent_task_id}.")
 
                 from workers.long_form_tasks import execute_orchestrator_cycle
                 from mcp_hub.orchestrator.state_manager import mark_step_as_complete, add_execution_log, update_orchestrator_state

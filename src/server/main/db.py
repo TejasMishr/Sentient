@@ -285,6 +285,7 @@ class MongoManager:
             "last_execution_at": None,
             # Task type specific fields
             "task_type": task_data.get("task_type", "single"),
+            "orchestrator_history": [],
         }
     
         # Add type-specific fields based on the new schema
@@ -298,7 +299,7 @@ class MongoManager:
             task_doc["execution_log"] = task_data.get("execution_log", [])
             task_doc["auto_approve_subtasks"] = task_data.get("auto_approve_subtasks", False)
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.task_collection.insert_one(task_doc) # noqa: E501
@@ -308,7 +309,7 @@ class MongoManager:
     async def get_task(self, task_id: str, user_id: str) -> Optional[Dict]:
         """Fetches a single task by its ID, ensuring it belongs to the user."""
         doc = await self.task_collection.find_one({"task_id": task_id, "user_id": user_id})
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
@@ -316,14 +317,14 @@ class MongoManager:
         """Fetches all tasks for a given user."""
         cursor = self.task_collection.find({"user_id": user_id}).sort("created_at", -1) # noqa: E501
         docs = await cursor.to_list(length=None)
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         _decrypt_docs(docs, SENSITIVE_TASK_FIELDS)
         return docs
 
     async def update_task(self, task_id: str, updates: Dict) -> bool:
         """Updates an existing task document."""
         updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         encrypt_doc(updates, SENSITIVE_TASK_FIELDS)
         result = await self.task_collection.update_one(
             {"task_id": task_id},

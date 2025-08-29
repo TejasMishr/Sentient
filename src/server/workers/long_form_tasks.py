@@ -76,15 +76,15 @@ async def async_execute_orchestrator_cycle(task_id: str):
         orchestrator_state = task.get("orchestrator_state", {})
         current_state = orchestrator_state.get("current_state")
 
-        # NEW: Check for waiting_for_subtask flag to enforce sequential execution
-        if orchestrator_state.get("waiting_for_subtask"):
-            logger.info(f"Orchestrator cycle for task {task_id} skipped. Waiting for sub-task {orchestrator_state['waiting_for_subtask']} to complete.")
-            return
-
         # If the task is in a terminal or waiting state, do not run the cycle.
         # The cycle will be re-triggered by user action, a timeout handler, or a sub-task completion.
         if current_state in ["COMPLETED", "FAILED", "SUSPENDED", "PAUSED", "WAITING"]:
             logger.info(f"Orchestrator cycle for task {task_id} skipped. State is '{current_state}'.")
+            return
+
+        # NEW: Block if waiting for subtask (prevents race during subtask exec)
+        if orchestrator_state.get("waiting_for_subtask"):
+            logger.info(f"Orchestrator cycle for task {task_id} skipped. Waiting for sub-task {orchestrator_state['waiting_for_subtask']} to complete.")
             return
 
         # 1. Construct context for the agent
@@ -138,15 +138,46 @@ async def async_execute_orchestrator_cycle(task_id: str):
         system_prompt = ORCHESTRATOR_SYSTEM_PROMPT.format(
             **context_for_prompt
         )
-        messages = [{'role': 'user', 'content': user_prompt}]
+        # NEW: Reconstruct full messages with history
+        messages = [{'role': 'system', 'content': system_prompt}]  # Start with system as history[0]
+        orchestrator_history = task.get("orchestrator_history", [])
+        if orchestrator_history:
+            for past_cycle in orchestrator_history:
+                # Add a separator message for clarity
+                messages.append({
+                    "role": "system",
+                    "content": f"--- PAST CYCLE ({past_cycle.get('cycle_timestamp', 'N/A')}): ---"
+                })
+                messages.extend(past_cycle.get("messages", []))  # Append past assistant/tool messages
+            # Add another separator before current prompt
+            messages.append({
+                "role": "system",
+                "content": "--- CURRENT CYCLE: Proceed with the next action based on the above history. ---"
+            })
+        messages.append({'role': 'user', 'content': user_prompt})  # End with current instruction
         
         final_agent_response = None
-        for chunk in run_main_agent(system_message=system_prompt, function_list=function_list, messages=messages):
+        for chunk in run_main_agent(system_message="", function_list=function_list, messages=messages):
             if isinstance(chunk, list) and chunk:
                 final_agent_response = chunk
 
         if final_agent_response:
             logger.info(f"Orchestrator agent for task {task_id} produced final history: \n{json.dumps(final_agent_response, indent=2, default=str)}")
+            # NEW: Append the full agent response (history slice) to orchestrator_history
+            orchestrator_history = task.get("orchestrator_history", [])
+            if not isinstance(orchestrator_history, list):
+                orchestrator_history = []
+            # Append only the new assistant messages from this cycle
+            assistant_messages = [msg for msg in final_agent_response if msg.get("role") in ["assistant", "function"]]
+            orchestrator_history.append({
+                "cycle_timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "messages": assistant_messages
+            })
+            # Limit to last 10 cycles to avoid token explosion
+            if len(orchestrator_history) > 10:
+                orchestrator_history = orchestrator_history[-10:]
+            await db_manager.update_task_field(task_id, user_id, {"orchestrator_history": orchestrator_history})
+            logger.info(f"Appended {len(assistant_messages)} messages to orchestrator_history for task {task_id}.")
         else:
             logger.error(f"Orchestrator agent for task {task_id} did not produce a response.")
             raise Exception("Orchestrator agent failed to produce a response.")

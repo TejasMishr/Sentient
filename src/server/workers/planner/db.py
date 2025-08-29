@@ -88,9 +88,10 @@ class PlannerMongoManager:  # noqa: E501
             "next_execution_at": None,
             "last_execution_at": None,
             "task_type": task_data.get("task_type", "single"),
+            "orchestrator_history": [],
         }
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.insert_one(task_doc)
@@ -117,9 +118,10 @@ class PlannerMongoManager:  # noqa: E501
             "created_at": now_utc,
             "updated_at": now_utc,
             "chat_history": [],
+            "orchestrator_history": [],
         }
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.insert_one(task_doc)
@@ -128,7 +130,7 @@ class PlannerMongoManager:  # noqa: E501
 
     async def update_task_field(self, task_id: str, user_id: str, fields: dict):
         """Updates specific fields of a task document."""
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         # The encrypt_doc function modifies the dictionary in place
         encrypt_doc(fields, SENSITIVE_TASK_FIELDS)
 
@@ -173,7 +175,7 @@ class PlannerMongoManager:  # noqa: E501
         if user_id:
             query["user_id"] = user_id
         doc = await self.tasks_collection.find_one(query)
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
@@ -210,7 +212,7 @@ class PlannerMongoManager:  # noqa: E501
             "agent_id": "planner_agent"
         }
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "original_context", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "original_context", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log", "orchestrator_history"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
         await self.tasks_collection.insert_one(task_doc)

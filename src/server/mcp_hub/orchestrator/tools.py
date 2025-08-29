@@ -58,6 +58,7 @@ async def get_context(ctx: Context, key: str = None) -> Dict:
 
 async def create_subtask(ctx: Context, step_id: str, subtask_description: str, context: Optional[Dict] = None, reasoning: str = "") -> Dict:
     """Create a sub-task for a specific step of a long-form task."""
+    subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT contact or notify the user directly—your output goes back to the orchestrator."
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
@@ -100,13 +101,13 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
     finally:
         await db.close()
 
-async def wait_for_response(ctx: Context, waiting_for: str, timeout_minutes: int, max_retries: int = 3, reasoning: str = "") -> Dict:
+async def wait_for_response(ctx: Context, waiting_for: str, timeout_minutes: int, max_retries: int = 3, reasoning: str = "", context: Optional[Dict[str, Any]] = None) -> Dict:
     """Put the task in waiting state with timeout"""
-    logger.info(f"Executing tool: wait_for_response with waiting_for='{waiting_for}', timeout_minutes='{timeout_minutes}', max_retries='{max_retries}', reasoning='{reasoning}'")
+    logger.info(f"Executing tool: wait_for_response with waiting_for='{waiting_for}', timeout_minutes='{timeout_minutes}', max_retries='{max_retries}', reasoning='{reasoning}', context='{json.dumps(context, default=str)}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
-    await waiting_manager.set_waiting_state(task_id, user_id, waiting_for, timeout_minutes, max_retries)
-    await state_manager.add_execution_log(task_id, user_id, "waiting_started", {"waiting_for": waiting_for, "timeout_minutes": timeout_minutes}, reasoning)
+    await waiting_manager.set_waiting_state(task_id, user_id, waiting_for, timeout_minutes, max_retries, context=context)
+    await state_manager.add_execution_log(task_id, user_id, "waiting_started", {"waiting_for": waiting_for, "timeout_minutes": timeout_minutes, "context": context}, reasoning)
     return {
         "status": "success",
         "message": f"Task is now waiting for '{waiting_for}'. DO NOT CONTINUE OR MAKE FURTHER CALLS IN THIS CYCLE."

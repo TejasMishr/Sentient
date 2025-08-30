@@ -376,13 +376,21 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 
 	return (
 		<motion.div
-			ref={modalRef}
-			initial={{ opacity: 0, y: 20, scale: 0.95 }}
-			animate={{ opacity: 1, y: 0, scale: 1 }}
-			exit={{ opacity: 0, y: 20, scale: 0.95 }}
-			transition={{ duration: 0.2, ease: "easeInOut" }}
-			className="fixed bottom-24 right-6 z-50 origin-bottom-right flex w-full max-w-lg flex-col rounded-2xl border border-neutral-700 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-xl"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+			onClick={onClose}
 		>
+			<motion.div
+				ref={modalRef}
+				initial={{ opacity: 0, y: 20, scale: 0.95 }}
+				animate={{ opacity: 1, y: 0, scale: 1 }}
+				exit={{ opacity: 0, y: 20, scale: 0.95 }}
+				transition={{ duration: 0.2, ease: "easeInOut" }}
+				className="relative flex w-full max-w-lg flex-col rounded-2xl border border-neutral-700 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-xl"
+				onClick={(e) => e.stopPropagation()}
+			>
 			<header className="flex flex-shrink-0 items-center justify-between mb-4">
 				<h2 className="text-lg font-semibold text-white">
 					Add a New Memory
@@ -430,6 +438,7 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 					{isSaving ? "Saving..." : "Add Memory"}
 				</button>
 			</footer>
+			</motion.div>
 		</motion.div>
 	)
 }

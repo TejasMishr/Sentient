@@ -1735,9 +1735,9 @@ export default function ChatPage() {
 							/>
 
 							{/* Overlay for controls and status text */}
-							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-6 pb-12">
+							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-4 pb-8 sm:p-6 sm:pb-12">
 								{/* Call Control Bar */}
-								<div className="flex items-center justify-center gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
+								<div className="flex items-center justify-center gap-2 sm:gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
 									{/* Mic Selector */}
 									<select
 										value={selectedAudioInputDevice}
@@ -1746,7 +1746,7 @@ export default function ChatPage() {
 												e.target.value
 											)
 										}
-										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[150px] truncate shadow-lg"
+										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[120px] sm:max-w-[150px] truncate shadow-lg"
 										title="Select Microphone"
 										disabled={
 											connectionStatus !== "disconnected"
@@ -1783,7 +1783,7 @@ export default function ChatPage() {
 												exit={{ opacity: 0, scale: 0 }}
 												onClick={handleToggleMute}
 												className={cn(
-													"flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
+													"flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
 													isMuted
 														? "bg-white text-black"
 														: "bg-neutral-700 hover:bg-neutral-600"
@@ -1807,13 +1807,13 @@ export default function ChatPage() {
 									{connectionStatus === "disconnected" ? (
 										<button
 											onClick={handleStartVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
 											title="Start Call"
 										>
 											<IconPhone size={24} />
 										</button>
 									) : connectionStatus === "connecting" ? (
-										<div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
+										<div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
 											<IconLoader
 												size={24}
 												className="animate-spin"
@@ -1822,7 +1822,7 @@ export default function ChatPage() {
 									) : (
 										<button
 											onClick={handleStopVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
 											title="Hang Up"
 										>
 											<IconPhoneOff size={24} />
@@ -1832,7 +1832,7 @@ export default function ChatPage() {
 									{/* Switch to Text Mode Button */}
 									<button
 										onClick={toggleVoiceMode}
-										className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
+										className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
 										title="Switch to Text Mode"
 									>
 										<IconMessageOff size={24} />
@@ -1841,7 +1841,7 @@ export default function ChatPage() {
 
 								{/* Status and Message Display (below controls) */}
 								<div className="text-center space-y-2 max-w-2xl">
-									<div className="text-lg font-medium text-gray-300 min-h-[24px]">
+									<div className="text-base sm:text-lg font-medium text-gray-300 min-h-[24px]">
 										<AnimatePresence mode="wait">
 											<motion.div
 												key={voiceStatusText}
@@ -1856,7 +1856,7 @@ export default function ChatPage() {
 											</motion.div>
 										</AnimatePresence>
 									</div>
-									<div className="text-2xl font-semibold text-white min-h-[64px]">
+									<div className="text-xl sm:text-2xl font-semibold text-white min-h-[64px]">
 										<AnimatePresence mode="wait">
 											{displayedMessages
 												.filter(

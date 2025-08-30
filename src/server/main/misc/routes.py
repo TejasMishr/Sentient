@@ -18,7 +18,7 @@ from main.config import AUTH0_AUDIENCE
 from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager
 from pydantic import BaseModel
 from workers.tasks import cud_memory_task
-from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, check_if_contact_is_missing
+from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, check_if_contact_is_missing, get_user_properties_from_sheet
 from main.notifications.whatsapp_client import check_phone_number_exists, send_whatsapp_message
 
 # Google API libraries for validation
@@ -313,6 +313,18 @@ async def update_privacy_filters_endpoint(
         raise HTTPException(status_code=500, detail="Failed to update privacy filters.")
         
     return JSONResponse(content={"message": "Privacy filters updated successfully."})
+
+@router.get("/user/properties", summary="Get user properties for analytics from GSheet")
+async def get_user_properties(
+    payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)
+):
+    user_email = payload.get("email")
+    if not user_email:
+        raise HTTPException(status_code=400, detail="User email not found in token.")
+
+    properties = await get_user_properties_from_sheet(user_email)
+
+    return JSONResponse(content=properties)
 
 @router.get("/search/interactive", summary="Interactive search for tasks, chats, and memories")
 async def interactive_search(

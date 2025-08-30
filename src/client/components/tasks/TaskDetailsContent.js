@@ -7,24 +7,264 @@ import { taskStatusColors, priorityMap } from "./constants"
 import {
 	IconGripVertical,
 	IconPlus,
-	IconSparkles,
-	IconUser,
 	IconX,
 	IconLoader,
 	IconSend,
 	IconInfoCircle,
-	IconLink,
-	IconWorldSearch,
 	IconChevronRight,
-	IconClock
+	IconClock,
+	IconTool,
+	IconCheck,
+	IconChevronDown,
+	IconPlayerPlay
 } from "@tabler/icons-react"
-import ScheduleEditor from "@components/tasks/ScheduleEditor"
-import ExecutionUpdate from "./ExecutionUpdate"
 import ChatBubble from "@components/ChatBubble"
-import { TextShimmer } from "@components/ui/text-shimmer"
 import CollapsibleSection from "./CollapsibleSection"
-import FileCard from "@components/FileCard"
 import ReactMarkdown from "react-markdown"
+import { motion, AnimatePresence } from "framer-motion"
+
+// --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
+const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
+	if (!waitingConfig || !waitingConfig.timeout_at) return null
+
+	const [timeLeft, setTimeLeft] = useState("")
+
+	useEffect(() => {
+		const intervalId = setInterval(() => {
+			const timeoutDate = new Date(waitingConfig.timeout_at)
+			const now = new Date()
+			const diff = timeoutDate.getTime() - now.getTime()
+
+			if (diff <= 0) {
+				setTimeLeft("Timeout reached. Awaiting next cycle.")
+				clearInterval(intervalId)
+				return
+			}
+
+			const hours = Math.floor(diff / (1000 * 60 * 60))
+			const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+			const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+			setTimeLeft(
+				`${String(hours).padStart(2, "0")}h ${String(minutes).padStart(
+					2,
+					"0"
+				)}m ${String(seconds).padStart(2, "0")}s`
+			)
+		}, 1000)
+
+		return () => clearInterval(intervalId)
+	}, [waitingConfig.timeout_at])
+
+	return (
+		<div className="space-y-2">
+			<p>
+				Waiting for:{" "}
+				<span className="font-semibold">{waitingConfig.waiting_for}</span>
+			</p>
+			<p>
+				Time remaining:{" "}
+				<span className="font-mono font-semibold">{timeLeft}</span>
+			</p>
+			<button
+				onClick={() => onResumeTask(taskId)}
+				className="text-sm flex items-center gap-2 px-3 py-1.5 mt-2 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-500"
+			>
+				<IconPlayerPlay size={16} />
+				Resume Now
+			</button>
+		</div>
+	)
+}
+
+// --- NEW COMPONENT: TaskFlowchartNode ---
+const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
+	const [isExpanded, setIsExpanded] = useState(false)
+
+	const nodeIcons = {
+		SUBTASK: <IconTool size={18} />,
+		WAIT: <IconClock size={18} />,
+		CLARIFICATION: <IconInfoCircle size={18} />,
+		COMPLETED: <IconCheck size={18} />,
+		FAILED: <IconX size={18} />
+	}
+
+	const nodeColors = {
+		SUBTASK: "border-blue-500/50 text-blue-300",
+		WAIT: "border-yellow-500/50 text-yellow-300",
+		CLARIFICATION: "border-orange-500/50 text-orange-300",
+		COMPLETED: "border-green-500/50 text-green-300",
+		FAILED: "border-red-500/50 text-red-300"
+	}
+
+	const isClickable =
+		node.data && (node.data.sub_task_id || node.data.result || node.type === "WAIT")
+
+	return (
+		<div className="flex items-start">
+			<div className="flex flex-col items-center mr-4">
+				<div
+					className={cn(
+						"w-10 h-10 rounded-full flex items-center justify-center border-2 bg-neutral-900",
+						nodeColors[node.type]
+					)}
+				>
+					{nodeIcons[node.type]}
+				</div>
+				{!node.isLast && <div className="w-0.5 h-12 bg-neutral-700 mt-2"></div>}
+			</div>
+			<div className="flex-1 pb-10">
+				<div
+					className={cn(
+						"p-3 rounded-lg border bg-neutral-800/50",
+						nodeColors[node.type],
+						isClickable && "cursor-pointer hover:bg-neutral-800"
+					)}
+					onClick={() => isClickable && setIsExpanded(!isExpanded)}
+				>
+					<div className="flex justify-between items-center">
+						<div className="flex-1">
+							<p className="font-semibold text-sm">{node.title}</p>
+							<p className="text-xs text-neutral-400 capitalize mt-0.5">
+								{node.status}
+							</p>
+						</div>
+						{isClickable &&
+							(isExpanded ? (
+								<IconChevronDown size={16} />
+							) : (
+								<IconChevronRight size={16} />
+							))}
+					</div>
+				</div>
+				<AnimatePresence>
+					{isExpanded && node.data && (
+						<motion.div
+							initial={{ opacity: 0, height: 0 }}
+							animate={{ opacity: 1, height: "auto" }}
+							exit={{ opacity: 0, height: 0 }}
+							className="mt-2 p-3 bg-neutral-900 rounded-lg text-sm border border-neutral-800"
+						>
+							{node.type === "SUBTASK" && node.data.sub_task_id && (
+								<button
+									onClick={() =>
+										onSelectTask({
+											task_id: node.data.sub_task_id
+										})
+									}
+									className="text-blue-400 hover:underline flex items-center gap-1 w-full text-left"
+								>
+									View Sub-task Details{" "}
+									<IconChevronRight size={14} />
+								</button>
+							)}
+							{node.type === "WAIT" && (
+								<WaitingNodeDetails
+									waitingConfig={node.data.waiting_config}
+									onResumeTask={onResumeTask}
+									taskId={node.data.task_id}
+								/>
+							)}
+							{node.type === "SUBTASK" && node.data.result && (
+								<div>
+									<p className="font-semibold text-neutral-300 mb-1">
+										Result:
+									</p>
+									<pre className="text-xs bg-neutral-800 p-2 rounded-md whitespace-pre-wrap max-h-40 overflow-auto custom-scrollbar">
+										{JSON.stringify(
+											node.data.result,
+											null,
+											2
+										)}
+									</pre>
+								</div>
+							)}
+						</motion.div>
+					)}
+				</AnimatePresence>
+			</div>
+		</div>
+	)
+}
+
+// --- NEW COMPONENT: TaskFlowchart ---
+const TaskFlowchart = ({ task, onSelectTask, onResumeTask }) => {
+	const { dynamic_plan = [], orchestrator_state = {}, status } = task
+	const { current_state, waiting_config } = orchestrator_state
+
+	const flowNodes = dynamic_plan.map((step) => ({
+		type: "SUBTASK",
+		title: step.description,
+		status: step.status,
+		data: step
+	}))
+
+	if (current_state === "WAITING" && waiting_config) {
+		flowNodes.push({
+			type: "WAIT",
+			title: `Waiting...`,
+			status: "Active",
+			data: { waiting_config, task_id: task.task_id }
+		})
+	}
+
+	if (current_state === "SUSPENDED") {
+		const pendingRequest = (task.clarification_requests || []).find(
+			(r) => r.status === "pending"
+		)
+		flowNodes.push({
+			type: "CLARIFICATION",
+			title: pendingRequest
+				? `Awaiting user input`
+				: "Awaiting user input",
+			status: "Pending",
+			data: null
+		})
+	}
+
+	if (status === "completed" || current_state === "COMPLETED") {
+		flowNodes.push({
+			type: "COMPLETED",
+			title: "Task Completed",
+			status: "Completed",
+			data: null
+		})
+	}
+
+	if (status === "error" || current_state === "FAILED") {
+		flowNodes.push({
+			type: "FAILED",
+			title: "Task Failed",
+			status: "Failed",
+			data: null
+		})
+	}
+
+	if (flowNodes.length === 0 && status === "processing") {
+		return (
+			<div className="flex items-center gap-2 text-neutral-400">
+				<IconLoader className="animate-spin" />
+				<p>Orchestrator is generating the initial plan...</p>
+			</div>
+		)
+	}
+
+	return (
+		<div>
+			<h4 className="font-semibold text-neutral-300 mb-4">Task Flow</h4>
+			<div className="relative">
+				{flowNodes.map((node, index) => (
+					<TaskFlowchartNode
+						key={node.data?.step_id || index}
+						node={{ ...node, isLast: index === flowNodes.length - 1 }}
+						onSelectTask={onSelectTask}
+						onResumeTask={onResumeTask}
+					/>
+				))}
+			</div>
+		</div>
+	)
+}
 
 // --- NEW COMPONENT ---
 const WaitingStateDisplay = ({ waitingConfig }) => {
@@ -74,61 +314,6 @@ const WaitingStateDisplay = ({ waitingConfig }) => {
 				<span className="font-mono font-semibold">{timeLeft}</span>
 			</p>
 		</div>
-	)
-}
-
-// --- NEW COMPONENT ---
-const ExecutionLogDisplay = ({ log, userTimezone }) => {
-	if (!log || log.length === 0) return null
-	return (
-		<CollapsibleSection title="Orchestrator Log" defaultOpen={true}>
-			<div className="space-y-3">
-				{log
-					.slice()
-					.reverse()
-					.map((entry, index) => (
-						<div
-							key={index}
-							className="p-3 bg-neutral-800/50 rounded-lg border border-neutral-700/50"
-						>
-							<div className="flex justify-between items-center text-xs text-neutral-500 mb-1">
-								<span className="font-semibold capitalize text-neutral-400">
-									{entry.action?.replace(/_/g, " ")}
-								</span>
-								<span>{
-									new Intl.DateTimeFormat(undefined, {
-										year: 'numeric',
-										month: 'numeric',
-										day: 'numeric',
-										hour: 'numeric',
-										minute: '2-digit',
-										second: '2-digit',
-										hour12: true,
-										timeZone: userTimezone || undefined
-									}).format(new Date(entry.timestamp))
-								}</span>
-							</div>
-							{entry.agent_reasoning && (
-								<p className="text-sm text-neutral-300 italic mt-2">
-									"{entry.agent_reasoning}"
-								</p>
-							)}
-							{entry.details &&
-								Object.keys(entry.details).length > 0 && (
-									<div className="mt-2 pt-2 border-t border-neutral-700">
-										<pre className="text-xs bg-neutral-900 p-2 rounded-md whitespace-pre-wrap max-h-40 overflow-auto custom-scrollbar">
-											{JSON.stringify(
-												entry.details,
-												null,
-												2
-											)}
-										</pre>
-									</div>
-								)}
-						</div>
-					))}
-			</div>
-		</CollapsibleSection>
 	)
 }
 
@@ -529,7 +714,8 @@ const TaskDetailsContent = ({
 	onSendChatMessage,
 	onAnswerClarifications,
 	onAnswerLongFormClarification,
-	onSelectTask
+	onSelectTask,
+	onResumeTask
 }) => {
 	if (!task) {
 		return null
@@ -559,27 +745,11 @@ const TaskDetailsContent = ({
 				</div>
 			)}
 
-			{displayTask.task_type === "long_form" &&
-				displayTask.orchestrator_state?.current_state === "WAITING" && (
-					<WaitingStateDisplay
-						waitingConfig={
-							displayTask.orchestrator_state.waiting_config
-						}
-					/>
-			)}
-
-			{displayTask.task_type === "long_form" &&
-				displayTask.execution_log && (
-					<ExecutionLogDisplay
-						log={displayTask.execution_log}
-						userTimezone={userTimezone}
-					/>
-				)}
-
 			{displayTask.task_type === "long_form" && (
-				<LongFormPlanSection
-					plan={displayTask.dynamic_plan}
+				<TaskFlowchart
+					task={displayTask}
 					onSelectTask={onSelectTask}
+					onResumeTask={onResumeTask}
 				/>
 			)}
 			{displayTask.task_type === "long_form" &&

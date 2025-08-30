@@ -137,16 +137,17 @@ async def add_task(
 
     # 2. Triage based on the parsed schedule
     schedule = parsed_data.get("schedule")
-    is_workflow = schedule and schedule.get("type") in ["recurring", "triggered"]
+    schedule_type = schedule.get("type") if schedule else "once"
+    run_at = schedule.get("run_at") if schedule else None
 
-    if is_workflow:
-        # This is a workflow, create a standard scheduled/triggered task
+    if schedule_type in ["recurring", "triggered"]:
+        # This is a recurring or triggered workflow
         task_data = {
             "name": parsed_data.get("name", request.prompt),
             "description": parsed_data.get("description", request.prompt),
             "priority": parsed_data.get("priority", 1),
             "schedule": schedule,
-            "task_type": schedule.get("type"), # This will be 'recurring' or 'triggered'
+            "task_type": schedule_type,
             "original_context": {"source": "ui_workflow_composer", "prompt": request.prompt}
         }
         task_id = await mongo_manager.add_task(user_id, task_data)
@@ -155,17 +156,34 @@ async def add_task(
 
         generate_plan_from_context.delay(task_id, user_id)
         return {"message": "Workflow created successfully. It will be planned shortly.", "task_id": task_id}
-    else:
-        # This is a standard task, create a long-form task
-        # Use the detailed description from the LLM as the primary source for the goal. Fallback to the raw prompt.
-        detailed_goal = parsed_data.get('description', request.prompt)
 
+    elif schedule_type == "once" and run_at is not None:
+        # This is a scheduled one-shot task, create a 'single' task
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": parsed_data.get("description", request.prompt),
+            "priority": parsed_data.get("priority", 1),
+            "schedule": schedule,
+            "task_type": "single",
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create scheduled task.")
+
+        generate_plan_from_context.delay(task_id, user_id)
+        return {"message": "Scheduled task created successfully. It will be planned shortly.", "task_id": task_id}
+
+    else: # This covers immediate one-shot tasks (run_at is null or no schedule at all)
+        # This is an immediate task, create a long-form task
+        detailed_goal = parsed_data.get('description', request.prompt)
         task_data = {
             "name": parsed_data.get("name", request.prompt),
             "description": detailed_goal,
             "task_type": "long_form",
             "auto_approve_subtasks": request.auto_approve_subtasks,
             "orchestrator_state": {"main_goal": detailed_goal, "current_state": "CREATED"},
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
         }
         task_id = await mongo_manager.add_task(user_id, task_data)
         if not task_id:

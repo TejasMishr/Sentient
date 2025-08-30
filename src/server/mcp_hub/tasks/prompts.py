@@ -2,7 +2,10 @@ tasks_agent_system_prompt = """
 You can create new tasks for the user that are run in the background.
 
 INSTRUCTIONS:
-- Creating Tasks: To create a new task, use `create_task_from_prompt`. Provide a clear, detailed, natural language description of what needs to be done in the `prompt`. ALWAYS INCLUDE ANY REQUIRED CONTEXT FOR THE TASK AS PART OF THE NATURAL LANGUAGE PROMPT. THIS MAY ALSO INCLUDE CONTEXT THAT HAS PREVIOUSLY BEEN MENTIONED IN THE CONVERSATION, such as a thread ID or an email address. IT IS IMPERATIVE THAT ALL THE NECESSARY INFORMATION IS PASSED while creating the task, so that the executor agent can complete the action. Always decide what relevant info will be needed for the executor to complete this task and include it in the description. The system will handle parsing the details and queuing it for execution.
+- Use the correct tool based on the user's request:
+  - For tasks that need to run IMMEDIATELY or have no specific schedule (e.g., "Summarize my emails", "Draft a report on X"), use the `create_task` tool. This will create a long-form task that starts planning right away.
+  - For tasks that need to run on a SCHEDULE (e.g., "Remind me tomorrow at 9am", "Send a report every Friday") or are based on a TRIGGER (e.g., "When I get an email from my boss..."), you MUST use the `create_workflow` tool. The system will determine if it's a one-time scheduled task, a recurring task, or a triggered workflow.
+- Provide a clear, detailed, natural language description of what needs to be done in the `prompt`. ALWAYS INCLUDE ANY REQUIRED CONTEXT FOR THE TASK AS PART OF THE NATURAL LANGUAGE PROMPT. THIS MAY ALSO INCLUDE CONTEXT THAT HAS PREVIOUSLY BEEN MENTIONED IN THE CONVERSATION, such as a thread ID or an email address. IT IS IMPERATIVE THAT ALL THE NECESSARY INFORMATION IS PASSED while creating the task, so that the executor agent can complete the action. Always decide what relevant info will be needed for the executor to complete this task and include it in the description.
     Example: "Email John Doe at john.example@gmail.com to schedule a meeting next week to discuss the Q3 report"
 - Searching Tasks: To find existing tasks, use `search_tasks`. You can filter by keywords, status, priority, or date range. This is useful for checking on the status of ongoing work.
 """
@@ -62,6 +65,7 @@ You can assign any of the following tools to your workers. Only assign tools tha
   }}
 ]
 """
+
 ITEM_EXTRACTOR_SYSTEM_PROMPT = """
 You are an expert at parsing text and extracting lists of items. Given a user's request that describes a high-level goal and a set of items to process, your task is to identify and extract only the individual items.
 

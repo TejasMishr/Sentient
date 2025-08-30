@@ -104,7 +104,30 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
         if not completed_subtask:
             raise ToolError(f"Could not retrieve completed sub-task {sub_task_id} from database.")
 
-        return {"status": "success", "result": completed_subtask, "message": f"Sub-task {sub_task_id} completed. USE THIS RESULT TO UPDATE THE MAIN TASK'S PLAN AND CONTEXT AS NEEDED. UPDATE THE PLAN WITH THE NEXT STEP THAT MUST BE COMPLETED AND STORE IMPORTANT CONTEXT LIKE THREAD IDS, DOCUMENT IDS, ETC. IN THE CONTEXT STORE."}
+        # --- NEW LOGIC: Extract a concise result ---
+        final_result = None
+        subtask_runs = completed_subtask.get("runs", [])
+        if subtask_runs:
+            # Get the result from the most recent run
+            last_run = subtask_runs[-1]
+            final_result = last_run.get("result")
+            # If there's no result but there is an error, use that.
+            if not final_result and last_run.get("error"):
+                final_result = {
+                    "status": "error",
+                    "summary": f"Sub-task failed: {last_run.get('error')}"
+                }
+
+        # Fallback if no structured result or error is found in the run
+        if not final_result:
+            final_result = {
+                "status": completed_subtask.get("status", "unknown"),
+                "summary": f"Sub-task completed with status '{completed_subtask.get('status', 'unknown')}'.",
+                "sub_task_id": sub_task_id,
+                "error": completed_subtask.get("error") # Top-level error
+            }
+
+        return {"status": "success", "result": final_result, "message": f"Sub-task {sub_task_id} completed. USE THIS RESULT TO UPDATE THE MAIN TASK'S PLAN AND CONTEXT AS NEEDED. UPDATE THE PLAN WITH THE NEXT STEP THAT MUST BE COMPLETED AND STORE IMPORTANT CONTEXT LIKE THREAD IDS, DOCUMENT IDS, ETC. IN THE CONTEXT STORE."}
 
     except Exception as e:
         logger.error(f"Error during synchronous sub-task execution for parent {task_id}: {e}", exc_info=True)

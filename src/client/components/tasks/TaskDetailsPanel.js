@@ -11,6 +11,7 @@ import {
 	IconArchive,
 	IconCircleCheck,
 	IconPlayerPlay,
+	IconPlayerPause,
 	IconClock,
 	IconClipboardList,
 	IconUsersGroup
@@ -37,7 +38,8 @@ const TaskDetailsPanel = ({
 	onAnswerClarifications,
 	onAnswerLongFormClarification,
 	onSelectTask,
-	onResumeTask
+	onResumeTask,
+	onPauseTask
 }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editableTask, setEditableTask] = useState(task)
@@ -94,14 +96,20 @@ const TaskDetailsPanel = ({
 	useEffect(() => {
 		const fetchUserTimezone = async () => {
 			try {
-				const response = await fetch("/api/user/data", { method: "POST" })
+				const response = await fetch("/api/user/data", {
+					method: "POST"
+				})
 				if (!response.ok) throw new Error("Failed to fetch user data")
 				const result = await response.json()
 				const timezone = result?.data?.personalInfo?.timezone
-				setUserTimezone(timezone || Intl.DateTimeFormat().resolvedOptions().timeZone) // Fallback to browser timezone
+				setUserTimezone(
+					timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+				) // Fallback to browser timezone
 			} catch (err) {
 				console.error("Failed to fetch user timezone", err)
-				setUserTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone) // Fallback on error
+				setUserTimezone(
+					Intl.DateTimeFormat().resolvedOptions().timeZone
+				) // Fallback on error
 			}
 		}
 		fetchUserTimezone()
@@ -247,7 +255,10 @@ const TaskDetailsPanel = ({
 								userTimezone={userTimezone}
 							/>
 						) : scheduleType === "triggered" ? (
-							<TriggeredTaskDetails task={task} userTimezone={userTimezone} />
+							<TriggeredTaskDetails
+								task={task}
+								userTimezone={userTimezone}
+							/>
 						) : (
 							<TaskDetailsContent
 								task={task}
@@ -257,6 +268,7 @@ const TaskDetailsPanel = ({
 									onAnswerLongFormClarification
 								}
 								userTimezone={userTimezone}
+								onResumeTask={onResumeTask}
 								onSelectTask={onSelectTask}
 							/>
 						)}
@@ -351,18 +363,37 @@ const TaskDetailsPanel = ({
 										</ActionButton>
 									)}
 									{task.task_type === "long_form" &&
-										task.orchestrator_state?.current_state ===
-											"WAITING" && (
+										task.orchestrator_state
+											?.current_state === "WAITING" && (
 											<ActionButton
 												onClick={() =>
 													onResumeTask(task.task_id)
 												}
-												icon={<IconPlayerPlay size={16} />}
+												icon={
+													<IconPlayerPlay size={16} />
+												}
 												className="bg-blue-600 text-white hover:bg-blue-500 w-full sm:w-auto flex-grow justify-center"
 											>
 												Resume Now
 											</ActionButton>
-									)}
+										)}
+									{task.task_type === "long_form" &&
+										task.orchestrator_state
+											?.current_state === "ACTIVE" && (
+											<ActionButton
+												onClick={() =>
+													onPauseTask(task.task_id)
+												}
+												icon={
+													<IconPlayerPause
+														size={16}
+													/>
+												}
+												className="bg-yellow-600 text-white hover:bg-yellow-500 w-full sm:w-auto flex-grow justify-center"
+											>
+												Pause
+											</ActionButton>
+										)}
 									<ActionButton
 										onClick={() =>
 											onArchiveTask(task.task_id)

@@ -12,7 +12,8 @@ import {
 	IconLoader,
 	IconSparkles,
 	IconCheck,
-	IconPlus
+	IconPlus,
+	IconBolt // Added IconBolt
 } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
@@ -229,13 +230,18 @@ function TasksPageContent() {
 
 	useEffect(() => {
 		const handleBackendUpdate = () => {
-			console.log("Received tasksUpdatedFromBackend event, fetching tasks...")
+			console.log(
+				"Received tasksUpdatedFromBackend event, fetching tasks..."
+			)
 			toast.success("Task list updated from backend.")
 			fetchTasks()
 		}
 		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
 		return () => {
-			window.removeEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
+			window.removeEventListener(
+				"tasksUpdatedFromBackend",
+				handleBackendUpdate
+			)
 		}
 	}, [fetchTasks])
 

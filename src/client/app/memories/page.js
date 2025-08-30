@@ -18,7 +18,8 @@ import {
 	IconPencil,
 	IconTrash,
 	IconDeviceFloppy,
-	IconCheck
+	IconCheck,
+	IconSparkles
 } from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
@@ -391,53 +392,54 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 				className="relative flex w-full max-w-lg flex-col rounded-2xl border border-neutral-700 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-xl"
 				onClick={(e) => e.stopPropagation()}
 			>
-			<header className="flex flex-shrink-0 items-center justify-between mb-4">
-				<h2 className="text-lg font-semibold text-white">
-					Add a New Memory
-				</h2>
-				<button
-					onClick={onClose}
-					className="p-1.5 rounded-full hover:bg-neutral-700"
-				>
-					<IconX size={18} />
-				</button>
-			</header>
-			<main className="flex-1">
-				<textarea
-					value={content}
-					onChange={(e) => setContent(e.target.value)}
-					placeholder="Enter a fact or piece of information to remember..."
-					className="w-full h-40 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
-					autoFocus
-				/>
-				<p className="text-xs text-neutral-500 mt-2 px-1">
-					Note: All memories should be in the third person. e.g., "
-					<span className="font-semibold text-neutral-400">
-						{userDetails?.given_name || "User"} likes football
-					</span>
-					" instead of "I like football".
-				</p>
-			</main>
-			<footer className="mt-6 flex justify-end gap-2 border-t border-neutral-800 pt-4">
-				<button
-					onClick={onClose}
-					className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-				>
-					Cancel
-				</button>
-				<button
-					onClick={handleCreate}
-					disabled={isSaving}
-					className="py-2 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm flex items-center gap-2"
-				>
-					{isSaving ? (
-						<IconLoader size={16} className="animate-spin" />
-					) : (
-						<IconPlus size={16} />
-					)}
-					{isSaving ? "Saving..." : "Add Memory"}
-				</button>
-			</footer>
+				<header className="flex flex-shrink-0 items-center justify-between mb-4">
+					<h2 className="text-lg font-semibold text-white">
+						Add a New Memory
+					</h2>
+					<button
+						onClick={onClose}
+						className="p-1.5 rounded-full hover:bg-neutral-700"
+					>
+						<IconX size={18} />
+					</button>
+				</header>
+				<main className="flex-1">
+					<textarea
+						value={content}
+						onChange={(e) => setContent(e.target.value)}
+						placeholder="Enter a fact or piece of information to remember..."
+						className="w-full h-40 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
+						autoFocus
+					/>
+					<p className="text-xs text-neutral-500 mt-2 px-1">
+						Note: All memories should be in the third person. e.g.,
+						"
+						<span className="font-semibold text-neutral-400">
+							{userDetails?.given_name || "User"} likes football
+						</span>
+						" instead of "I like football".
+					</p>
+				</main>
+				<footer className="mt-6 flex justify-end gap-2 border-t border-neutral-800 pt-4">
+					<button
+						onClick={onClose}
+						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
+					>
+						Cancel
+					</button>
+					<button
+						onClick={handleCreate}
+						disabled={isSaving}
+						className="py-2 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm flex items-center gap-2"
+					>
+						{isSaving ? (
+							<IconLoader size={16} className="animate-spin" />
+						) : (
+							<IconPlus size={16} />
+						)}
+						{isSaving ? "Saving..." : "Add Memory"}
+					</button>
+				</footer>
 			</motion.div>
 		</motion.div>
 	)

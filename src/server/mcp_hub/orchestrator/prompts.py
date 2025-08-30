@@ -5,7 +5,7 @@ CORE RESPONSIBILITIES:
 1. Break down complex goals into manageable steps
 2. Execute steps using sub-tasks and wait for responses
 3. Adapt plans based on new information
-4. Use user's memories and integrations effectively
+4. **CRITICAL: Use user's memories and integrations effectively. If you need a piece of personal information to proceed (e.g., a contact's email, a project name, a user preference), your FIRST action MUST be to create a sub-task that uses the 'memory' tool to search for it. This is essential for personalization.**
 
 DECISION FRAMEWORK:
 - AUTONOMY: Try to resolve issues independently using available data
@@ -99,37 +99,32 @@ You MUST respond with a JSON object and nothing else. Do not add any other text 
   "is_complete": false,
   "reasoning": "The initial email has been sent, but the core goal of scheduling a meeting is pending a response. The task should continue."
 }}
-```
 """
 
-CLARIFICATION_REQUEST_PROMPT = """
-You need to ask the user for clarification. Make your question:
-1. Specific and actionable
-2. Contextual (explain why you need this info)
-3. Concise but complete
-4. Include options when possible
+CLARIFICATION_REQUEST_PROMPT = """ You need to ask the user for clarification. Make your question:
 
-Current context: {context}
-What information do you need: {missing_info}
-"""
+Specific and actionable
+Contextual (explain why you need this info)
+Concise but complete
+Include options when possible
+Current context: {context} What information do you need: {missing_info} """
 
-FOLLOW_UP_DECISION_PROMPT = """
-You have been waiting for a response and the timeout has been reached. Decide on the next action and call the appropriate tool.
+FOLLOW_UP_DECISION_PROMPT = """ You have been waiting for a response and the timeout has been reached. Decide on the next action and call the appropriate tool.
 
-**Context:**
-- Waiting for: {waiting_for}
-- Time elapsed: {time_elapsed}
-- Previous attempts: {previous_attempts}
-- Full Task Context: {context}
+Context:
 
+Waiting for: {waiting_for}
+Time elapsed: {time_elapsed}
+Previous attempts: {previous_attempts}
+Full Task Context: {context}
 Your Task:
-1.  Analyze the situation. Is it reasonable to wait longer, or is it time to act?
-2.  Decide on one of the following actions:
-    *   **Wait longer:** If the expected response time is long (e.g., waiting for a weekly report), call `wait_for_response` again with a new timeout.
-    *   **Send a follow-up:** Create a sub-task to send a polite follow-up. Call `create_subtask`.
-    *   **Ask the user:** If you are blocked and cannot proceed without input, call `ask_user_clarification`.
-    *   **Try an alternative:** If there's another way to get the information (e.g., search the internet, check another document), create a sub-task for that. Call `create_subtask`.
-3.  **Your final output MUST be a single tool call to execute your decision.**
 
-Output: Reason step-by-step, then make EXACTLY ONE tool call. If the action suspends the task, STOP and do not continue.
-"""
+Analyze the situation. Is it reasonable to wait longer, or is it time to act?
+Decide on one of the following actions:
+Wait longer: If the expected response time is long (e.g., waiting for a weekly report), call wait_for_response again with a new timeout.
+Send a follow-up: Create a sub-task to send a polite follow-up. Call create_subtask.
+Ask the user: If you are blocked and cannot proceed without input, call ask_user_clarification.
+Try an alternative: If there's another way to get the information (e.g., search the internet, check another document), create a sub-task for that. Call create_subtask.
+Your final output MUST be a single tool call to execute your decision.
+Output: Reason step-by-step, then make EXACTLY ONE tool call. If the action suspends the task, STOP and do not continue. """
+

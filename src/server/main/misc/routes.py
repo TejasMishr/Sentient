@@ -319,57 +319,86 @@ async def interactive_search(
     query: str = Query(..., min_length=3),
     user_id: str = Depends(auth_helper.get_current_user_id)
 ):
-    # Search tasks
-    task_cursor = mongo_manager.task_collection.find(
-        {"user_id": user_id, "$text": {"$search": query}},
-        {"score": {"$meta": "textScore"}}
-    ).sort([("score", {"$meta": "textScore"})]).limit(5)
-    tasks = await task_cursor.to_list(length=5)
-    
-    # Search messages
-    message_cursor = mongo_manager.messages_collection.find(
-        {"user_id": user_id, "$text": {"$search": query}},
-        {"score": {"$meta": "textScore"}}
-    ).sort([("score", {"$meta": "textScore"})]).limit(5)
-    messages = await message_cursor.to_list(length=5)
+    query_lower = query.lower()
+    results = []
 
-    # Search memories (Postgres with pgvector)
+    # --- Search Tasks ---
+    # Note: We fetch all tasks and filter in-memory because the 'name' and 'description' fields
+    # may be encrypted in the database. A direct DB text search would be on ciphertext.
+    # The `get_all_tasks_for_user` method handles decryption automatically.
+    # This is acceptable for a single user's data but would not scale to large datasets.
+    all_tasks = await mongo_manager.get_all_tasks_for_user(user_id)
+    tasks = []
+    for task in all_tasks:
+        # The get_all_tasks_for_user already decrypts, so we can search the content.
+        name = task.get("name", "") or ""
+        desc = task.get("description", "") or ""
+        if query_lower in name.lower() or query_lower in desc.lower():
+            tasks.append(task)
+        if len(tasks) >= 5: # Limit results
+            break
+
+    # --- Search Messages ---
+    # Similar to tasks, we fetch recent messages and then filter decrypted content.
+    # The `get_message_history` method handles decryption automatically.
+    all_messages = await mongo_manager.get_message_history(user_id, limit=200) # Search last 200 messages
+    messages = []
+    for msg in all_messages:
+        content = msg.get("content", "") or ""
+        if query_lower in content.lower():
+            messages.append(msg)
+        if len(messages) >= 5: # Limit results
+            break
+
+    # --- Search Memories (Postgres with pgvector) ---
     memories = []
     try:
         pool = await get_memories_pg_pool()
         async with pool.acquire() as conn:
             await register_vector(conn)
             query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
-            
+
+            # MODIFIED: Add a keyword search (ILIKE) and a similarity threshold to the WHERE clause.
             memories_records = await conn.fetch(
                 """
                 SELECT id, content, created_at, 1 - (embedding <=> $2) AS similarity
                 FROM facts
-                WHERE user_id = $1
+                WHERE user_id = $1 AND content ILIKE $3
                 ORDER BY similarity DESC
                 LIMIT 5;
                 """,
-                user_id, query_embedding
+                user_id, query_embedding, f'%{query}%'
             )
         memories = [dict(record) for record in memories_records]
+        print(memories)
     except Exception as e:
         logger.error(f"Error during memory search for user {user_id}: {e}", exc_info=True)
         # Don't fail the whole search if memory search fails
-        
-    results = []
+
+    # --- Combine and Format Results ---
     for task in tasks:
         results.append({"type": "task", "task_id": task["task_id"], "name": task.get("name"), "timestamp": task["created_at"]})
     for msg in messages:
-        results.append({"type": "chat", "message_id": msg["message_id"], "content": msg["content"], "timestamp": msg["timestamp"]})
+        # msg['timestamp'] is an ISO string from get_message_history, convert it back to an offset-aware datetime for sorting
+        ts = datetime.datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
+        results.append({"type": "chat", "message_id": msg["message_id"], "content": msg["content"], "timestamp": ts})
     for mem in memories:
         results.append({"type": "memory", "id": mem["id"], "content": mem["content"], "timestamp": mem["created_at"]})
 
+    # --- NORMALIZE TIMESTAMPS ---
+    # Ensure all datetime objects are offset-aware before sorting to prevent comparison errors.
+    for r in results:
+        ts = r.get("timestamp")
+        if isinstance(ts, datetime.datetime) and ts.tzinfo is None:
+            # If a datetime object is naive, assume it's UTC.
+            r["timestamp"] = ts.replace(tzinfo=datetime.timezone.utc)
+
     # Sort all combined results by timestamp
     results.sort(key=lambda x: x["timestamp"], reverse=True)
-    
-    # Ensure all timestamps are ISO strings
+
+    # Ensure all timestamps are ISO strings for the final JSON response
     for r in results:
         if isinstance(r['timestamp'], datetime.datetime):
             r['timestamp'] = r['timestamp'].isoformat()
 
-    return {"results": results[:10]}
+    return {"results": results[:15]} # Limit total results

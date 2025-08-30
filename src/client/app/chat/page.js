@@ -245,6 +245,7 @@ export default function ChatPage() {
 	// State for infinite scroll
 	const [isLoadingOlder, setIsLoadingOlder] = useState(false)
 	const [hasMoreMessages, setHasMoreMessages] = useState(true)
+	const [searchingForMessageId, setSearchingForMessageId] = useState(null)
 
 	// State for UI enhancements
 	const [userDetails, setUserDetails] = useState(null)
@@ -357,6 +358,35 @@ export default function ChatPage() {
 		}
 	}, [searchParams])
 
+	useEffect(() => {
+		const messageId = searchParams.get("messageId")
+		if (!messageId || displayedMessages.length === 0) return
+
+		const element = document.getElementById(`message-${messageId}`)
+		if (element) {
+			// Message is already rendered, scroll to it.
+			element.scrollIntoView({ behavior: "smooth", block: "center" })
+			element.classList.add("highlight-message")
+			setTimeout(() => {
+				element.classList.remove("highlight-message")
+			}, 3000)
+
+			// Clean up state and URL
+			setSearchingForMessageId(null)
+			router.replace("/chat", { scroll: false })
+		} else if (!searchingForMessageId) {
+			// Message is not rendered, start the search process.
+			setSearchingForMessageId(messageId)
+		}
+	}, [searchParams, displayedMessages, router, searchingForMessageId])
+
+	useEffect(() => {
+		// This effect triggers the fetching loop when a search is initiated.
+		if (searchingForMessageId) {
+			fetchOlderMessages()
+		}
+	}, [searchingForMessageId]) // Dependency on searchingForMessageId
+
 	const handleCloseDemo = () => {
 		setDemoModalOpen(false)
 		// Clean up the URL to prevent the modal from reappearing on refresh
@@ -416,8 +446,9 @@ export default function ChatPage() {
 			isLoadingOlder ||
 			!hasMoreMessages ||
 			displayedMessages.length === 0
-		)
+		) {
 			return
+		}
 
 		setIsLoadingOlder(true)
 		const oldestMessageTimestamp = displayedMessages[0].timestamp
@@ -442,22 +473,43 @@ export default function ChatPage() {
 					...m,
 					id: m.message_id
 				}))
-				setDisplayedMessages((prev) => [...olderMessages, ...prev])
+
+				const isTargetInBatch = olderMessages.some(
+					(m) => m.id === searchingForMessageId
+				)
+
+				setDisplayedMessages((prev) => [...olderMessages, ...prev]) // This will trigger the other useEffect to scroll
 				setHasMoreMessages(data.messages.length === 50)
 
-				setTimeout(() => {
-					scrollContainer.scrollTop =
-						scrollContainer.scrollHeight - oldScrollHeight
-				}, 0)
+				if (searchingForMessageId) {
+					// If we are searching and didn't find the target, and there are more messages, fetch again.
+					if (!isTargetInBatch && data.messages.length === 50) {
+						// We call fetchOlderMessages again, but it will use the *new* oldest timestamp
+						// from the state that was just updated. We wrap in a timeout to allow React to re-render.
+						setTimeout(() => fetchOlderMessages(), 100)
+					}
+				} else {
+					// Normal infinite scroll behavior
+					setTimeout(() => {
+						scrollContainer.scrollTop =
+							scrollContainer.scrollHeight - oldScrollHeight
+					}, 0)
+				}
 			} else {
 				setHasMoreMessages(false)
+				setSearchingForMessageId(null) // Stop searching if no more messages
 			}
 		} catch (error) {
 			toast.error(error.message)
 		} finally {
 			setIsLoadingOlder(false)
 		}
-	}, [isLoadingOlder, hasMoreMessages, displayedMessages])
+	}, [
+		isLoadingOlder,
+		hasMoreMessages,
+		displayedMessages,
+		searchingForMessageId
+	])
 
 	useEffect(() => {
 		const container = scrollContainerRef.current
@@ -1470,7 +1522,7 @@ export default function ChatPage() {
 									</div>
 								</div>
 								<div className="flex items-start gap-4">
-									<IconTools
+									<IconTool
 										size={20}
 										className="text-brand-orange flex-shrink-0 mt-1"
 									/>
@@ -1870,6 +1922,7 @@ export default function ChatPage() {
 							{displayedMessages.map((msg, i) => (
 								<div
 									key={msg.id || i}
+									id={`message-${msg.id}`}
 									className={cn(
 										"flex w-full",
 										msg.role === "user"

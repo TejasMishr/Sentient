@@ -17,7 +17,8 @@ import {
 	IconPlus,
 	IconPencil,
 	IconTrash,
-	IconDeviceFloppy
+	IconDeviceFloppy,
+	IconCheck
 } from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
@@ -27,6 +28,7 @@ import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ModalDialog from "@components/ModalDialog"
 import useClickOutside from "@hooks/useClickOutside"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -559,6 +561,8 @@ export default function MemoriesPage() {
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const { isPro } = usePlan()
 	const [userDetails, setUserDetails] = useState(null)
+	const router = useRouter()
+	const searchParams = useSearchParams()
 
 	const topics = useMemo(() => {
 		const allTopics = new Set()
@@ -621,6 +625,19 @@ export default function MemoriesPage() {
 		fetchData()
 		fetchUserDetails()
 	}, [fetchData, fetchUserDetails])
+
+	useEffect(() => {
+		const memoryId = searchParams.get("memoryId")
+		if (memoryId && memories.length > 0) {
+			const memoryToSelect = memories.find(
+				(m) => String(m.id) === memoryId
+			)
+			if (memoryToSelect) {
+				setSelectedMemory(memoryToSelect)
+				router.replace("/memories", { scroll: false })
+			}
+		}
+	}, [searchParams, memories, router])
 
 	const handleCreateMemory = async (content) => {
 		const toastId = toast.loading("Adding memory...")

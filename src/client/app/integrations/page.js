@@ -804,7 +804,7 @@ const IntegrationsPage = () => {
 	const [loading, setLoading] = useState(true)
 	const [processingIntegration, setProcessingIntegration] = useState(null)
 	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Calendars")
+	const [activeCategory, setActiveCategory] = useState("Core")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
@@ -1201,11 +1201,6 @@ const IntegrationsPage = () => {
 		}
 	}, [fetchIntegrations, posthog, router])
 
-	const MOST_POPULAR_INTEGRATION_NAMES = useMemo(
-		() => ["gmail", "gcalendar", "gdrive", "gpeople", "gdocs", "notion"],
-		[]
-	)
-
 	const renderIntegrationGrid = (integrations) => (
 		<motion.div
 			className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -1309,13 +1304,7 @@ const IntegrationsPage = () => {
 		() => [...userIntegrations, ...defaultTools],
 		[userIntegrations, defaultTools]
 	)
-	const categoriesToShow = [
-		"Calendars",
-		"Inbox",
-		"Communication",
-		"Information",
-		"Advanced"
-	]
+	const categoriesToShow = ["Core", "Inbuilt", "Advanced"]
 
 	const displayedIntegrations = useMemo(() => {
 		// This filter function is used when a search query is active.
@@ -1335,16 +1324,32 @@ const IntegrationsPage = () => {
 			return allIntegrations.filter(searchFilter)
 		}
 
-		// Otherwise, if the search is empty, apply the active category filter.
-		return allIntegrations.filter(
-			(integration) => integration.category === activeCategory
-		)
-	}, [
-		activeCategory,
-		allIntegrations,
-		searchQuery,
-		MOST_POPULAR_INTEGRATION_NAMES
-	])
+		const coreServices = new Set([
+			"gmail",
+			"gcalendar",
+			"gdocs",
+			"gsheets",
+			"gdrive",
+			"gtasks",
+			"notion",
+			"whatsapp"
+		])
+
+		if (activeCategory === "Core") {
+			return allIntegrations.filter((i) => coreServices.has(i.name))
+		}
+		if (activeCategory === "Inbuilt") {
+			return allIntegrations.filter((i) => i.auth_type === "builtin")
+		}
+		if (activeCategory === "Advanced") {
+			return allIntegrations.filter(
+				(i) => !coreServices.has(i.name) && i.auth_type !== "builtin"
+			)
+		}
+
+		// Fallback for default category before state update or if category is unknown
+		return allIntegrations.filter((i) => coreServices.has(i.name))
+	}, [activeCategory, allIntegrations, searchQuery])
 
 	const renderIntegrationDialogContent = useCallback(
 		(integration) => {

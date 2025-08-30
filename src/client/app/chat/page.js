@@ -21,7 +21,7 @@ import {
 	IconPaperclip,
 	IconFile,
 	IconPlus,
-	IconTools,
+	IconBolt,
 	IconTool,
 	IconInfoCircle,
 	IconSparkles,
@@ -131,8 +131,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock Voice Mode and other powerful features.
@@ -164,7 +164,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -245,6 +245,7 @@ export default function ChatPage() {
 	// State for infinite scroll
 	const [isLoadingOlder, setIsLoadingOlder] = useState(false)
 	const [hasMoreMessages, setHasMoreMessages] = useState(true)
+	const [searchingForMessageId, setSearchingForMessageId] = useState(null)
 
 	// State for UI enhancements
 	const [userDetails, setUserDetails] = useState(null)
@@ -357,6 +358,35 @@ export default function ChatPage() {
 		}
 	}, [searchParams])
 
+	useEffect(() => {
+		const messageId = searchParams.get("messageId")
+		if (!messageId || displayedMessages.length === 0) return
+
+		const element = document.getElementById(`message-${messageId}`)
+		if (element) {
+			// Message is already rendered, scroll to it.
+			element.scrollIntoView({ behavior: "smooth", block: "center" })
+			element.classList.add("highlight-message")
+			setTimeout(() => {
+				element.classList.remove("highlight-message")
+			}, 3000)
+
+			// Clean up state and URL
+			setSearchingForMessageId(null)
+			router.replace("/chat", { scroll: false })
+		} else if (!searchingForMessageId) {
+			// Message is not rendered, start the search process.
+			setSearchingForMessageId(messageId)
+		}
+	}, [searchParams, displayedMessages, router, searchingForMessageId])
+
+	useEffect(() => {
+		// This effect triggers the fetching loop when a search is initiated.
+		if (searchingForMessageId) {
+			fetchOlderMessages()
+		}
+	}, [searchingForMessageId]) // Dependency on searchingForMessageId
+
 	const handleCloseDemo = () => {
 		setDemoModalOpen(false)
 		// Clean up the URL to prevent the modal from reappearing on refresh
@@ -416,8 +446,9 @@ export default function ChatPage() {
 			isLoadingOlder ||
 			!hasMoreMessages ||
 			displayedMessages.length === 0
-		)
+		) {
 			return
+		}
 
 		setIsLoadingOlder(true)
 		const oldestMessageTimestamp = displayedMessages[0].timestamp
@@ -442,22 +473,43 @@ export default function ChatPage() {
 					...m,
 					id: m.message_id
 				}))
-				setDisplayedMessages((prev) => [...olderMessages, ...prev])
+
+				const isTargetInBatch = olderMessages.some(
+					(m) => m.id === searchingForMessageId
+				)
+
+				setDisplayedMessages((prev) => [...olderMessages, ...prev]) // This will trigger the other useEffect to scroll
 				setHasMoreMessages(data.messages.length === 50)
 
-				setTimeout(() => {
-					scrollContainer.scrollTop =
-						scrollContainer.scrollHeight - oldScrollHeight
-				}, 0)
+				if (searchingForMessageId) {
+					// If we are searching and didn't find the target, and there are more messages, fetch again.
+					if (!isTargetInBatch && data.messages.length === 50) {
+						// We call fetchOlderMessages again, but it will use the *new* oldest timestamp
+						// from the state that was just updated. We wrap in a timeout to allow React to re-render.
+						setTimeout(() => fetchOlderMessages(), 100)
+					}
+				} else {
+					// Normal infinite scroll behavior
+					setTimeout(() => {
+						scrollContainer.scrollTop =
+							scrollContainer.scrollHeight - oldScrollHeight
+					}, 0)
+				}
 			} else {
 				setHasMoreMessages(false)
+				setSearchingForMessageId(null) // Stop searching if no more messages
 			}
 		} catch (error) {
 			toast.error(error.message)
 		} finally {
 			setIsLoadingOlder(false)
 		}
-	}, [isLoadingOlder, hasMoreMessages, displayedMessages])
+	}, [
+		isLoadingOlder,
+		hasMoreMessages,
+		displayedMessages,
+		searchingForMessageId
+	])
 
 	useEffect(() => {
 		const container = scrollContainerRef.current
@@ -1470,7 +1522,7 @@ export default function ChatPage() {
 									</div>
 								</div>
 								<div className="flex items-start gap-4">
-									<IconTools
+									<IconTool
 										size={20}
 										className="text-brand-orange flex-shrink-0 mt-1"
 									/>
@@ -1683,9 +1735,9 @@ export default function ChatPage() {
 							/>
 
 							{/* Overlay for controls and status text */}
-							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-6 pb-12">
+							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-4 pb-8 sm:p-6 sm:pb-12">
 								{/* Call Control Bar */}
-								<div className="flex items-center justify-center gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
+								<div className="flex items-center justify-center gap-2 sm:gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
 									{/* Mic Selector */}
 									<select
 										value={selectedAudioInputDevice}
@@ -1694,7 +1746,7 @@ export default function ChatPage() {
 												e.target.value
 											)
 										}
-										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[150px] truncate shadow-lg"
+										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[120px] sm:max-w-[150px] truncate shadow-lg"
 										title="Select Microphone"
 										disabled={
 											connectionStatus !== "disconnected"
@@ -1731,7 +1783,7 @@ export default function ChatPage() {
 												exit={{ opacity: 0, scale: 0 }}
 												onClick={handleToggleMute}
 												className={cn(
-													"flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
+													"flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
 													isMuted
 														? "bg-white text-black"
 														: "bg-neutral-700 hover:bg-neutral-600"
@@ -1755,13 +1807,13 @@ export default function ChatPage() {
 									{connectionStatus === "disconnected" ? (
 										<button
 											onClick={handleStartVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
 											title="Start Call"
 										>
 											<IconPhone size={24} />
 										</button>
 									) : connectionStatus === "connecting" ? (
-										<div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
+										<div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
 											<IconLoader
 												size={24}
 												className="animate-spin"
@@ -1770,7 +1822,7 @@ export default function ChatPage() {
 									) : (
 										<button
 											onClick={handleStopVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
 											title="Hang Up"
 										>
 											<IconPhoneOff size={24} />
@@ -1780,7 +1832,7 @@ export default function ChatPage() {
 									{/* Switch to Text Mode Button */}
 									<button
 										onClick={toggleVoiceMode}
-										className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
+										className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
 										title="Switch to Text Mode"
 									>
 										<IconMessageOff size={24} />
@@ -1789,7 +1841,7 @@ export default function ChatPage() {
 
 								{/* Status and Message Display (below controls) */}
 								<div className="text-center space-y-2 max-w-2xl">
-									<div className="text-lg font-medium text-gray-300 min-h-[24px]">
+									<div className="text-base sm:text-lg font-medium text-gray-300 min-h-[24px]">
 										<AnimatePresence mode="wait">
 											<motion.div
 												key={voiceStatusText}
@@ -1804,7 +1856,7 @@ export default function ChatPage() {
 											</motion.div>
 										</AnimatePresence>
 									</div>
-									<div className="text-2xl font-semibold text-white min-h-[64px]">
+									<div className="text-xl sm:text-2xl font-semibold text-white min-h-[64px]">
 										<AnimatePresence mode="wait">
 											{displayedMessages
 												.filter(
@@ -1870,6 +1922,7 @@ export default function ChatPage() {
 							{displayedMessages.map((msg, i) => (
 								<div
 									key={msg.id || i}
+									id={`message-${msg.id}`}
 									className={cn(
 										"flex w-full",
 										msg.role === "user"

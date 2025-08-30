@@ -29,15 +29,16 @@ const useDebounce = (value, delay) => {
 	return debouncedValue
 }
 
-const ResultItem = ({ item }) => {
+const ResultItem = ({ item, onClose }) => {
 	const router = useRouter()
 	const handleClick = () => {
+		onClose()
 		if (item.type === "task") {
 			router.push(`/tasks?taskId=${item.task_id}`)
 		} else if (item.type === "chat") {
-			router.push(`/chat`) // Future enhancement: scroll to message
+			router.push(`/chat?messageId=${item.message_id}`) // Future enhancement: scroll to message
 		} else if (item.type === "memory") {
-			router.push(`/memories`) // Future enhancement: open memory detail
+			router.push(`/memories?memoryId=${item.id}`)
 		}
 	}
 
@@ -205,6 +206,7 @@ export default function GlobalSearch({ onClose }) {
 									<ResultItem
 										key={`${item.type}-${item.task_id || item.message_id || item.id}`}
 										item={item}
+										onClose={onClose}
 									/>
 								))}
 							</motion.div>

@@ -1,3 +1,4 @@
+
 ### `src\server\workers\executor\tasks.py`
 
 import os
@@ -312,7 +313,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         "2.  **Execution Flow:** You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
         "3.  **Map Plan to Tools:** The plan provides a high-level tool name (e.g., 'gmail', 'gdrive'). You must map this to the specific functions available to you (e.g., `gmail_server-sendEmail`, `gdrive_server-gdrive_search`).\n"
         "4.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action for that step MUST be to use the `memory-search_memory` tool to find the missing information. Do not proceed with incomplete information.\n"
-        "5.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it.\n"
+        "5.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
         "6.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
         "7.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This is not a tool call. Your final response MUST be wrapped in `<answer>` tags. For example: `<answer>I have successfully scheduled the meeting and sent an invitation to John Doe.</answer>`.\n"
         "8.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"

@@ -109,7 +109,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Connect to manage repositories, issues, and more. Enables the agent to search public and private repos, list your repos, view repository details, list issues, create new issues, and read file contents.",
         "auth_type": "oauth",
         "icon": "IconBrandGithub",
-        "category": "Development",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "github_server",
             "url": os.getenv("GITHUB_MCP_SERVER_URL", "http://localhost:9010/sse")
@@ -121,7 +121,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconBrandGoogleDrive",
         "auth_config_env_var": "GDRIVE_AUTH_CONFIG_ID",
-        "category": "Productivity",
+        "category": "Information",
         "mcp_server_config": {
             "name": "gdrive_server",
             "url": os.getenv("GDRIVE_MCP_SERVER_URL", "http://localhost:9003/sse")
@@ -133,7 +133,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconCalendarEvent",
         "auth_config_env_var": "GCALENDAR_AUTH_CONFIG_ID",
-        "category": "Productivity",
+        "category": "Calendars",
         "mcp_server_config": {
             "name": "gcal_server",
             "url": os.getenv("GCAL_MCP_SERVER_URL", "http://localhost:9002/sse")
@@ -145,7 +145,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconMail",
         "auth_config_env_var": "GMAIL_AUTH_CONFIG_ID",
-        "category": "Communication",
+        "category": "Inbox",
         "mcp_server_config": {
             "name": "gmail_server",
             "url": os.getenv("GMAIL_MCP_SERVER_URL", "http://localhost:9001/sse")
@@ -157,7 +157,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconFileText",
         "auth_config_env_var": "GDOCS_AUTH_CONFIG_ID",
-        "category": "Productivity",
+        "category": "Information",
         "mcp_server_config": {
             "name": "gdocs_server",
             "url": os.getenv("GDOCS_MCP_SERVER_URL", "http://localhost:9004/sse")
@@ -169,7 +169,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconListCheck",
         "auth_config_env_var": "GTASKS_AUTH_CONFIG_ID",
-        "category": "Productivity",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "gtasks_server",
             "url": os.getenv("GTASKS_MCP_SERVER_URL", "http://localhost:9028/sse")
@@ -180,7 +180,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Create and manage presentations in Google Slides. The agent can build new slide decks with titles, content, images, and charts based on a structured outline you provide.",
         "auth_type": "composio",
         "icon": "IconPresentation",
-        "category": "Productivity",
+        "category": "Information",
         "mcp_server_config": {
             "name": "gslides_server",
             "url": os.getenv("GSLIDES_MCP_SERVER_URL", "http://localhost:9014/sse")
@@ -192,7 +192,7 @@ INTEGRATIONS_CONFIG = {
         "auth_type": "composio",
         "icon": "IconTable",
         "auth_config_env_var": "GSHEETS_AUTH_CONFIG_ID",
-        "category": "Productivity",
+        "category": "Information",
         "mcp_server_config": {
             "name": "gsheets_server",
             "url": os.getenv("GSHEETS_MCP_SERVER_URL", "http://localhost:9015/sse")
@@ -203,7 +203,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Manage your contacts. The agent can search, create, update, and delete contacts in your Google account, helping you keep your address book organized.",
         "auth_type": "oauth",
         "icon": "IconUsers",
-        "category": "Productivity",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "gpeople_server",
             "url": os.getenv("GPEOPLE_MCP_SERVER_URL", "http://localhost:9019/sse")
@@ -214,7 +214,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Search for places and get directions. The agent can look up addresses, points of interest, and find routes for driving, walking, bicycling, or transit.",
         "auth_type": "builtin",
         "icon": "IconMapPin",
-        "category": "Utilities",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "gmaps_server",
             "url": os.getenv("GMAPS_MCP_SERVER_URL", "http://localhost:9016/sse")
@@ -236,7 +236,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Connect to your Notion workspace. The agent can search for pages and databases, read page content, create new pages, append content to existing pages, and query databases with filters.",
         "auth_type": "oauth",
         "icon": "IconBrandNotion",
-        "category": "Productivity",
+        "category": "Information",
         "mcp_server_config": {
             "name": "notion_server",
             "url": os.getenv("NOTION_MCP_SERVER_URL", "http://localhost:9009/sse")
@@ -247,7 +247,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Fetches top headlines and news articles from around the world. The agent can get top headlines by country or category, or search for articles on any topic.",
         "auth_type": "builtin",
         "icon": "IconNews",
-        "category": "Information",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "news_server",
             "url": os.getenv("NEWS_MCP_SERVER_URL", "http://localhost:9012/sse")
@@ -258,7 +258,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Allows the agent to search the web using Google Search to find real-time, factual information on any topic.",
         "auth_type": "builtin",
         "icon": "IconWorldSearch",
-        "category": "Information",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "google_search",
             "url": os.getenv("GOOGLE_SEARCH_MCP_SERVER_URL", "http://localhost:9005/sse")
@@ -269,7 +269,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Provides current weather conditions and daily forecasts. The agent can get the current weather for any location or a forecast for the next 1-5 days.",
         "auth_type": "builtin",
         "icon": "IconCloud",
-        "category": "Utilities",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "weather_server",
             "url": os.getenv("ACCUWEATHER_MCP_SERVER_URL", "http://localhost:9007/sse")
@@ -280,7 +280,7 @@ INTEGRATIONS_CONFIG = {
         "description": "Generates charts and data visualizations on the fly. The agent can create bar charts, line charts, pie charts, and more, then provide a URL or download the image.",
         "auth_type": "builtin",
         "icon": "IconChartPie",
-        "category": "Utilities",
+        "category": "Advanced",
         "mcp_server_config": {
             "name": "quickchart_server",
             "url": os.getenv("QUICKCHART_MCP_SERVER_URL", "http://localhost:9008/sse")
@@ -300,7 +300,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Memory",
         "description": "Manages the user's memory. Use 'search_memory' to find facts, and 'cud_memory' to add, update, or delete information. This is critical for personalization.",
         "auth_type": "builtin",
-        "icon": "IconBrain",
+        "icon": "IconBrain", "category": "Advanced",
         "category": "Core",
         "mcp_server_config": {
             "name": "memory_mcp",
@@ -311,7 +311,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Chat History",
         "description": "Searches the user's long-term conversation history. Use 'semantic_search' for topics and 'time_based_search' for specific date ranges.",
         "auth_type": "builtin",
-        "icon": "IconClock",
+        "icon": "IconClock", "category": "Advanced",
         "category": "Core",
         "mcp_server_config": {
             "name": "history_mcp",
@@ -322,7 +322,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "File Management",
         "description": "Read and write files to a temporary storage area. Useful for handling uploads, generating files for download, and data analysis.",
         "auth_type": "builtin",
-        "icon": "IconFile",
+        "icon": "IconFile", "category": "Advanced",
         "category": "Utilities",
         "mcp_server_config": {
             "name": "file_management_server",
@@ -344,7 +344,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Internal Task Manager",
         "description": "Manages asynchronous, background tasks. Use 'create_task_from_prompt' to create a new task from a natural language prompt.",
         "auth_type": "builtin",
-        "icon": "IconChecklist",
+        "icon": "IconChecklist", "category": "Advanced",
         "category": "Core",
         "mcp_server_config": {
             "name": "tasks_server",
@@ -366,7 +366,7 @@ INTEGRATIONS_CONFIG = {
         "display_name": "Trello",
         "description": "Manage your Trello boards. The agent can list boards and lists, and create new cards.",
         "auth_type": "oauth",
-        "icon": "IconBrandTrello",
+        "icon": "IconBrandTrello", "category": "Advanced",
         "category": "Productivity",
         "mcp_server_config": {
             "name": "trello_server",

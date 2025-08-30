@@ -35,6 +35,7 @@ import {
 	IconCalendarEvent,
 	IconWorldSearch,
 	IconSearch,
+	IconBolt,
 	IconSparkles,
 	IconAlertTriangle,
 	IconEye,
@@ -146,8 +147,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock powerful features to conquer your day.
@@ -179,7 +180,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -645,7 +646,7 @@ const InfoPanel = ({ onClose, title, children }) => (
 const IntegrationHeader = ({
 	searchQuery,
 	onSearchChange,
-	categories,
+	categoriesToShow,
 	activeCategory,
 	onCategoryChange
 }) => {
@@ -668,7 +669,7 @@ const IntegrationHeader = ({
 
 			{/* Filter Pills */}
 			<div className="mt-4 flex flex-wrap gap-2">
-				{categories.map((category) => (
+				{categoriesToShow.map((category) => (
 					<button
 						key={category}
 						onClick={() => onCategoryChange(category)}
@@ -756,14 +757,14 @@ const IntegrationCard = ({
 				<div className="flex flex-col items-end gap-1">
 					{tagType && <IntegrationTag type={tagType} />}
 					{isProFeature && (
-						<span
+						<div
 							className={cn(
-								"px-2 py-0.5 rounded-full text-xs font-semibold",
+								"p-1.5 rounded-full text-xs font-semibold",
 								"bg-yellow-500/20 text-yellow-300"
 							)}
 						>
-							Pro
-						</span>
+							<IconBolt size={12} />
+						</div>
 					)}
 				</div>
 			</div>
@@ -803,7 +804,7 @@ const IntegrationsPage = () => {
 	const [loading, setLoading] = useState(true)
 	const [processingIntegration, setProcessingIntegration] = useState(null)
 	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Most Popular")
+	const [activeCategory, setActiveCategory] = useState("Core")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
@@ -1200,11 +1201,6 @@ const IntegrationsPage = () => {
 		}
 	}, [fetchIntegrations, posthog, router])
 
-	const MOST_POPULAR_INTEGRATION_NAMES = useMemo(
-		() => ["gmail", "gcalendar", "gdrive", "gpeople", "gdocs", "notion"],
-		[]
-	)
-
 	const renderIntegrationGrid = (integrations) => (
 		<motion.div
 			className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -1308,11 +1304,7 @@ const IntegrationsPage = () => {
 		() => [...userIntegrations, ...defaultTools],
 		[userIntegrations, defaultTools]
 	)
-
-	const categories = useMemo(() => {
-		const allCats = allIntegrations.map((i) => i.category).filter(Boolean)
-		return ["Most Popular", ...[...new Set(allCats)].sort()]
-	}, [allIntegrations])
+	const categoriesToShow = ["Core", "Inbuilt", "Advanced"]
 
 	const displayedIntegrations = useMemo(() => {
 		// This filter function is used when a search query is active.
@@ -1332,28 +1324,32 @@ const IntegrationsPage = () => {
 			return allIntegrations.filter(searchFilter)
 		}
 
-		// Otherwise, if the search is empty, apply the active category filter.
-		if (activeCategory === "Most Popular") {
-			const filteredList = allIntegrations.filter((integration) =>
-				MOST_POPULAR_INTEGRATION_NAMES.includes(integration.name)
-			)
-			filteredList.sort(
-				(a, b) =>
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(a.name) -
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(b.name)
-			)
-			return filteredList
-		} else {
+		const coreServices = new Set([
+			"gmail",
+			"gcalendar",
+			"gdocs",
+			"gsheets",
+			"gdrive",
+			"gtasks",
+			"notion",
+			"whatsapp"
+		])
+
+		if (activeCategory === "Core") {
+			return allIntegrations.filter((i) => coreServices.has(i.name))
+		}
+		if (activeCategory === "Inbuilt") {
+			return allIntegrations.filter((i) => i.auth_type === "builtin")
+		}
+		if (activeCategory === "Advanced") {
 			return allIntegrations.filter(
-				(integration) => integration.category === activeCategory
+				(i) => !coreServices.has(i.name) && i.auth_type !== "builtin"
 			)
 		}
-	}, [
-		activeCategory,
-		allIntegrations,
-		searchQuery,
-		MOST_POPULAR_INTEGRATION_NAMES
-	])
+
+		// Fallback for default category before state update or if category is unknown
+		return allIntegrations.filter((i) => coreServices.has(i.name))
+	}, [activeCategory, allIntegrations, searchQuery])
 
 	const renderIntegrationDialogContent = useCallback(
 		(integration) => {
@@ -1552,7 +1548,7 @@ const IntegrationsPage = () => {
 							<IntegrationHeader
 								searchQuery={searchQuery}
 								onSearchChange={setSearchQuery}
-								categories={categories}
+								categoriesToShow={categoriesToShow}
 								activeCategory={activeCategory}
 								onCategoryChange={setActiveCategory}
 							/>

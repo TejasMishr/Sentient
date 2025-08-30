@@ -348,7 +348,7 @@ async def generate_chat_llm_stream(
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
 
-    last_yielded_content_str = ""
+    last_yielded_final_content = ""
     final_assistant_messages = []
 
     try:
@@ -365,17 +365,18 @@ async def generate_chat_llm_stream(
             assistant_turn_start_index = next((i + 1 for i in range(len(current_history) - 1, -1, -1) if current_history[i].get('role') == 'user'), 0)
             assistant_messages = current_history[assistant_turn_start_index:]
             final_assistant_messages = assistant_messages
+            
+            parsed_data = parse_assistant_response(assistant_messages)
+            current_final_content = parsed_data.get("final_content", "")
 
-            current_turn_str = "".join(str(m) for m in assistant_messages)
-
-            if len(current_turn_str) > len(last_yielded_content_str):
-                new_chunk = current_turn_str[len(last_yielded_content_str):]
-                event_payload = {"type": "assistantStream", "token": new_chunk, "done": False, "messageId": assistant_message_id}
-                if first_chunk and new_chunk.strip():
+            if len(current_final_content) > len(last_yielded_final_content):
+                new_token = current_final_content[len(last_yielded_final_content):]
+                event_payload = {"type": "assistantStream", "token": new_token, "done": False, "messageId": assistant_message_id}
+                if first_chunk and new_token.strip():
                     event_payload["tools"] = list(final_tool_names)
                     first_chunk = False
                 yield event_payload
-                last_yielded_content_str = current_turn_str
+                last_yielded_final_content = current_final_content
 
     except asyncio.CancelledError:
         raise

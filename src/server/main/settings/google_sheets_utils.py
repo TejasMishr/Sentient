@@ -128,6 +128,52 @@ async def update_plan_in_sheet(user_email: str, new_plan: str):
     except Exception as e:
         logger.error(f"An error occurred while updating plan in Google Sheet for {user_email}: {e}", exc_info=True)
 
+async def get_user_properties_from_sheet(user_email: str) -> dict:
+    """Finds a user by email and returns their properties from the sheet for analytics."""
+    service = _get_sheets_service()
+    if not service:
+        # Return default properties if sheet service is not available
+        return {
+            "is_insider": False,
+            "plan_type": "free"
+        }
+
+    try:
+        # Read columns C (Email), G (Insider), H (Plan)
+        # Reading C:H is safer to avoid index out of bounds if rows have fewer columns
+        range_to_read = f"{SHEET_NAME}!C:H"
+        result = service.spreadsheets().values().get(spreadsheetId=GOOGLE_SHEET_ID, range=range_to_read).execute()
+        rows = result.get('values', [])
+
+        properties = {
+            "is_insider": False,
+            "plan_type": "free" # Default to free
+        }
+
+        # Column C is index 0 in our `rows` array. G is index 4, H is index 5.
+        relative_insider_index = 4
+        relative_plan_index = 5
+
+        for row in rows[1:]: # Skip header row
+            if not row or len(row) == 0:
+                continue
+
+            if row[0] == user_email:
+                if len(row) > relative_insider_index and row[relative_insider_index].strip().lower() == 'yes':
+                    properties["is_insider"] = True
+                if len(row) > relative_plan_index and row[relative_plan_index].strip().lower() == 'pro':
+                    properties["plan_type"] = "pro"
+
+                logger.info(f"Found properties for {user_email} in GSheet: {properties}")
+                return properties
+
+        logger.warning(f"User with email {user_email} not found in Google Sheet. Returning default properties.")
+        return properties
+
+    except Exception as e:
+        logger.error(f"An error occurred while reading Google Sheet for {user_email}: {e}", exc_info=True)
+        return { "is_insider": False, "plan_type": "free" }
+
 async def check_if_contact_is_missing(user_email: str) -> bool:
     """Checks if the contact number (Column B) is missing for a user in the sheet. Returns True if missing."""
     service = _get_sheets_service()

@@ -50,6 +50,7 @@ from main.settings.routes import router as settings_router
 from main.testing.routes import router as testing_router
 from main.memories.db import close_db_pool as close_memories_pg_pool
 from main.memories.routes import router as memories_router
+from mcp_hub.memory.utils import initialize_embedding_model
 from main.files.routes import router as files_router
 # FIX: Import both router and stream from voice.routes
 from main.voice.routes import router as voice_router, stream as voice_stream
@@ -142,6 +143,7 @@ async def lifespan(app_instance: FastAPI):
     await mongo_manager.initialize_db()
     initialize_stt()
     initialize_tts()
+    initialize_embedding_model()
     logger.info("App startup complete.")
     yield 
     logger.info("App shutdown sequence initiated...")

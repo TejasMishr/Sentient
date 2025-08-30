@@ -473,7 +473,6 @@ const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 
 const SidebarContent = ({
 	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
@@ -729,7 +728,7 @@ const SidebarContent = ({
 						</button>
 					)}
 
-					{isMobile ? (
+					{isMobile && (
 						<button
 							onClick={onMobileClose}
 							className="flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800/50"
@@ -738,26 +737,6 @@ const SidebarContent = ({
 							<span className="font-medium whitespace-nowrap">
 								Collapse
 							</span>
-						</button>
-					) : (
-						<button
-							onClick={onToggle}
-							className={cn(
-								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
-								"text-neutral-400 hover:text-white hover:bg-neutral-800/50",
-								isCollapsed && "justify-center"
-							)}
-						>
-							{isCollapsed ? (
-								<IconLayoutSidebarLeftExpand size={20} />
-							) : (
-								<IconLayoutSidebarLeftCollapse size={20} />
-							)}
-							{!isCollapsed && (
-								<span className="font-medium whitespace-nowrap">
-									Collapse
-								</span>
-							)}
 						</button>
 					)}
 					<button
@@ -818,8 +797,6 @@ const SidebarContent = ({
 }
 
 const Sidebar = ({
-	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
@@ -896,14 +873,12 @@ const Sidebar = ({
 			</AnimatePresence>
 
 			{/* Desktop Sidebar */}
-			<motion.div
-				animate={{ width: isCollapsed ? 80 : 260 }}
-				transition={{ type: "spring", stiffness: 300, damping: 30 }}
+			<div
+				style={{ width: 260 }}
 				className="hidden md:flex fixed top-0 left-0 h-screen bg-black flex-col p-3 text-neutral-200 border-r border-neutral-800/50 z-40"
 			>
 				<SidebarContent
-					isCollapsed={isCollapsed}
-					onToggle={onToggle}
+					isCollapsed={false}
 					onNotificationsOpen={onNotificationsOpen}
 					onSearchOpen={onSearchOpen}
 					unreadCount={unreadCount}
@@ -911,7 +886,7 @@ const Sidebar = ({
 					handleInstallClick={handleInstallClick}
 					user={user}
 				/>
-			</motion.div>
+			</div>
 		</>
 	)
 }

@@ -131,6 +131,7 @@ function TasksPageContent() {
 
 	const [allTasks, setAllTasks] = useState([])
 	const [allTools, setAllTools] = useState([])
+	const [integrations, setIntegrations] = useState([])
 	const [isLoading, setIsLoading] = useState(true)
 	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
 	const [isMobile, setIsMobile] = useState(false)
@@ -212,6 +213,7 @@ function TasksPageContent() {
 			if (!integrationsRes.ok)
 				throw new Error("Failed to fetch integrations")
 			const integrationsData = await integrationsRes.json()
+			setIntegrations(integrationsData.integrations || [])
 			const tools = integrationsData.integrations.map((i) => ({
 				name: i.name,
 				display_name: i.display_name
@@ -373,6 +375,7 @@ function TasksPageContent() {
 		<TaskDetailsPanel
 			task={task}
 			allTools={allTools}
+			integrations={integrations}
 			onClose={handleClosePanel}
 			onSave={handleUpdateTask}
 			onAnswerClarifications={handleAnswerClarifications}
@@ -456,11 +459,11 @@ function TasksPageContent() {
 					<InteractiveNetworkBackground />
 				</div>
 				{/* Main Content Panel */}
-				<main className="flex-1 flex flex-col overflow-hidden relative w-full">
+				<main className="flex-1 flex flex-col overflow-hidden relative md:pl-6">
 					<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 					<header className="p-6 pt-20 md:pt-6 flex-shrink-0 flex items-center justify-between bg-transparent">
 						<h1 className="text-3xl font-bold text-white">Tasks</h1>
-						<div className="absolute top-6 left-1/2 -translate-x-1/2">
+						<div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
 							<TaskViewSwitcher view={view} setView={setView} />
 						</div>
 					</header>
@@ -495,6 +498,31 @@ function TasksPageContent() {
 							</AnimatePresence>
 						)}
 					</div>
+
+					{/* Floating Action Button */}
+					<AnimatePresence>
+						{!isComposerOpen && (
+							<motion.div
+								initial={{ opacity: 0, y: 50, scale: 0.8 }}
+								animate={{ opacity: 1, y: 0, scale: 1 }}
+								exit={{ opacity: 0, y: 50, scale: 0.8 }}
+								transition={{
+									duration: 0.3,
+									ease: "easeInOut"
+								}}
+								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50"
+							>
+								<button
+									onClick={() => setIsComposerOpen(true)}
+									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
+									aria-label="Create new task"
+								>
+									<IconPlus size={20} />
+									<span>Create Task</span>
+								</button>
+							</motion.div>
+						)}
+					</AnimatePresence>
 				</main>
 
 				{/* Floating Task Composer */}
@@ -518,39 +546,18 @@ function TasksPageContent() {
 					)}
 				</AnimatePresence>
 
-				{/* Floating Action Button */}
-				<AnimatePresence>
-					{!isComposerOpen && (
-						<motion.div
-							initial={{ opacity: 0, y: 50, scale: 0.8 }}
-							animate={{ opacity: 1, y: 0, scale: 1 }}
-							exit={{ opacity: 0, y: 50, scale: 0.8 }}
-							transition={{ duration: 0.3, ease: "easeInOut" }}
-							className="absolute bottom-8 left-1/2 -translate-x-1/2 z-50"
-						>
-							<button
-								onClick={() => setIsComposerOpen(true)}
-								className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
-								aria-label="Create new task"
-							>
-								<IconPlus size={20} />
-								<span>Create Task</span>
-							</button>
-						</motion.div>
-					)}
-				</AnimatePresence>
 				<AnimatePresence>
 					{!isMobile && selectedTask && (
 						<motion.div
-							initial={{ x: "100%" }}
-							animate={{ x: 0 }}
-							exit={{ x: "100%" }}
+							initial={{ width: 0 }}
+							animate={{ width: 550 }}
+							exit={{ width: 0 }}
 							transition={{
 								type: "spring",
 								stiffness: 300,
 								damping: 30
 							}}
-							className="absolute top-0 right-0 h-full w-full max-w-[550px] bg-neutral-900/80 backdrop-blur-lg z-50"
+							className="h-full flex-shrink-0 bg-neutral-900/80 backdrop-blur-lg overflow-hidden"
 						>
 							{renderTaskDetails(selectedTask)}
 						</motion.div>

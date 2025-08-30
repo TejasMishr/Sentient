@@ -14,13 +14,18 @@ import {
 	IconChevronRight,
 	IconClock,
 	IconTool,
+	IconFileText,
+	IconLink,
 	IconCheck,
 	IconChevronDown,
 	IconPlayerPlay
 } from "@tabler/icons-react"
+import ScheduleEditor from "./ScheduleEditor"
 import ChatBubble from "@components/ChatBubble"
 import CollapsibleSection from "./CollapsibleSection"
 import ReactMarkdown from "react-markdown"
+import ExecutionUpdate from "./ExecutionUpdate"
+import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
@@ -60,7 +65,9 @@ const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
 		<div className="space-y-2">
 			<p>
 				Waiting for:{" "}
-				<span className="font-semibold">{waitingConfig.waiting_for}</span>
+				<span className="font-semibold">
+					{waitingConfig.waiting_for}
+				</span>
 			</p>
 			<p>
 				Time remaining:{" "}
@@ -98,7 +105,8 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 	}
 
 	const isClickable =
-		node.data && (node.data.sub_task_id || node.data.result || node.type === "WAIT")
+		node.data &&
+		(node.data.sub_task_id || node.data.result || node.type === "WAIT")
 
 	return (
 		<div className="flex items-start">
@@ -111,7 +119,9 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 				>
 					{nodeIcons[node.type]}
 				</div>
-				{!node.isLast && <div className="w-0.5 h-12 bg-neutral-700 mt-2"></div>}
+				{!node.isLast && (
+					<div className="w-0.5 h-12 bg-neutral-700 mt-2"></div>
+				)}
 			</div>
 			<div className="flex-1 pb-10">
 				<div
@@ -124,7 +134,9 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 				>
 					<div className="flex justify-between items-center">
 						<div className="flex-1">
-							<p className="font-semibold text-sm">{node.title}</p>
+							<p className="font-semibold text-sm">
+								{node.title}
+							</p>
 							<p className="text-xs text-neutral-400 capitalize mt-0.5">
 								{node.status}
 							</p>
@@ -145,19 +157,20 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 							exit={{ opacity: 0, height: 0 }}
 							className="mt-2 p-3 bg-neutral-900 rounded-lg text-sm border border-neutral-800"
 						>
-							{node.type === "SUBTASK" && node.data.sub_task_id && (
-								<button
-									onClick={() =>
-										onSelectTask({
-											task_id: node.data.sub_task_id
-										})
-									}
-									className="text-blue-400 hover:underline flex items-center gap-1 w-full text-left"
-								>
-									View Sub-task Details{" "}
-									<IconChevronRight size={14} />
-								</button>
-							)}
+							{node.type === "SUBTASK" &&
+								node.data.sub_task_id && (
+									<button
+										onClick={() =>
+											onSelectTask({
+												task_id: node.data.sub_task_id
+											})
+										}
+										className="text-blue-400 hover:underline flex items-center gap-1 w-full text-left"
+									>
+										View Sub-task Details{" "}
+										<IconChevronRight size={14} />
+									</button>
+								)}
 							{node.type === "WAIT" && (
 								<WaitingNodeDetails
 									waitingConfig={node.data.waiting_config}
@@ -256,7 +269,10 @@ const TaskFlowchart = ({ task, onSelectTask, onResumeTask }) => {
 				{flowNodes.map((node, index) => (
 					<TaskFlowchartNode
 						key={node.data?.step_id || index}
-						node={{ ...node, isLast: index === flowNodes.length - 1 }}
+						node={{
+							...node,
+							isLast: index === flowNodes.length - 1
+						}}
 						onSelectTask={onSelectTask}
 						onResumeTask={onResumeTask}
 					/>
@@ -266,85 +282,130 @@ const TaskFlowchart = ({ task, onSelectTask, onResumeTask }) => {
 	)
 }
 
-// --- NEW COMPONENT ---
-const WaitingStateDisplay = ({ waitingConfig }) => {
-	if (!waitingConfig || !waitingConfig.timeout_at) return null
-
-	const [timeLeft, setTimeLeft] = useState("")
-
-	useEffect(() => {
-		const intervalId = setInterval(() => {
-			const timeoutDate = new Date(waitingConfig.timeout_at)
-			const now = new Date()
-			const diff = timeoutDate.getTime() - now.getTime()
-
-			if (diff <= 0) {
-				setTimeLeft("Timeout reached. Awaiting next cycle.")
-				clearInterval(intervalId)
-				return
-			}
-
-			const hours = Math.floor(diff / (1000 * 60 * 60))
-			const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-			const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-
-			setTimeLeft(
-				`${String(hours).padStart(2, "0")}h ${String(minutes).padStart(
-					2,
-					"0"
-				)}m ${String(seconds).padStart(2, "0")}s`
-			)
-		}, 1000)
-
-		return () => clearInterval(intervalId)
-	}, [waitingConfig.timeout_at])
-
-	return (
-		<div className="p-4 rounded-lg border bg-yellow-500/10 border-yellow-500/20 text-yellow-300">
-			<h4 className="font-semibold mb-2 flex items-center gap-2">
-				<IconClock size={18} />
-				Task is Waiting
-			</h4>
-			<p className="text-sm text-neutral-300">
-				Waiting for:{" "}
-				<span className="font-semibold">{waitingConfig.waiting_for}</span>
+// --- NEW COMPONENT: Replaces the old simple TaskResultDisplay ---
+const FileCard = ({ file }) => (
+	<a
+		href={file.file_url}
+		target="_blank"
+		rel="noopener noreferrer"
+		className="flex items-center gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50 hover:border-brand-orange/50 transition-colors"
+	>
+		<IconFileText size={20} className="text-neutral-400 flex-shrink-0" />
+		<div className="overflow-hidden">
+			<p className="text-sm font-medium text-neutral-200 truncate">
+				{file.file_name}
 			</p>
-			<p className="text-sm text-neutral-300 mt-1">
-				Time remaining:{" "}
-				<span className="font-mono font-semibold">{timeLeft}</span>
-			</p>
+			{file.description && (
+				<p className="text-xs text-neutral-500 truncate">
+					{file.description}
+				</p>
+			)}
 		</div>
-	)
-}
+	</a>
+)
 
 // Helper component to display task results
 const TaskResultDisplay = ({ result }) => {
 	if (!result) return null
 
-	// Handle different types of results, e.g., JSON, text, files
-	if (typeof result === "object" && result !== null) {
-		// Check if it's a file object (you might need to adjust this based on your file structure)
-		if (result.file_url && result.file_name) {
-			return <FileCard file={result} />
-		}
-		// Assume it's JSON data
+	const parsedResult =
+		typeof result === "string" ? JSON.parse(result) : result
+	if (typeof parsedResult !== "object" || parsedResult === null) {
+		// Fallback for plain text results
 		return (
 			<div>
 				<h4 className="font-semibold text-neutral-300 mb-2">Result</h4>
-				<pre className="text-xs bg-neutral-900 p-2 rounded-md whitespace-pre-wrap max-h-40 overflow-auto custom-scrollbar">
-					{JSON.stringify(result, null, 2)}
-				</pre>
+				<p className="text-sm bg-neutral-800/50 p-3 rounded-lg text-neutral-300 whitespace-pre-wrap border border-neutral-700/50">
+					{String(result)}
+				</p>
 			</div>
 		)
 	}
 
-	// Assume it's plain text
+	const {
+		summary,
+		links_created = [],
+		links_found = [],
+		files_created = [],
+		tools_used = []
+	} = parsedResult
+	const allLinks = [...links_created, ...links_found]
+
 	return (
-		<div>
-			<h4 className="font-semibold text-neutral-300 mb-2">Result</h4>
-			<p className="text-sm bg-neutral-800/50 p-3 rounded-lg text-neutral-300 whitespace-pre-wrap border border-neutral-700/50">
-				{result}
-			</p>
+		<div className="space-y-6">
+			{summary && (
+				<div>
+					<h4 className="font-semibold text-neutral-300 mb-2">
+						Summary
+					</h4>
+					<div className="prose prose-sm prose-invert text-neutral-300 bg-neutral-800/50 p-3 rounded-lg border border-neutral-700/50">
+						<ReactMarkdown>{summary}</ReactMarkdown>
+					</div>
+				</div>
+			)}
+			{files_created.length > 0 && (
+				<div>
+					<h4 className="font-semibold text-neutral-300 mb-2">
+						Files Created
+					</h4>
+					<div className="space-y-2">
+						{files_created.map((file, index) => (
+							<FileCard key={index} file={file} />
+						))}
+					</div>
+				</div>
+			)}
+			{allLinks.length > 0 && (
+				<div>
+					<h4 className="font-semibold text-neutral-300 mb-2">
+						Links
+					</h4>
+					<div className="space-y-2">
+						{allLinks.map((link, index) => (
+							<a
+								href={link.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								key={index}
+								className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50 hover:border-brand-orange/50 transition-colors"
+							>
+								<IconLink
+									size={16}
+									className="text-neutral-400 flex-shrink-0 mt-1"
+								/>
+								<div className="overflow-hidden">
+									<p className="text-sm font-medium text-blue-400 truncate">
+										{link.url}
+									</p>
+									{link.description && (
+										<p className="text-xs text-neutral-500">
+											{link.description}
+										</p>
+									)}
+								</div>
+							</a>
+						))}
+					</div>
+				</div>
+			)}
+			{tools_used.length > 0 && (
+				<div>
+					<h4 className="font-semibold text-neutral-300 mb-2">
+						Tools Used
+					</h4>
+					<div className="flex flex-wrap gap-2">
+						{tools_used.map((tool, index) => (
+							<div
+								key={index}
+								className="flex items-center gap-1.5 bg-neutral-800 text-neutral-300 text-xs font-medium px-2 py-1 rounded-full border border-neutral-700"
+							>
+								<IconTool size={12} />
+								{tool}
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 		</div>
 	)
 }
@@ -731,6 +792,68 @@ const TaskDetailsContent = ({
 	const priorityInfo =
 		priorityMap[displayTask.priority] || priorityMap.default
 	const runs = displayTask.runs || []
+	const latestRun = runs.length > 0 ? runs[runs.length - 1] : null
+	const isSubtask = !!displayTask.original_context?.parent_task_id
+
+	// Handle the special case of a re-run subtask pending approval
+	if (isSubtask && !isEditing && displayTask.status === "approval_pending") {
+		return (
+			<div className="space-y-6">
+				{/* Show context from the last run before this new plan */}
+				{latestRun?.result && (
+					<CollapsibleSection
+						title="Context from Previous Run"
+						defaultOpen={true}
+					>
+						<TaskResultDisplay result={latestRun.result} />
+					</CollapsibleSection>
+				)}
+				{/* Show the new plan that needs approval */}
+				<CurrentPlanSection task={displayTask} />
+			</div>
+		)
+	}
+
+	// Handle all other subtask states (completed, processing, etc.)
+	if (isSubtask && !isEditing) {
+		return (
+			<div className="space-y-6">
+				{displayTask.error && (
+					<div>
+						<h4 className="font-semibold text-red-400 mb-2">
+							Sub-task Error
+						</h4>
+						<p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-lg whitespace-pre-wrap">
+							{displayTask.error}
+						</p>
+					</div>
+				)}
+				{latestRun?.result && (
+					<TaskResultDisplay result={latestRun.result} />
+				)}
+				<div>
+					<label className="text-sm font-medium text-neutral-400 block mb-2">
+						Description
+					</label>
+					<div className="bg-neutral-800/50 p-3 rounded-lg text-sm text-neutral-300 whitespace-pre-wrap">
+						{displayTask.description || "No description provided."}
+					</div>
+				</div>
+				{latestRun?.progress_updates?.length > 0 && (
+					<CollapsibleSection
+						title="Execution Log (Advanced)"
+						defaultOpen={false}
+					>
+						<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
+							{latestRun.progress_updates.map((update, index) => (
+								<ExecutionUpdate key={index} update={update} />
+							))}
+						</div>
+					</CollapsibleSection>
+				)}
+			</div>
+		)
+	}
 
 	return (
 		<div className="space-y-6">
@@ -895,14 +1018,14 @@ const TaskDetailsContent = ({
 
 			{/* --- PLAN & OUTCOME --- */}
 			{isEditing ? ( // --- EDITING VIEW ---
-				<div className="space-y-3">
-					<label className="text-sm font-medium text-neutral-300">
-						Plan Steps
-					</label>
+				<div className="space-y-4 p-4 rounded-xl bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50">
+					<h4 className="text-base font-semibold text-white">
+						Edit Plan
+					</h4>
 					{(editableTask.plan || []).map((step, index) => (
 						<div
 							key={index}
-							className="flex items-center gap-2 p-2 bg-neutral-800/30 rounded-lg border border-neutral-700/50"
+							className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-lg"
 						>
 							<IconGripVertical className="h-5 w-5 text-neutral-500 cursor-grab flex-shrink-0" />
 							<select
@@ -914,7 +1037,7 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="w-1/3 p-2 bg-neutral-700 border border-neutral-600 rounded-md text-sm appearance-none"
+								className="w-1/3 p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 appearance-none"
 							>
 								<option value="">Select tool...</option>
 								{allTools.map((tool) => (
@@ -933,12 +1056,12 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="flex-grow p-2 bg-neutral-700 border border-neutral-600 rounded-md text-sm"
+								className="flex-grow p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
 								placeholder="Step description..."
 							/>
 							<button
 								onClick={() => handleRemoveStep(index)}
-								className="p-2 text-red-400 hover:bg-red-500/10 rounded-full flex-shrink-0"
+								className="p-2 text-red-400 hover:bg-red-500/20 rounded-full flex-shrink-0"
 							>
 								<IconX size={16} />
 							</button>
@@ -946,7 +1069,7 @@ const TaskDetailsContent = ({
 					))}
 					<button
 						onClick={handleAddStep}
-						className="flex items-center gap-1.5 text-xs py-1.5 px-3 rounded-full bg-neutral-700 hover:bg-neutral-600 font-medium"
+						className="flex items-center gap-1.5 text-sm py-2 px-4 rounded-lg bg-neutral-700 hover:bg-neutral-600 font-medium"
 					>
 						<IconPlus size={14} /> Add Step
 					</button>
@@ -956,10 +1079,24 @@ const TaskDetailsContent = ({
 				<>
 					<CurrentPlanSection task={displayTask} />
 
+					{/* --- NEW: Show previous result if re-planning, collapsed by default --- */}
+					{displayTask.status === "approval_pending" &&
+						latestRun?.result && (
+							<CollapsibleSection
+								title="Context from Previous Run"
+								defaultOpen={false}
+							>
+								<TaskResultDisplay result={latestRun.result} />
+							</CollapsibleSection>
+						)}
+
 					{runs.length > 0 && (
 						<CollapsibleSection
-							title="Run History"
-							defaultOpen={false}
+							title="Full Run History"
+							// Collapse history if a new plan is pending approval to reduce clutter
+							defaultOpen={
+								displayTask.status !== "approval_pending"
+							}
 						>
 							{runs
 								.slice()
@@ -1034,6 +1171,7 @@ const TaskDetailsContent = ({
 													<div>
 														<h4 className="font-semibold text-neutral-300 mb-2">
 															Execution Log
+															(Advanced)
 														</h4>
 														<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
 															{run.progress_updates.map(
@@ -1103,9 +1241,11 @@ const TaskDetailsContent = ({
 												)}
 
 											{run.result && (
-												<TaskResultDisplay
-													result={run.result}
-												/>
+												<div className="mt-4">
+													<TaskResultDisplay
+														result={run.result}
+													/>
+												</div>
 											)}
 
 											{run.error && (
@@ -1127,7 +1267,7 @@ const TaskDetailsContent = ({
 			)}
 
 			{/* Show chat input only when a task is completed, to allow for follow-ups. */}
-			{task.status === "completed" && (
+			{!isSubtask && task.status === "completed" && (
 				<TaskChatSection
 					task={task}
 					onSendChatMessage={onSendChatMessage}

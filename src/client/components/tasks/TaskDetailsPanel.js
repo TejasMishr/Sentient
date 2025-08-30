@@ -51,13 +51,19 @@ const TaskDetailsPanel = ({
 			return []
 		}
 
-		// The plan is in the latest run. Fallback to top-level for legacy tasks.
-		const plan =
-			task.runs && task.runs.length > 0
-				? task.runs[task.runs.length - 1].plan
-				: task.plan
+		let plan
+		// For tasks pending approval, the top-level plan is the one that matters.
+		if (task.status === "approval_pending" && task.plan) {
+			plan = task.plan
+		} else {
+			// For other states, look at the latest run's plan for historical context.
+			plan =
+				task.runs && task.runs.length > 0
+					? task.runs[task.runs.length - 1].plan
+					: task.plan
+		}
 
-		if (!plan || plan.length === 0) {
+		if (!plan || !Array.isArray(plan) || plan.length === 0) {
 			return []
 		}
 
@@ -116,12 +122,16 @@ const TaskDetailsPanel = ({
 	}, [])
 
 	const handleStartEditing = () => {
-		// When editing, we need to make sure we're editing the plan from the latest run.
+		// Prioritize the current, top-level plan, especially for tasks pending approval.
+		// Fall back to the latest run's plan only if the top-level one is empty.
 		const latestRun =
 			task.runs && task.runs.length > 0
 				? task.runs[task.runs.length - 1]
-				: {}
-		const planForEditing = latestRun.plan || task.plan || [] // Fallback for different structures
+				: null
+		const planForEditing =
+			task.plan && task.plan.length > 0
+				? task.plan
+				: latestRun?.plan || []
 
 		setEditableTask({ ...task, plan: planForEditing })
 		setIsEditing(true)

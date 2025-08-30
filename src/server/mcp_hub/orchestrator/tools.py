@@ -58,8 +58,9 @@ async def get_context(ctx: Context, key: str = None) -> Dict:
 
 async def create_subtask(ctx: Context, step_id: str, subtask_description: str, context: Optional[Dict] = None, reasoning: str = "") -> Dict:
     """
-    Creates and COMPLETELY EXECUTES a sub-task to completion, synchronously.
-    You will receive the final result of the task after completion.
+    Creates and executes a sub-task.
+    If the sub-task can be auto-approved, it runs to completion synchronously and you will receive the final result.
+    If it requires manual user approval, the parent task will be suspended, and you will be notified to stop execution.
     """
     subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT try to contact or notify the user directly—your output goes back to an orchestrator agent. NEVER USE PLACEHOLDERS for information about the user. Always retrieve personal details from the user's memory store and if no information is available, perform a generalized action. DO NOT USE placeholders in square brackets like [Your Name]."
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
@@ -94,10 +95,57 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
 
         await state_manager.add_execution_log(task_id, user_id, "subtask_created", {"sub_task_id": sub_task_id, "description": subtask_description}, reasoning)
 
-        # === BEGIN SYNCHRONOUS EXECUTION ===
-        logger.info(f"Orchestrator is now awaiting completion of sub-task {sub_task_id}")
+        # === BEGIN SYNCHRONOUS EXECUTION / PLANNING ===
+        logger.info(f"Orchestrator is now planning sub-task {sub_task_id}")
         await async_refine_and_plan_ai_task(sub_task_id, user_id)
-        logger.info(f"Sub-task {sub_task_id} has completed its lifecycle.")
+
+        # --- NEW LOGIC: Check if sub-task requires approval ---
+        planned_subtask = await db.get_task(sub_task_id, user_id)
+        if not planned_subtask:
+            raise ToolError(f"Could not retrieve planned sub-task {sub_task_id} from database.")
+
+        if planned_subtask.get("status") == "approval_pending":
+            logger.info(f"Sub-task {sub_task_id} requires manual approval. Suspending parent task {task_id}.")
+
+            # Suspend the parent task
+            await state_manager.update_orchestrator_state(task_id, user_id, {
+                "current_state": "SUSPENDED",
+                "waiting_for_subtask": sub_task_id
+            })
+
+            await state_manager.add_execution_log(
+                task_id,
+                user_id,
+                "subtask_pending_approval",
+                {"sub_task_id": sub_task_id, "description": subtask_description},
+                "Sub-task requires manual approval (either auto-approve is off or required tools are disconnected). Suspending orchestrator."
+            )
+
+            # Notify the user
+            subtask_name = planned_subtask.get("name", "a sub-task")
+            parent_task_name = parent_task.get("name", "the main task")
+            await notify_user(
+                user_id,
+                f"The task '{parent_task_name}' is paused because a sub-task ('{subtask_name}') needs your approval.",
+                task_id, # Link to the parent task
+                notification_type="taskSuspendedForSubtaskApproval",
+                payload={"sub_task_id": sub_task_id}
+            )
+
+            # Return a specific message to the orchestrator agent
+            return {
+                "status": "success",
+                "result": {
+                    "status": "pending_approval",
+                    "sub_task_id": sub_task_id,
+                    "message": "Sub-task requires manual user approval. The main task has been suspended. Awaiting user action."
+                },
+                "message": "Sub-task requires manual user approval. The main task has been suspended. DO NOT CONTINUE OR MAKE FURTHER CALLS NOW. THIS IS THE USER SPEAKING. YOU HAVE TO STOP NOW. DO NOT SEND ANY MORE RESPONSES IN THIS CYCLE."
+            }
+
+        # --- END NEW LOGIC ---
+
+        logger.info(f"Sub-task {sub_task_id} was auto-approved and has completed its lifecycle.")
 
         # Fetch the completed sub-task to get its result
         completed_subtask = await db.get_task(sub_task_id, user_id)

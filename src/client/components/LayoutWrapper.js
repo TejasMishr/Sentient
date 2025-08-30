@@ -46,7 +46,6 @@ export default function LayoutWrapper({ children }) {
 	// ... (keep all your existing state declarations)
 	const [isNotificationsOpen, setNotificationsOpen] = useState(false)
 	const [isSearchOpen, setSearchOpen] = useState(false)
-	const [isSidebarCollapsed, setSidebarCollapsed] = useState(true)
 	const [isMobileNavOpen, setMobileNavOpen] = useState(false)
 	const [unreadCount, setUnreadCount] = useState(0)
 	const [notifRefreshKey, setNotifRefreshKey] = useState(0)
@@ -506,10 +505,6 @@ export default function LayoutWrapper({ children }) {
 			{showNav && (
 				<>
 					<Sidebar
-						isCollapsed={isSidebarCollapsed}
-						onToggle={() =>
-							setSidebarCollapsed(!isSidebarCollapsed)
-						}
 						onNotificationsOpen={handleNotificationsOpen}
 						onSearchOpen={() => setSearchOpen(true)}
 						unreadCount={unreadCount}
@@ -528,8 +523,7 @@ export default function LayoutWrapper({ children }) {
 			<div
 				className={cn(
 					"flex-1 transition-[padding-left] duration-300 ease-in-out",
-					showNav &&
-						(isSidebarCollapsed ? "md:pl-20" : "md:pl-[260px]")
+					showNav && "md:pl-[260px]"
 				)}
 			>
 				{children}

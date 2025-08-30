@@ -165,6 +165,20 @@ const TriggeredTaskDetails = ({ task, userTimezone }) => {
 										defaultOpen={index === 0}
 									>
 										<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4 mt-2">
+											{run.trigger_event_data && (
+												<div>
+													<h5 className="text-xs font-semibold text-neutral-400 mb-1">
+														Trigger Data
+													</h5>
+													<pre className="text-xs bg-neutral-900 p-2 rounded-md overflow-x-auto custom-scrollbar">
+														{JSON.stringify(
+															run.trigger_event_data,
+															null,
+															2
+														)}
+													</pre>
+												</div>
+											)}
 											{run.progress_updates &&
 											run.progress_updates.length > 0 ? (
 												run.progress_updates.map(

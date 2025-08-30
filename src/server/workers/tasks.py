@@ -123,6 +123,9 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
         if not task or task.get("task_type") != "swarm":
             logger.error(f"Orchestrator: Task {task_id} not found or is not a swarm task.")
             return
+    
+        # Ensure we are using the user_id from the task document for security
+        user_id = task.get("user_id")
 
         # --- Get user plan to check limits ---
         user_profile = await db_manager.get_user_profile(user_id)
@@ -208,38 +211,73 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
 
         logger.info(f"Resource Manager created execution plan with {len(swarm_plan)} sub-task(s).")
 
-        # --- 2. Dispatch Worker Tasks ---
-        all_worker_groups = []
+        # --- 2. Create Sub-Task Documents and Dispatch Workers ---
+        all_worker_tasks = []
         total_agents = 0
+        parent_run_id = str(uuid.uuid4()) # Create a single run ID for this swarm execution
+
         for config in swarm_plan:
             item_indices = config.get("item_indices", [])
             worker_prompt = config.get("worker_prompt")
             required_tools = config.get("required_tools", [])
             
-            # --- Enforce sub-agent limit ---
-            if total_agents > sub_agent_limit:
-                raise Exception(f"Swarm plan exceeds the sub-agent limit for your plan ({total_agents} > {sub_agent_limit}). Please reduce the number of items or upgrade your plan.")
-
             if not all([isinstance(item_indices, list), worker_prompt, isinstance(required_tools, list)]):
                 logger.warning(f"Skipping invalid worker configuration: {config}")
                 continue
 
-            valid_indices = [i for i in item_indices if i < len(items)]
-            total_agents += len(valid_indices)
-            task_group = group(run_single_item_worker.s(parent_task_id=task_id, user_id=user_id, item=items[i], worker_prompt=worker_prompt, worker_tools=required_tools) for i in valid_indices)
-            if task_group:
-                all_worker_groups.append(task_group)
+            for i in item_indices:
+                if i >= len(items): continue
+                if total_agents >= sub_agent_limit:
+                    logger.warning(f"Swarm plan exceeds the sub-agent limit for your plan ({sub_agent_limit}). Truncating tasks.")
+                    break
+                
+                total_agents += 1
+                item = items[i]
+                sub_task_id = str(uuid.uuid4())
+                
+                sub_task_data = {
+                    "task_id": sub_task_id,
+                    "user_id": user_id,
+                    "name": f"Sub-agent for: {str(item)[:50]}...",
+                    "description": worker_prompt,
+                    "status": "pending",
+                    "task_type": "single", # Swarm workers are single-execution tasks
+                    "original_context": {
+                        "source": "swarm_subtask",
+                        "parent_task_id": task_id,
+                        "parent_run_id": parent_run_id,
+                        "item": item
+                    },
+                    "plan": [], # The worker executes directly, no high-level plan needed here
+                    "runs": [],
+                    "created_at": datetime.datetime.now(datetime.timezone.utc)
+                }
+                await db_manager.task_collection.insert_one(sub_task_data)
 
-        if not all_worker_groups:
-            raise Exception("The execution plan resulted in no valid tasks to run.")
+                # Signature for the worker task
+                worker_signature = run_single_item_worker.s(
+                    sub_task_id=sub_task_id,
+                    parent_task_id=task_id, 
+                    user_id=user_id, 
+                    item=item, 
+                    worker_prompt=worker_prompt, 
+                    worker_tools=required_tools
+                )
+                all_worker_tasks.append(worker_signature)
+            
+            if total_agents >= sub_agent_limit:
+                break
         
-        parent_run_id = str(uuid.uuid4())
+        if not all_worker_tasks:
+            raise Exception("The execution plan resulted in no valid tasks to run.")
+
+        # Update parent task with run info and total agent count
         run_doc = {
             "run_id": parent_run_id,
             "status": "processing",
             "created_at": datetime.datetime.now(datetime.timezone.utc),
             "execution_start_time": datetime.datetime.now(datetime.timezone.utc),
-            "plan": swarm_plan,
+            "plan": swarm_plan, # This is the resource manager's plan
             "progress_updates": [{
                 "message": {"type": "info", "content": f"Resource manager created a plan for {total_agents} agents."},
                 "timestamp": datetime.datetime.now(datetime.timezone.utc)
@@ -254,11 +292,13 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             "runs": current_runs,
             "status": "processing",
             "swarm_details.total_agents": total_agents,
+            "swarm_details.completed_agents": 0 # Initialize completed count
         }
         await db_manager.update_task(task_id, update_payload)
         await push_task_list_update(user_id, task_id, "swarm_plan_created")
 
-        header = group(all_worker_groups)
+        # Create and dispatch the chord
+        header = group(all_worker_tasks)
         callback = aggregate_results_callback.s(parent_task_id=task_id, user_id=user_id, parent_run_id=parent_run_id)
         chord_task = chord(header, callback)
         
@@ -528,10 +568,34 @@ async def async_generate_plan(task_id: str, user_id: str):
             # Use default=str to handle non-serializable types like datetime
             previous_result_str = json.dumps(task.get("result", "No previous result."), indent=2, default=str)
             
+            # --- NEW: Fetch swarm sub-task results if applicable ---
+            swarm_results_context = ""
+            if task.get("task_type") == "swarm":
+                sub_tasks = await db_manager.tasks_collection.find({
+                    "original_context.parent_task_id": task_id
+                }).to_list(length=None)
+                
+                if sub_tasks:
+                    sub_task_results = []
+                    for sub in sub_tasks:
+                        item = sub.get("original_context", {}).get("item")
+                        # Get result from the latest run of the sub-task
+                        last_run = sub.get("runs", [])[-1] if sub.get("runs") else None
+                        result = last_run.get("result") if last_run else "No result."
+                        sub_task_results.append({"item": item, "result": result})
+                    
+                    swarm_results_context = (
+                        "\n\n**Detailed Results from Previous Swarm Execution:**\n"
+                        "The following are the individual results from each sub-agent in the last run. Use this information to fulfill the user's new request.\n"
+                        f"```json\n{json.dumps(sub_task_results, indent=2, default=str)}\n```\n"
+                    )
+            # --- END NEW ---
+            
             context_message = (
                 "You are re-planning a task based on user feedback. Here is the context of the previous run:\n\n"
                 f"**Previous Plan:**\n```json\n{previous_plan_str}\n```\n\n"
-                f"**Previous Result:**\n```json\n{previous_result_str}\n```\n\n"
+                f"**Previous Result (High-level Summary):**\n```json\n{previous_result_str}\n```\n"
+                f"{swarm_results_context}" # Inject detailed swarm results
                 "Now, review the following conversation and generate a new plan based on the user's latest request."
             )
             messages.append({"role": "system", "content": context_message})

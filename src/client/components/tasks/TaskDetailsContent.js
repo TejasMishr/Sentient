@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import toast from "react-hot-toast"
 import { cn } from "@utils/cn"
 import { taskStatusColors, priorityMap } from "./constants"
@@ -308,8 +308,17 @@ const FileCard = ({ file }) => (
 const TaskResultDisplay = ({ result }) => {
 	if (!result) return null
 
-	const parsedResult =
-		typeof result === "string" ? JSON.parse(result) : result
+	let parsedResult
+	if (typeof result === "string") {
+		try {
+			parsedResult = JSON.parse(result)
+		} catch (e) {
+			parsedResult = null // It's not a valid JSON string
+		}
+	} else {
+		parsedResult = result
+	}
+
 	if (typeof parsedResult !== "object" || parsedResult === null) {
 		// Fallback for plain text results
 		return (
@@ -637,6 +646,39 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 	)
 }
 
+const SwarmPlanSection = ({ plan }) => {
+	if (!plan || plan.length === 0) return null
+
+	return (
+		<div>
+			<h4 className="font-semibold text-neutral-300 mb-2">
+				Swarm Execution Plan
+			</h4>
+			<div className="space-y-3">
+				{plan.map((workerConfig, index) => (
+					<div
+						key={index}
+						className="p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
+					>
+						<p className="text-sm font-semibold text-neutral-200 mb-2">
+							Worker Group #{index + 1} (
+							{workerConfig.item_indices?.length || 0} items)
+						</p>
+						<div>
+							<label className="text-xs text-neutral-400">
+								Instructions:
+							</label>
+							<p className="text-sm text-neutral-300 mt-1 italic">
+								"{workerConfig.worker_prompt}"
+							</p>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	)
+}
+
 const CurrentPlanSection = ({ task }) => {
 	// This section shows the plan that is currently pending approval or being planned.
 	if (
@@ -709,11 +751,15 @@ const CurrentPlanSection = ({ task }) => {
 
 const TaskChatSection = ({ task, onSendChatMessage }) => {
 	const [message, setMessage] = useState("")
-	const chatEndRef = React.useRef(null)
+	const chatEndRef = useRef(null)
+	const chatHistory = useMemo(
+		() => task.chat_history || [],
+		[task.chat_history]
+	)
 
 	useEffect(() => {
 		chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-	}, [task.chat_history])
+	}, [chatHistory])
 
 	const handleSend = () => {
 		if (message.trim()) {
@@ -725,16 +771,17 @@ const TaskChatSection = ({ task, onSendChatMessage }) => {
 	return (
 		<div className="mt-6 pt-6 border-t border-neutral-800">
 			<h4 className="font-semibold text-neutral-300 mb-4">
-				Task Conversation
+				Request Changes
 			</h4>
 			<div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar pr-2">
-				{(task.chat_history || []).map((msg, index) => (
+				{chatHistory.map((msg, index) => (
 					<ChatBubble
 						key={index}
 						role={msg.role}
 						turn_steps={msg.turn_steps || []}
 						content={msg.content}
 						message={msg}
+						allMessages={chatHistory}
 					/>
 				))}
 				<div ref={chatEndRef} />
@@ -745,7 +792,7 @@ const TaskChatSection = ({ task, onSendChatMessage }) => {
 					value={message}
 					onChange={(e) => setMessage(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && handleSend()}
-					placeholder="Ask for changes or follow-ups..."
+					placeholder="Describe the changes you need..."
 					className="flex-grow p-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm"
 				/>
 				<button
@@ -895,21 +942,29 @@ const TaskDetailsContent = ({
 						onAnswerClarifications={onAnswerClarifications}
 					/>
 				)}
-			{/* --- SWARM DETAILS (if applicable) --- */}
+			{/* --- SWARM DETAILS (not in edit mode) --- */}
 			{displayTask.task_type === "swarm" && (
 				<div>
-					<label className="text-sm font-medium text-neutral-400 block mb-2">
-						Researched Context
-					</label>
-					<div className="bg-neutral-800/50 p-3 rounded-lg text-sm text-neutral-300 whitespace-pre-wrap border border-neutral-700/50">
-						<ReactMarkdown className="prose prose-sm prose-invert">
-							{displayTask.found_context}
-						</ReactMarkdown>
+					<h4 className="font-semibold text-neutral-300 mb-2">
+						Swarm Details
+					</h4>
+					<div className="bg-neutral-800/50 p-3 rounded-lg text-sm text-neutral-300 space-y-2 border border-neutral-700/50">
+						<p>
+							<span className="font-semibold">Goal:</span>{" "}
+							{displayTask.swarm_details?.goal}
+						</p>
+						<p>
+							<span className="font-semibold">
+								Items to process:
+							</span>{" "}
+							{displayTask.swarm_details?.items?.length || 0}
+						</p>
 					</div>
 				</div>
 			)}
 
 			{/* --- META INFO & ASSIGNEE --- */}
+			{/* This section is relevant for all task types */}
 			<div className="w-full">
 				<div>
 					<label className="text-sm font-medium text-neutral-400 block mb-2">
@@ -1108,7 +1163,7 @@ const TaskDetailsContent = ({
 									) => (
 										<div
 											key={run.run_id || `run-${index}`}
-											className="space-y-6 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
+											className="space-y-4 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
 										>
 											<div className="flex justify-between items-center text-xs text-neutral-500">
 												<span>
@@ -1126,43 +1181,53 @@ const TaskDetailsContent = ({
 
 											{run.plan &&
 												run.plan.length > 0 && (
-													<div>
-														<h4 className="font-semibold text-neutral-300 mb-2">
-															Executed Plan
-														</h4>
-														<div className="space-y-2">
-															{run.plan.map(
-																(
-																	step,
-																	stepIndex
-																) => (
-																	<div
-																		key={
+													<>
+														{displayTask.task_type ===
+														"swarm" ? (
+															<SwarmPlanSection
+																plan={run.plan}
+															/>
+														) : (
+															<div>
+																<h4 className="font-semibold text-neutral-300 mb-2">
+																	Executed
+																	Plan
+																</h4>
+																<div className="space-y-2">
+																	{run.plan.map(
+																		(
+																			step,
 																			stepIndex
-																		}
-																		className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
-																	>
-																		<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
-																			{stepIndex +
-																				1}
-																		</div>
-																		<div>
-																			<p className="text-sm font-medium text-neutral-100">
-																				{
-																					step.tool
+																		) => (
+																			<div
+																				key={
+																					stepIndex
 																				}
-																			</p>
-																			<p className="text-sm text-neutral-400">
-																				{
-																					step.description
-																				}
-																			</p>
-																		</div>
-																	</div>
-																)
-															)}
-														</div>
-													</div>
+																				className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
+																			>
+																				<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
+																					{stepIndex +
+																						1}
+																				</div>
+																				<div>
+																					<p className="text-sm font-medium text-neutral-100">
+																						{
+																							step.tool
+																						}
+																					</p>
+																					<p className="text-sm text-neutral-400">
+																						{
+																							step.description
+																						}
+																					</p>
+																				</div>
+																			</div>
+																		)
+																	)}
+																</div>
+															</div>
+														)}
+													</>
 												)}
 
 											{run.progress_updates &&
@@ -1267,12 +1332,15 @@ const TaskDetailsContent = ({
 			)}
 
 			{/* Show chat input only when a task is completed, to allow for follow-ups. */}
-			{!isSubtask && task.status === "completed" && (
-				<TaskChatSection
-					task={task}
-					onSendChatMessage={onSendChatMessage}
-				/>
-			)}
+			{!isSubtask &&
+				["completed", "completed_with_errors", "error"].includes(
+					task.status
+				) && (
+					<TaskChatSection
+						task={task}
+						onSendChatMessage={onSendChatMessage}
+					/>
+				)}
 		</div>
 	)
 }

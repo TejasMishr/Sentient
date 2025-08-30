@@ -14,7 +14,8 @@ import {
 	IconPlayerPause,
 	IconClock,
 	IconClipboardList,
-	IconUsersGroup
+	IconUsersGroup,
+	IconProgress
 } from "@tabler/icons-react"
 import { getDisplayName } from "@utils/taskUtils"
 import RecurringTaskDetails from "./RecurringTaskDetails"
@@ -233,6 +234,30 @@ const TaskDetailsPanel = ({
 									{getDisplayName(task)}
 								</h2>
 							)}
+							{task.task_type === "swarm" && !isEditing && (
+								<div className="mt-2">
+									<div className="flex justify-between items-center text-xs text-neutral-400 mb-1">
+										<span>
+											<IconProgress
+												size={14}
+												className="inline mr-1"
+											/>
+											Swarm Progress
+										</span>
+										<span>
+											{task.swarm_details
+												?.completed_agents || 0}
+											/
+											{task.swarm_details?.total_agents ||
+												0}{" "}
+											Agents
+										</span>
+									</div>
+									<div className="w-full bg-neutral-700 rounded-full h-1.5">
+										<div className="bg-brand-orange h-1.5 rounded-full" style={{ width: `${((task.swarm_details?.completed_agents || 0) / (task.swarm_details?.total_agents || 1)) * 100}%` }}></div>
+									</div>
+								</div>
+							)}
 						</div>
 						<button
 							onClick={onClose}
@@ -424,3 +449,4 @@ const TaskDetailsPanel = ({
 }
 
 export default TaskDetailsPanel
+

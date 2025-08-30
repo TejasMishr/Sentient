@@ -10,11 +10,14 @@ Instructions:
 1.  Name & Description:
     -   `name`: Create a short, clear, and concise task name (title) from the user's prompt.
     -   `description`: Create a detailed description that captures the full intent of the task.
-2.  Priority: Determine the task's priority. Use one of the following integer values: 
+2.  Task Type: Determine the type of task.
+    -   `swarm`: Use this for tasks that involve performing the SAME ACTION on a list of multiple items (e.g., "research these 5 topics", "email these 10 people"). The `description` for a swarm task should clearly state the goal to be performed on EACH item.
+    -   If it's not a swarm task, you don't need to specify a task type. The system will determine it based on the schedule.
+3.  Priority: Determine the task's priority. Use one of the following integer values:
     - `0`: High priority (urgent, important, deadlines).
     - `1`: Medium priority (standard tasks, default).
     - `2`: Low priority (can be done anytime, not urgent).
-3.  Schedule: Analyze the prompt for any scheduling information (dates, times, recurrence). Decipher whether the task is a one-time event or recurring, and format the schedule accordingly:
+4.  Schedule: Analyze the prompt for any scheduling information (dates, times, recurrence). Decipher whether the task is a one-time event or recurring, and format the schedule accordingly:
     - One-time tasks:
         - If the prompt has **NO MENTION of a future date or time** (e.g., "summarize this document", "organize my files"), the task is for **immediate execution**. You MUST set `run_at` to `null`.
         - If a specific future date and time is mentioned, use the `once` type. The `run_at` value MUST be in `YYYY-MM-DDTHH:MM` format.
@@ -34,7 +37,7 @@ Instructions:
 
 
 Output Format:
-Your response MUST be a single, valid JSON object with the keys "name", "description", "priority", and "schedule".
+Your response MUST be a single, valid JSON object with the keys "name", "description", "priority", "schedule", and optionally "task_type".
 
 Example 1: (One-time Task with Future Execution)
 User Prompt: "remind me to call John about the project proposal tomorrow at 4pm"
@@ -99,6 +102,20 @@ Your JSON Output:
   "name": "Schedule meeting with Sarah",
   "description": "Find a time that works for both me and Sarah for a meeting next week, and then schedule it.",
   "priority": 1,
+  "schedule": {{
+    "type": "once",
+    "run_at": null
+  }}
+}}
+
+Example 6: (Swarm Task)
+User Prompt: "Research these 5 topics and create a small report on each one: AI in healthcare, Quantum computing basics, The future of renewable energy, Blockchain beyond cryptocurrency, and The impact of 5G technology."
+Your JSON Output:
+{{
+  "name": "Research and report on 5 tech topics",
+  "description": "Research each of the following topics and create a small report for each one: AI in healthcare, Quantum computing basics, The future of renewable energy, Blockchain beyond cryptocurrency, and The impact of 5G technology.",
+  "priority": 1,
+  "task_type": "swarm",
   "schedule": {{
     "type": "once",
     "run_at": null

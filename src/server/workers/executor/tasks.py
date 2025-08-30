@@ -1,4 +1,3 @@
-
 ### `src\server\workers\executor\tasks.py`
 
 import os
@@ -399,7 +398,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
             await async_generate_task_result(task_id, run_id, user_id)
 
         from workers.tasks import calculate_next_run
-        schedule_type = task.get('schedule', {}).get('type')
+        schedule_type = (task.get('schedule') or {}).get('type')
         if schedule_type == 'recurring':
             next_run_time, _ = calculate_next_run(task['schedule'], last_run=datetime.datetime.now(datetime.timezone.utc))
             await db.tasks.update_one({"_id": task["_id"]}, {"$set": {"status": "active", "next_execution_at": next_run_time}})
@@ -423,7 +422,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         await update_task_run_status(db, task_id, run_id, "error", user_id, details={"error": error_message}, block_id=block_id)
         
         from workers.tasks import calculate_next_run
-        schedule_type = task.get('schedule', {}).get('type')
+        schedule_type = (task.get('schedule') or {}).get('type')
         if schedule_type == 'recurring':
             next_run_time, _ = calculate_next_run(task['schedule'], last_run=datetime.datetime.now(datetime.timezone.utc))
             await db.tasks.update_one({"_id": task["_id"]}, {"$set": {"status": "active", "next_execution_at": next_run_time}})
@@ -651,43 +650,56 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                 await db.tasks.update_one({"task_id": task_id, "user_id": user_id}, {"$set": update_payload})
 
 @celery_app.task(name="run_single_item_worker", bind=True)
-def run_single_item_worker(self, parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str]):
+def run_single_item_worker(self, sub_task_id: str, parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str]):
     """
     A Celery worker that executes a sub-task for a single item from a collection.
     This worker runs a self-contained agent to fulfill the worker_prompt using a specific set of tools.
     """
     worker_id = self.request.id
-    logger.info(f"Running single item worker {worker_id} for parent task {parent_task_id} on item: {str(item)[:100]}")
-    return run_async(async_run_single_item_worker(parent_task_id, user_id, item, worker_prompt, worker_tools, worker_id))
+    logger.info(f"Running single item worker {worker_id} for sub_task {sub_task_id} on item: {str(item)[:100]}")
+    return run_async(async_run_single_item_worker(sub_task_id, parent_task_id, user_id, item, worker_prompt, worker_tools, worker_id))
 
-async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str], worker_id: str):
+async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str], worker_id: str):
     """
     Async logic for the single item worker.
     """
     db = get_db_client()
 
-    async def push_update(status: str, message: str):
+    async def update_sub_task(update_data: Dict):
+        """Updates the sub-task document."""
+        await db.tasks.update_one({"task_id": sub_task_id}, {"$set": update_data})
+        # Also push a general update to the frontend
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+
+    async def add_sub_task_run_update(update_type: str, content: Any):
+        """Adds a progress update to the sub-task's run."""
         update = {
-            "worker_id": worker_id,
-            "timestamp": datetime.datetime.now(datetime.timezone.utc),
-            "status": status,
-            "message": message
+            "message": {"type": update_type, "content": content},
+            "timestamp": datetime.datetime.now(datetime.timezone.utc)
         }
         await db.tasks.update_one(
-            {"task_id": parent_task_id},
-            {
-                "$push": {"swarm_details.progress_updates": update},
-                "$inc": {"swarm_details.completed_agents": 1 if status in ["completed", "error"] else 0}
-            }
+            {"task_id": sub_task_id},
+            {"$push": {"runs.0.progress_updates": update}}
         )
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
 
     try:
-        # 1. Get user context
+        # 1. Initialize sub-task run
+        run_id = str(uuid.uuid4())
+        run_doc = {
+            "run_id": run_id,
+            "status": "processing",
+            "created_at": datetime.datetime.now(datetime.timezone.utc),
+            "execution_start_time": datetime.datetime.now(datetime.timezone.utc),
+            "progress_updates": []
+        }
+        await update_sub_task({"status": "processing", "runs": [run_doc]})
+        
+        # 2. Get user context
         user_profile = await db.user_profiles.find_one({"user_id": user_id})
         user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {}
 
-        # 2. Configure tools for the sub-agent based on the provided list
+        # 3. Configure tools for the sub-agent
         active_mcp_servers = {}
         for tool_name in worker_tools:
             config = INTEGRATIONS_CONFIG.get(tool_name)
@@ -708,7 +720,7 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
 
         tools_config = [{"mcpServers": active_mcp_servers}]
 
-        # 3. Construct prompts for the sub-agent
+        # 4. Construct prompts
         system_prompt = (
             "You are an autonomous sub-agent. Your goal is to complete a specific task given to you as part of a larger parallel operation. "
             "You have access to a specific, limited suite of tools. Follow the user's prompt precisely. "
@@ -720,9 +732,14 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
         
         messages = [{'role': 'user', 'content': full_worker_prompt}]
 
-        await push_update("processing", f"Starting work on item: {str(item)[:100]}")
+        await add_sub_task_run_update("info", f"Starting work on item: {str(item)[:100]}")
 
-        # 4. Run the agent
+        # 5. Run the agent
+        llm_cfg = {
+            'model': OPENAI_MODEL_NAME,
+            'model_server': OPENAI_API_BASE_URL,
+            'api_key': OPENAI_API_KEY,
+        }
         agent = Assistant(llm=llm_cfg, function_list=tools_config, system_message=system_prompt)
         
         final_content = ""
@@ -732,7 +749,8 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
                 final_content = response[-1].get("content", "")
             final_response_list = response
 
-        # 5. Parse and return the result
+        # 6. Parse and return the result
+        final_result = None
         last_message = final_response_list[-1] if final_response_list else {}
         if last_message.get("role") == "function":
             tool_result = JsonExtractor.extract_valid_json(last_message.get("content", "{}"))
@@ -741,22 +759,60 @@ async def async_run_single_item_worker(parent_task_id: str, user_id: str, item: 
             else:
                 final_result = last_message.get("content")
         else:
+            final_content = last_message.get("content", "")
             cleaned_content = clean_llm_output(final_content)
             if cleaned_content.lower() == 'null':
                 final_result = None
             else:
                 final_result = cleaned_content
         
-        await push_update("completed", f"Finished work. Result: {str(final_result)[:100]}")
+        await db.tasks.update_one(
+            {"task_id": sub_task_id},
+            {
+                "$set": {
+                    "status": "completed",
+                    "runs.0.status": "completed",
+                    "runs.0.result": final_result
+                }
+            }
+        )
+        await db.tasks.update_one(
+            {"task_id": parent_task_id},
+            {"$inc": {"swarm_details.completed_agents": 1}}
+        )
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+        await add_sub_task_run_update("info", f"Finished work. Result: {str(final_result)[:100]}")
+
         return final_result
 
     except LLMProviderDownError as e:
         error_str = "Sorry, our AI provider is currently down. Please try again later."
         logger.error(f"LLM provider down in single item worker {worker_id} for task {parent_task_id}: {e}", exc_info=True)
-        await push_update("error", error_str)
+        await db.tasks.update_one(
+            {"task_id": sub_task_id},
+            {"$set": {"status": "error", "error": error_str, "runs.0.status": "error", "runs.0.error": error_str}}
+        )
+        await db.tasks.update_one({"task_id": parent_task_id}, {"$inc": {"swarm_details.completed_agents": 1}})
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+        await add_sub_task_run_update("error", error_str)
         return {"error": error_str, "item": item}
     except Exception as e:
         error_str = str(e)
         logger.error(f"Error in single item worker {worker_id} for task {parent_task_id}: {e}", exc_info=True)
-        await push_update("error", f"An error occurred: {error_str}")
+        await db.tasks.update_one(
+            {"task_id": sub_task_id},
+            {"$set": {"status": "error", "error": error_str, "runs.0.status": "error", "runs.0.error": error_str}}
+        )
+        await db.tasks.update_one(
+            {"task_id": parent_task_id},
+            {"$inc": {"swarm_details.completed_agents": 1}} # Still increment, as it's "completed" in a failed state
+        )
+        await push_task_list_update(user_id, parent_task_id, "swarm_progress")
+        await add_sub_task_run_update("error", f"An error occurred: {error_str}")
         return {"error": error_str, "item": item}
+
+@celery_app.task(name="aggregate_results_callback")
+def aggregate_results_callback(results, parent_task_id: str, user_id: str, parent_run_id: str):
+    """Celery callback task to aggregate results from a swarm chord."""
+    logger.info(f"Aggregating results for swarm task {parent_task_id}. Received {len(results)} results.")
+    run_async(async_aggregate_results(results, parent_task_id, user_id, parent_run_id))

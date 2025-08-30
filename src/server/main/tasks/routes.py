@@ -135,12 +135,33 @@ async def add_task(
         logger.error(f"Error parsing task prompt for user {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to understand the task prompt.")
 
-    # 2. Triage based on the parsed schedule
+    # 2. Triage based on the parsed data
+    task_type_from_llm = parsed_data.get("task_type")
     schedule = parsed_data.get("schedule")
     schedule_type = schedule.get("type") if schedule else "once"
     run_at = schedule.get("run_at") if schedule else None
 
-    if schedule_type in ["recurring", "triggered"]:
+    if task_type_from_llm == "swarm":
+        # This is a swarm task. It should be executed immediately.
+        goal = parsed_data.get('description', request.prompt)
+        task_data = {
+            "name": parsed_data.get("name", request.prompt),
+            "description": goal,
+            "task_type": "swarm",
+            "swarm_details": {
+                "goal": goal,
+                "items": [] # The orchestrator will extract this from the goal
+            },
+            "original_context": {"source": "ui_task_composer", "prompt": request.prompt}
+        }
+        task_id = await mongo_manager.add_task(user_id, task_data)
+        if not task_id:
+            raise HTTPException(status_code=500, detail="Failed to create swarm task.")
+
+        orchestrate_swarm_task.delay(task_id, user_id)
+        return {"message": "Swarm task created. The agents will begin work shortly.", "task_id": task_id}
+
+    elif schedule_type in ["recurring", "triggered"]:
         # This is a recurring or triggered workflow
         task_data = {
             "name": parsed_data.get("name", request.prompt),

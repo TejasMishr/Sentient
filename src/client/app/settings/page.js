@@ -1138,7 +1138,9 @@ export default function SettingsPage() {
 							onSave={handleSaveProfile}
 							isSaving={isSavingProfile}
 						/>
-						<WhatsAppSettings />
+						<div data-tour-id="notifications-section">
+							<WhatsAppSettings />
+						</div>
 						<ShortcutsSettings />
 						{process.env.NEXT_PUBLIC_ENVIRONMENT !== "prod" &&
 							process.env.NEXT_PUBLIC_ENVIRONMENT !== "stag" && (

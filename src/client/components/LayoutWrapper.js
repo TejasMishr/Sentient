@@ -3,9 +3,11 @@
 import React, {
 	useState,
 	useEffect,
-	useCallback,
+    useCallback,
+    useMemo,
 	useRef,
-	createContext
+	createContext,
+	useContext
 } from "react"
 // Import useSearchParams
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -19,6 +21,7 @@ import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
 import { useUser } from "@auth0/nextjs-auth0"
 import { usePostHog } from "posthog-js/react"
+import { motion } from "framer-motion"
 
 // ... (keep the rest of your imports and context creation)
 export const PlanContext = createContext({
@@ -26,6 +29,8 @@ export const PlanContext = createContext({
 	isPro: false,
 	isLoading: true
 })
+export const TourContext = createContext(null)
+export const useTour = () => useContext(TourContext)
 import { subscribeUser } from "@app/actions"
 
 // ... (keep your urlBase64ToUint8Array function)
@@ -40,6 +45,316 @@ function urlBase64ToUint8Array(base64String) {
 		outputArray[i] = rawData.charCodeAt(i)
 	}
 	return outputArray
+}
+
+const GuidedTour = () => {
+	const tour = useTour()
+	const { tourState, nextStep, skipTour, finishTour } = tour
+	const router = useRouter()
+	const pathname = usePathname()
+	const searchParams = useSearchParams()
+	const [targetRect, setTargetRect] = useState(null)
+	const [tooltipContent, setTooltipContent] = useState({
+		title: "",
+		body: "",
+		instruction: ""
+	})
+	const [modalContent, setModalContent] = useState({
+		title: "",
+		body: "",
+		buttons: []
+	})
+	const [isWaiting, setIsWaiting] = useState(false)
+
+	const tourSteps = [
+		// Step 0: Welcome Mat (Modal)
+		{
+			type: "modal",
+			title: "Welcome to Sentient! Let's see your AI in action.",
+			body: "This quick, interactive tour will show you how I handle everything from simple commands to complex projects. You'll get to see the full lifecycle of an automated task.",
+			buttons: [
+				{
+					label: "Start Tour",
+					onClick: () => nextStep(),
+					primary: true
+				},
+				{ label: "Skip for now", onClick: skipTour }
+			]
+		},
+		// Step 1: Connect Gmail
+		{
+			type: "tooltip",
+			path: "/integrations",
+			selector: "[data-tour-id='gmail-card']",
+			title: "Step 1/8: Connect an App",
+			body: "Let's connect Gmail. We'll use it for a safe, simple task—sending an email to our own team address. I won't touch any of your other emails.",
+			instruction: "Click Connect to get started.",
+			wait_for: "integration_success"
+		},
+		// Step 2: Send Chat Message
+		{
+			type: "tooltip",
+			path: "/chat",
+			selector: "textarea",
+			title: "Step 2/8: Give a Command",
+			body: "For quick actions, you can tell me what to do. I'll handle it and reply here. After you send the message, click Next.",
+			instruction: "Let's send a test email. Type this and press Enter:",
+			prefill:
+				"Send a 'Hello World' email to existence.sentient@gmail.com"
+		},
+		// Step 3: Go to Tasks Page
+		{
+			type: "tooltip",
+			path: "/chat",
+			selector: "[data-tour-id='sidebar-tasks-icon']",
+			title: "Step 3/8: Delegating Complex Work",
+			body: "That was a simple task. For bigger goals with multiple steps, I create a project on the Tasks page that you can track. Let's see a simulation of how that works.",
+			instruction: "Click the Tasks icon to continue."
+		},
+		// Step 4: Task Simulation
+		{
+			type: "tooltip",
+			path: "/tasks",
+			selector: "[data-tour-id='demo-task-card']",
+			title: "Step 4/8: The Lifecycle of a Task",
+			body: "Here's a sample project. Right now, it's in the 'Planning' stage. I'm breaking down the goal into a series of steps.",
+			instruction: "Click 'Simulate Next Step' to see what happens next.",
+			custom_button: "Simulate Next Step"
+		},
+		// Step 5: Workflows Tab
+		{
+			type: "tooltip",
+			path: "/tasks",
+			selector: "[data-tour-id='workflows-tab']",
+			title: "Step 5/8: Automate Your Routines",
+			body: "What we just saw was a one-time project. For tasks that repeat (e.g., 'send a weekly report') or are triggered by events (e.g., 'on every new email from my boss...'), you can create a Workflow.",
+			instruction:
+				"You can create these from chat or build them manually here. Let's move on."
+		},
+		// Step 6: Create Task Button
+		{
+			type: "tooltip",
+			path: "/tasks",
+			selector: "[data-tour-id='create-task-button']",
+			title: "Step 6/8: Full Control",
+			body: "For more control, you can create any task or workflow yourself using the Task Composer. You don't need to create one now.",
+			instruction: "Let's check out the settings page."
+		},
+		// Step 7: Settings Page
+		{
+			type: "tooltip",
+			path: "/settings",
+			selector: "[data-tour-id='notifications-section']",
+			title: "Step 7/8: Stay in the Loop",
+			body: "This is the Settings page. Here you can manage your profile, integrations, and—most importantly—how you get notified about task updates like the one we just simulated.",
+			instruction: "Let's finish up."
+		},
+		// Step 8: Tour Complete (Modal)
+		{
+			type: "modal",
+			title: "You're Ready to Go!",
+			body: "You've now seen how Sentient can handle immediate commands, orchestrate complex projects, and automate your work with workflows. You can replay the task simulation anytime from the Help menu.",
+			buttons: [
+				{ label: "Finish Tour", onClick: finishTour, primary: true }
+			]
+		}
+	]
+
+	useEffect(() => {
+		if (!tourState.isActive) {
+			setTargetRect(null)
+			setIsWaiting(false)
+			return
+		}
+
+		const currentStepConfig = tourSteps[tourState.step]
+		if (!currentStepConfig) {
+			finishTour()
+			return
+		}
+
+		// Handle navigation
+		if (currentStepConfig.path && pathname !== currentStepConfig.path) {
+			router.push(currentStepConfig.path)
+			// We wait for the new page to render the target element.
+			// A timeout is a simple way to handle this.
+			setTimeout(() => tour.setTourState((s) => ({ ...s })), 200) // Force re-render
+			return
+		}
+
+		// Handle waiting conditions
+		const waitCondition = currentStepConfig.wait_for
+		if (waitCondition) {
+			setIsWaiting(true)
+			if (waitCondition === "integration_success") {
+				const successParam = searchParams.get("integration_success")
+				if (successParam) {
+					router.replace(pathname, { scroll: false })
+					nextStep()
+					return
+				}
+			}
+		} else {
+			setIsWaiting(false)
+		}
+
+		if (currentStepConfig.type === "modal") {
+			setModalContent(currentStepConfig)
+			setTargetRect(null)
+		} else if (currentStepConfig.type === "tooltip") {
+			setTooltipContent(currentStepConfig)
+			const target = document.querySelector(currentStepConfig.selector)
+			if (target) {
+				setTargetRect(target.getBoundingClientRect())
+				target.scrollIntoView({
+					behavior: "smooth",
+					block: "center",
+					inline: "center"
+				})
+			} else {
+				setTargetRect(null)
+			}
+		}
+
+		// Handle special actions for steps
+		if (
+			tourState.step === 2 &&
+			currentStepConfig.prefill &&
+			tour.chatActionsRef.current
+		) {
+			tour.chatActionsRef.current?.setInput(currentStepConfig.prefill)
+		}
+	}, [
+		tourState.step,
+		tourState.isActive,
+		pathname,
+		router,
+		finishTour,
+		tour.chatActionsRef,
+		tour.setTourState,
+		searchParams,
+		nextStep
+	])
+
+	if (!tourState.isActive) return null
+
+	const currentStepConfig = tourSteps[tourState.step]
+	if (!currentStepConfig) return null
+
+	const renderContent = () => {
+		if (currentStepConfig.type === "modal") {
+			return (
+				<motion.div
+					initial={{ opacity: 0, scale: 0.9 }}
+					animate={{ opacity: 1, scale: 1 }}
+					exit={{ opacity: 0, scale: 0.9 }}
+					className="bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-md border border-neutral-700 flex flex-col text-center"
+				>
+					<h2 className="text-xl font-bold text-white mb-2">
+						{modalContent.title}
+					</h2>
+					<p className="text-neutral-300 mb-6">{modalContent.body}</p>
+					<div className="flex justify-center gap-3">
+						{modalContent.buttons.map((button) => (
+							<button
+								key={button.label}
+								onClick={button.onClick}
+								className={cn(
+									"py-2 px-5 rounded-lg text-sm font-medium",
+									button.primary
+										? "bg-brand-orange text-brand-black"
+										: "bg-neutral-700 hover:bg-neutral-600"
+								)}
+							>
+								{button.label}
+							</button>
+						))}
+					</div>
+				</motion.div>
+			)
+		}
+
+		if (currentStepConfig.type === "tooltip" && targetRect) {
+			return (
+				<motion.div
+					initial={{ opacity: 0, y: 10 }}
+					animate={{ opacity: 1, y: 0 }}
+					style={{
+						position: "absolute",
+						top: targetRect.bottom + 10,
+						left: targetRect.left,
+						maxWidth: 300
+					}}
+					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 z-10"
+				>
+					<h3 className="font-bold text-white mb-1">
+						{tooltipContent.title}
+					</h3>
+					<p className="text-sm text-neutral-300 mb-3">
+						{tooltipContent.body}
+					</p>
+					<p
+						className="text-sm text-neutral-400 italic mb-4"
+						dangerouslySetInnerHTML={{
+							__html: tooltipContent.instruction
+						}}
+					/>
+					<div className="flex justify-end gap-2">
+						<button
+							onClick={skipTour}
+							className="text-xs text-neutral-400 hover:text-white"
+						>
+							Skip
+						</button>
+						{!isWaiting && !currentStepConfig.custom_button && (
+							<button
+								onClick={nextStep}
+								className="py-1 px-3 text-sm rounded-md bg-brand-orange text-brand-black font-semibold"
+							>
+								Next
+							</button>
+						)}
+						{currentStepConfig.custom_button && (
+							<button
+								onClick={() => tour.handleCustomAction()}
+								className="py-1 px-3 text-sm rounded-md bg-brand-orange text-brand-black font-semibold"
+							>
+								{currentStepConfig.custom_button}
+							</button>
+						)}
+					</div>
+				</motion.div>
+			)
+		}
+		return null
+	}
+
+	return (
+		<div className="fixed inset-0 z-[1000] pointer-events-none">
+			<AnimatePresence>
+				<motion.div
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					exit={{ opacity: 0 }}
+					className="absolute inset-0 bg-black/60 flex items-center justify-center pointer-events-auto"
+				>
+					{renderContent()}
+				</motion.div>
+			</AnimatePresence>
+			{targetRect && (
+				<div
+					className="absolute rounded-lg border-2 border-brand-orange border-dashed shadow-2xl pointer-events-none"
+					style={{
+						left: targetRect.left - 4,
+						top: targetRect.top - 4,
+						width: targetRect.width + 8,
+						height: targetRect.height + 8,
+						transition: "all 0.3s ease-in-out"
+					}}
+				/>
+			)}
+		</div>
+	)
 }
 
 export default function LayoutWrapper({ children }) {
@@ -60,6 +375,59 @@ export default function LayoutWrapper({ children }) {
 
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAllowed, setIsAllowed] = useState(false)
+
+	// --- Guided Tour State ---
+	const [tourState, setTourState] = useState({
+		isActive: false,
+		step: 0,
+		subStep: 0 // For multi-part steps like the task simulation
+	})
+	const chatActionsRef = useRef(null)
+
+	const startTour = useCallback(() => {
+		setTourState({ isActive: true, step: 0, subStep: 0 })
+	}, [])
+
+	const nextStep = useCallback(() => {
+		setTourState((prev) => ({ ...prev, step: prev.step + 1, subStep: 0 }))
+	}, [])
+
+	const skipTour = useCallback(() => {
+		setTourState({ isActive: false, step: 0, subStep: 0 })
+	}, [])
+
+	const finishTour = useCallback(() => {
+		setTourState({ isActive: false, step: 0, subStep: 0 })
+		// Potentially set a flag in localStorage or user profile to not show again
+	}, [])
+
+	const startTaskDemo = useCallback(() => {
+		setTourState({ isActive: true, step: 4, subStep: 0 })
+	}, [])
+
+	const handleCustomAction = useCallback(() => {
+		setTourState((prev) => {
+			if (prev.step === 4 && prev.subStep >= 3) {
+				return { ...prev, step: prev.step + 1, subStep: 0 }
+			}
+			return { ...prev, subStep: prev.subStep + 1 }
+		})
+	}, [])
+
+	const tourValue = useMemo(
+		() => ({
+			tourState,
+			setTourState,
+			startTour,
+			nextStep,
+			skipTour,
+			finishTour,
+			startTaskDemo,
+			handleCustomAction,
+			chatActionsRef
+		}),
+		[tourState, startTour, nextStep, skipTour, finishTour, startTaskDemo, handleCustomAction]
+	)
 
 	const showNav = !["/", "/onboarding", "/complete-profile"].includes(
 		pathname
@@ -175,7 +543,7 @@ export default function LayoutWrapper({ children }) {
 			)
 			window.location.assign(logoutUrl.toString())
 		}
-	}, [searchParams, router, pathname]) // Dependencies are correct
+	}, [searchParams, router, pathname, posthog]) // Dependencies are correct
 
 	// ... (keep the rest of your useEffects and functions exactly as they were)
 	useEffect(() => {
@@ -240,6 +608,11 @@ export default function LayoutWrapper({ children }) {
 
 		checkStatus()
 	}, [pathname, router, showNav, user, authError, isAuthLoading]) // Reruns on navigation
+
+	const handleNotificationsOpen = useCallback(() => {
+		setNotificationsOpen(true)
+		setUnreadCount(0)
+	}, [])
 
 	// ... (keep the rest of your useEffects and functions exactly as they were)
 	useEffect(() => {
@@ -336,18 +709,9 @@ export default function LayoutWrapper({ children }) {
 				wsRef.current = null
 			}
 		}
-	}, [user?.sub])
+	}, [user?.sub, handleNotificationsOpen])
 
-	const handleNotificationsOpen = useCallback(() => {
-		setNotificationsOpen(true)
-		setUnreadCount(0)
-	}, [])
-
-	useGlobalShortcuts(
-		handleNotificationsOpen,
-		() => setSearchOpen(true) // New: Pass search open function
-		// Removed: Command palette toggle is no longer needed
-	)
+	
 
 	// PWA Update Handler
 
@@ -467,6 +831,13 @@ export default function LayoutWrapper({ children }) {
 		if (showNav && userDetails?.sub) subscribeToPushNotifications()
 	}, [showNav, userDetails, subscribeToPushNotifications])
 
+	// Define shortcuts after all their callback dependencies are defined
+	useGlobalShortcuts(
+		handleNotificationsOpen,
+		() => setSearchOpen(true) // New: Pass search open function
+		// Removed: Command palette toggle is no longer needed
+	)
+
 	if (isLoading || isAuthLoading) {
 		return (
 			<div className="flex-1 flex h-screen bg-black text-white overflow-hidden justify-center items-center">
@@ -502,45 +873,48 @@ export default function LayoutWrapper({ children }) {
 				isLoading: isAuthLoading
 			}}
 		>
-			{showNav && (
-				<>
-					<Sidebar
-						onNotificationsOpen={handleNotificationsOpen}
-						onSearchOpen={() => setSearchOpen(true)}
-						unreadCount={unreadCount}
-						isMobileOpen={isMobileNavOpen}
-						onMobileClose={() => setMobileNavOpen(false)}
-						user={user}
-					/>
-					<button
-						onClick={() => setMobileNavOpen(true)}
-						className="md:hidden fixed top-4 left-4 z-30 p-2 rounded-full bg-neutral-800/50 backdrop-blur-sm text-white"
-					>
-						<IconMenu2 size={20} />
-					</button>
-				</>
-			)}
-			<div
-				className={cn(
-					"flex-1 transition-[padding-left] duration-300 ease-in-out",
-					showNav && "md:pl-[260px]"
+			<TourContext.Provider value={tourValue}>
+				{showNav && (
+					<>
+						<Sidebar
+							onNotificationsOpen={handleNotificationsOpen}
+							onSearchOpen={() => setSearchOpen(true)}
+							unreadCount={unreadCount}
+							isMobileOpen={isMobileNavOpen}
+							onMobileClose={() => setMobileNavOpen(false)}
+							user={user}
+						/>
+						<button
+							onClick={() => setMobileNavOpen(true)}
+							className="md:hidden fixed top-4 left-4 z-30 p-2 rounded-full bg-neutral-800/50 backdrop-blur-sm text-white"
+						>
+							<IconMenu2 size={20} />
+						</button>
+					</>
 				)}
-			>
-				{children}
-			</div>
-			<AnimatePresence>
-				{isNotificationsOpen && (
-					<NotificationsOverlay
-						notifRefreshKey={notifRefreshKey}
-						onClose={() => setNotificationsOpen(false)}
-					/>
-				)}
-			</AnimatePresence>
-			<AnimatePresence>
-				{isSearchOpen && (
-					<GlobalSearch onClose={() => setSearchOpen(false)} />
-				)}
-			</AnimatePresence>
+				<div
+					className={cn(
+						"flex-1 transition-[padding-left] duration-300 ease-in-out",
+						showNav && "md:pl-[260px]"
+					)}
+				>
+					{children}
+				</div>
+				<AnimatePresence>
+					{isNotificationsOpen && (
+						<NotificationsOverlay
+							notifRefreshKey={notifRefreshKey}
+							onClose={() => setNotificationsOpen(false)}
+						/>
+					)}
+				</AnimatePresence>
+				<AnimatePresence>
+					{isSearchOpen && (
+						<GlobalSearch onClose={() => setSearchOpen(false)} />
+					)}
+				</AnimatePresence>
+				<GuidedTour />
+			</TourContext.Provider>
 		</PlanContext.Provider>
 	)
 }

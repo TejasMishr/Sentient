@@ -1260,6 +1260,11 @@ const IntegrationsPage = () => {
 								key={integration.name}
 								variants={cardVariants}
 								className="h-full"
+								data-tour-id={
+									integration.name === "gmail"
+										? "gmail-card"
+										: undefined
+								}
 							>
 								<MorphingDialog
 									transition={{

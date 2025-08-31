@@ -124,7 +124,7 @@ const CompleteProfilePage = () => {
 				throw new Error(result.detail || "Failed to update profile.")
 			}
 			toast.success("Thank you! Your profile is now complete.")
-			window.location.href = "/chat"
+			window.location.href = "/chat?show_demo=true"
 		} catch (error) {
 			toast.error(`Error: ${error.message}`)
 		} finally {

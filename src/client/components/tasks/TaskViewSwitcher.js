@@ -33,12 +33,13 @@ const spanVariants = {
 
 const transition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.35 }
 
-const Tab = ({ text, selected, setSelected, value, children }) => {
+const Tab = ({ text, selected, setSelected, value, children, ...props }) => {
 	return (
 		<motion.button
 			variants={buttonVariants}
 			initial="initial"
 			animate="animate"
+			{...props}
 			custom={selected}
 			onClick={() => setSelected(value)}
 			transition={transition}
@@ -74,6 +75,9 @@ const TaskViewSwitcher = ({ view, setView }) => {
 					selected={view === tab.value}
 					setSelected={setView}
 					value={tab.value}
+					data-tour-id={
+						tab.value === "workflows" ? "workflows-tab" : undefined
+					}
 					key={tab.value}
 				>
 					{tab.icon}

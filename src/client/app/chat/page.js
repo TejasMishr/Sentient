@@ -59,7 +59,7 @@ import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import { WebRTCClient } from "@lib/webrtc-client"
 import useClickOutside from "@hooks/useClickOutside"
 import { usePlan } from "@hooks/usePlan"
-import { POST } from "@app/api/memories/route"
+import { useTour } from "@components/LayoutWrapper"
 
 const toolIcons = {
 	gmail: IconGoogleMail,
@@ -180,57 +180,6 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 	)
 }
 
-const StorylaneDemoModal = ({ onClose }) => {
-	// The script adds a global Storylane object. The button's onClick will use it.
-	const embedHtml = `
-        <style>
-            .sl-heading-text { max-width:53%; }
-            @media (max-width: 1024px) { .sl-heading-text { max-width:90%; } }
-        </style>
-        <div class="sl-embed-container" style="position:relative;display:flex;align-items:center;justify-content:center;border: 1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px">
-            <div class="sl-preview-heading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:transparent;z-index:999999;font-family:Poppins, Arial, sans-serif;font-size:clamp(20px, 2.664vw, 28px);font-weight:500;line-height:normal;text-align:center;border-radius:10px;">
-                <button onclick="Storylane.Play({type: 'preview_embed',demo_type: 'image', width: 1920, height: 918, element: this, demo_url: 'https://app.storylane.io/demo/d6oo4tbg4fbb?embed=inline_overlay'})" class="sl-preview-cta" style="background-color:#9939EB;border:none;border-radius:8px;box-shadow:0px 0px 15px rgba(26, 19, 72, 0.45);color:#FFFFFF;display:inline-block;font-family:Poppins, Arial, sans-serif;font-size:clamp(16px, 1.599vw, 20px);font-weight:600;height:clamp(40px, 3.996vw, 50px);line-height:1.2;padding:0 clamp(15px, 1.776vw, 20px);text-overflow:ellipsis;transform:translateZ(0);transition:background 0.4s;white-space:nowrap;width:auto;z-index:999999;cursor:pointer">Take a Tour</button>
-            </div>
-            <div class="sl-embed" data-sl-demo-type="image" style="position:relative;padding-bottom:calc(47.81% + 25px);width:100%;height:0;transform:scale(1);overflow:hidden;">
-                <div class="sl-preview" style="width:100%;height:100%;z-index:99999;position:absolute;background:url('https://storylane-prod-uploads.s3.us-east-2.amazonaws.com/company/company_35e9ec7f-ae05-4316-ad70-1f931aaacad6/project/project_8f4dcfca-3161-478c-834d-28eb1993ad1b/page/fFud9OKzDoQ4hDFpQaYu7.jpg') no-repeat;background-size:100% 100%;border-radius:inherit;filter:blur(2px)"></div>
-                <iframe class="sl-demo" src="" name="sl-embed" allow="fullscreen" allowfullscreen style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;border:none;"></iframe>
-            </div>
-            <iframe class="sl-demo" src="" name="sl-embed" allow="fullscreen" allowfullscreen style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;border:none;"></iframe>
-        </div>
-    `
-
-	return (
-		<>
-			<Script async src="https://js.storylane.io/js/v2/storylane.js" />
-			<motion.div
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				exit={{ opacity: 0 }}
-				className="fixed inset-0 bg-black/70 backdrop-blur-md z-[60] flex items-center justify-center p-4"
-				onClick={onClose}
-			>
-				<motion.div
-					initial={{ scale: 0.95, y: 20 }}
-					animate={{ scale: 1, y: 0 }}
-					exit={{ scale: 0.95, y: -20 }}
-					transition={{ duration: 0.2, ease: "easeInOut" }}
-					onClick={(e) => e.stopPropagation()}
-					className="relative w-full max-w-4xl"
-				>
-					<div dangerouslySetInnerHTML={{ __html: embedHtml }} />
-					<button
-						onClick={onClose}
-						className="absolute -top-3 -right-3 z-[9999999] p-1.5 bg-neutral-800 text-white rounded-full hover:bg-neutral-700"
-						aria-label="Close demo"
-					>
-						<IconX size={18} />
-					</button>
-				</motion.div>
-			</motion.div>
-		</>
-	)
-}
-
 export default function ChatPage() {
 	const [displayedMessages, setDisplayedMessages] = useState([])
 	const [input, setInput] = useState("")
@@ -259,11 +208,11 @@ export default function ChatPage() {
 	const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
 	const toolsMenuRef = useRef(null)
 	const toolsButtonRef = useRef(null)
-	const [isDemoModalOpen, setDemoModalOpen] = useState(false)
 
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { isPro } = usePlan()
+	const { startTour, chatActionsRef } = useTour()
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
@@ -354,9 +303,10 @@ export default function ChatPage() {
 
 	useEffect(() => {
 		if (searchParams.get("show_demo") === "true") {
-			setDemoModalOpen(true)
+			startTour()
+			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
-	}, [searchParams])
+	}, [searchParams, router, startTour])
 
 	useEffect(() => {
 		const messageId = searchParams.get("messageId")
@@ -387,12 +337,203 @@ export default function ChatPage() {
 		}
 	}, [searchingForMessageId]) // Dependency on searchingForMessageId
 
-	const handleCloseDemo = () => {
-		setDemoModalOpen(false)
-		// Clean up the URL to prevent the modal from reappearing on refresh
-		// Using replace to avoid adding to browser history
-		router.replace("/chat", { scroll: false })
+	const sendMessage = async () => {
+		if ((!input.trim() && !uploadedFilename) || thinking || isUploading)
+			return
+
+		setThinking(true)
+		abortControllerRef.current = new AbortController()
+
+		posthog?.capture("chat_message_sent", {
+			message_length: input.length,
+			has_file: !!uploadedFilename
+		})
+
+		let messageContent = input.trim()
+		if (uploadedFilename) {
+			messageContent = `(Attached file for context: ${uploadedFilename}) ${messageContent}. Use file-management MCP to read it`
+		}
+
+		const newUserMessage = {
+			id: `user-${Date.now()}`,
+			role: "user",
+			content: messageContent,
+			timestamp: new Date().toISOString(),
+			...(replyingTo && { replyToId: replyingTo.id })
+		}
+
+		setStatusText("Getting ready...")
+		const updatedMessages = [...displayedMessages, newUserMessage]
+		setDisplayedMessages(updatedMessages)
+
+		setInput("")
+		setReplyingTo(null)
+		setUploadedFilename(null) // Reset file after sending
+		setSelectedFile(null)
+		if (textareaRef.current) textareaRef.current.style.height = "auto"
+
+		try {
+			const response = await fetch("/api/chat/message", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					// The server only needs the new user message to save it, then it fetches its own history.
+					messages: [newUserMessage]
+				}),
+				signal: abortControllerRef.current.signal
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({
+					detail: `Request failed with status ${response.status}`
+				}))
+				const error = new Error(
+					errorData.detail || "An unexpected error occurred."
+				)
+				error.status = response.status
+				throw error
+			}
+
+			const reader = response.body.getReader()
+			const decoder = new TextDecoder()
+			let assistantMessageId = `assistant-${Date.now()}`
+
+			setDisplayedMessages((prev) => [
+				...prev,
+				{
+					id: assistantMessageId,
+					role: "assistant",
+					content: "",
+					timestamp: new Date().toISOString(),
+					tools: [],
+					turn_steps: [] // --- ADDED --- Initialize turn_steps for the new message
+				}
+			])
+
+			while (true) {
+				const { done, value } = await reader.read()
+				if (done) break
+
+				const chunk = decoder.decode(value)
+				for (const line of chunk.split("\n")) {
+					if (!line.trim()) continue
+
+					try {
+						const parsed = JSON.parse(line)
+
+						if (parsed.type === "error") {
+							toast.error(`An error occurred: ${parsed.message}`)
+							continue
+						}
+
+						// This is the fix: Update the temporary ID to the real one from the backend
+						if (
+							parsed.messageId &&
+							assistantMessageId.startsWith("assistant-")
+						) {
+							const tempId = assistantMessageId
+							assistantMessageId = parsed.messageId // Update the reference to the real ID
+							setDisplayedMessages((prev) =>
+								prev.map((m) =>
+									m.id === tempId
+										? { ...m, id: parsed.messageId }
+										: m
+								)
+							)
+						}
+
+						// Handle status updates from the backend
+						if (parsed.type === "status") {
+							setStatusText(parsed.message)
+							continue
+						}
+
+						// Clear status text when the actual response starts streaming
+						if (parsed.type === "assistantStream" && parsed.token) {
+							setStatusText("")
+						}
+
+						setDisplayedMessages((prev) =>
+							prev.map((msg) => {
+								if (msg.id === assistantMessageId) {
+									// --- CHANGED --- Handle the final 'done' event with parsed data
+									if (parsed.done) {
+										return {
+											...msg,
+											content:
+												parsed.final_content ||
+												msg.content, // Replace content with clean version
+											turn_steps:
+												parsed.turn_steps ||
+												msg.turn_steps // Populate turn_steps
+										}
+									}
+									// For intermediate chunks, just append the token
+									return {
+										...msg,
+										content:
+											msg.content + (parsed.token || ""),
+										tools: parsed.tools || msg.tools
+									}
+								}
+								return msg
+							})
+						)
+					} catch (parseError) {
+						setDisplayedMessages((prev) =>
+							prev.map((msg) => {
+								if (msg.id === assistantMessageId) {
+									return {
+										...msg,
+										content: msg.content + line
+									}
+								}
+								return msg
+							})
+						)
+					}
+				}
+			}
+		} catch (error) {
+			if (error.name === "AbortError") {
+				toast.info("Message generation stopped.")
+			} else if (error.status === 429) {
+				toast.error(
+					error.message ||
+						"You've reached a usage limit for today on the free plan."
+				)
+				if (!isPro) {
+					setUpgradeModalOpen(true)
+				}
+			} else {
+				toast.error(`Error: ${error.message}`)
+			}
+			console.error("Fetch error:", error)
+			setDisplayedMessages((prev) =>
+				prev.filter((m) => m.id !== newUserMessage.id)
+			)
+		} finally {
+			setThinking(false)
+			setStatusText("")
+		}
 	}
+
+	// Attach chat functions to the tour context's ref
+	useEffect(() => {
+		if (chatActionsRef) {
+			// Attach the functions the tour needs to the ref
+			chatActionsRef.current = {
+				setInput: setInput,
+				sendMessage: sendMessage
+			}
+		}
+		// Cleanup function to nullify the ref when the component unmounts
+		return () => {
+			if (chatActionsRef) {
+				chatActionsRef.current = null
+			}
+		}
+	}, [chatActionsRef, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
 
 	const fetchIntegrations = useCallback(async () => {
 		try {
@@ -631,187 +772,6 @@ export default function ChatPage() {
 			setSelectedFile(null)
 		} finally {
 			setIsUploading(false)
-		}
-	}
-
-	const sendMessage = async () => {
-		if ((!input.trim() && !uploadedFilename) || thinking || isUploading)
-			return
-
-		setThinking(true)
-		abortControllerRef.current = new AbortController()
-
-		posthog?.capture("chat_message_sent", {
-			message_length: input.length,
-			has_file: !!uploadedFilename
-		})
-
-		let messageContent = input.trim()
-		if (uploadedFilename) {
-			messageContent = `(Attached file for context: ${uploadedFilename}) ${messageContent}. Use file-management MCP to read it`
-		}
-
-		const newUserMessage = {
-			id: `user-${Date.now()}`,
-			role: "user",
-			content: messageContent,
-			timestamp: new Date().toISOString(),
-			...(replyingTo && { replyToId: replyingTo.id })
-		}
-
-		setStatusText("Getting ready...")
-		const updatedMessages = [...displayedMessages, newUserMessage]
-		setDisplayedMessages(updatedMessages)
-
-		setInput("")
-		setReplyingTo(null)
-		setUploadedFilename(null) // Reset file after sending
-		setSelectedFile(null)
-		if (textareaRef.current) textareaRef.current.style.height = "auto"
-
-		try {
-			const response = await fetch("/api/chat/message", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					// The server only needs the new user message to save it, then it fetches its own history.
-					messages: [newUserMessage]
-				}),
-				signal: abortControllerRef.current.signal
-			})
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({
-					detail: `Request failed with status ${response.status}`
-				}))
-				const error = new Error(
-					errorData.detail || "An unexpected error occurred."
-				)
-				error.status = response.status
-				throw error
-			}
-
-			const reader = response.body.getReader()
-			const decoder = new TextDecoder()
-			let assistantMessageId = `assistant-${Date.now()}`
-
-			setDisplayedMessages((prev) => [
-				...prev,
-				{
-					id: assistantMessageId,
-					role: "assistant",
-					content: "",
-					timestamp: new Date().toISOString(),
-					tools: [],
-					turn_steps: [] // --- ADDED --- Initialize turn_steps for the new message
-				}
-			])
-
-			while (true) {
-				const { done, value } = await reader.read()
-				if (done) break
-
-				const chunk = decoder.decode(value)
-				for (const line of chunk.split("\n")) {
-					if (!line.trim()) continue
-
-					try {
-						const parsed = JSON.parse(line)
-
-						if (parsed.type === "error") {
-							toast.error(`An error occurred: ${parsed.message}`)
-							continue
-						}
-
-						// This is the fix: Update the temporary ID to the real one from the backend
-						if (
-							parsed.messageId &&
-							assistantMessageId.startsWith("assistant-")
-						) {
-							const tempId = assistantMessageId
-							assistantMessageId = parsed.messageId // Update the reference to the real ID
-							setDisplayedMessages((prev) =>
-								prev.map((m) =>
-									m.id === tempId
-										? { ...m, id: parsed.messageId }
-										: m
-								)
-							)
-						}
-
-						// Handle status updates from the backend
-						if (parsed.type === "status") {
-							setStatusText(parsed.message)
-							continue
-						}
-
-						// Clear status text when the actual response starts streaming
-						if (parsed.type === "assistantStream" && parsed.token) {
-							setStatusText("")
-						}
-
-						setDisplayedMessages((prev) =>
-							prev.map((msg) => {
-								if (msg.id === assistantMessageId) {
-									// --- CHANGED --- Handle the final 'done' event with parsed data
-									if (parsed.done) {
-										return {
-											...msg,
-											content:
-												parsed.final_content ||
-												msg.content, // Replace content with clean version
-											turn_steps:
-												parsed.turn_steps ||
-												msg.turn_steps // Populate turn_steps
-										}
-									}
-									// For intermediate chunks, just append the token
-									return {
-										...msg,
-										content:
-											msg.content + (parsed.token || ""),
-										tools: parsed.tools || msg.tools
-									}
-								}
-								return msg
-							})
-						)
-					} catch (parseError) {
-						setDisplayedMessages((prev) =>
-							prev.map((msg) => {
-								if (msg.id === assistantMessageId) {
-									return {
-										...msg,
-										content: msg.content + line
-									}
-								}
-								return msg
-							})
-						)
-					}
-				}
-			}
-		} catch (error) {
-			if (error.name === "AbortError") {
-				toast.info("Message generation stopped.")
-			} else if (error.status === 429) {
-				toast.error(
-					error.message ||
-						"You've reached a usage limit for today on the free plan."
-				)
-				if (!isPro) {
-					setUpgradeModalOpen(true)
-				}
-			} else {
-				toast.error(`Error: ${error.message}`)
-			}
-			console.error("Fetch error:", error)
-			setDisplayedMessages((prev) =>
-				prev.filter((m) => m.id !== newUserMessage.id)
-			)
-		} finally {
-			setThinking(false)
-			setStatusText("")
 		}
 	}
 
@@ -1702,11 +1662,6 @@ export default function ChatPage() {
 				isOpen={isUpgradeModalOpen}
 				onClose={() => setUpgradeModalOpen(false)}
 			></UpgradeToProModal>
-			<AnimatePresence>
-				{isDemoModalOpen && (
-					<StorylaneDemoModal onClose={handleCloseDemo} />
-				)}
-			</AnimatePresence>
 			{renderWelcomeModal()}
 			<audio ref={remoteAudioRef} autoPlay playsInline />
 			{displayedMessages.length > 0 &&

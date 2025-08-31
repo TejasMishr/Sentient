@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
+import { useTour } from "@components/LayoutWrapper"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -488,6 +489,7 @@ const SidebarContent = ({
 	const [isComingSoonModalOpen, setComingSoonModalOpen] = useState(false)
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const router = useRouter()
+	const tour = useTour()
 
 	const fadeInUp = {
 		hidden: { opacity: 0, y: 10 },
@@ -497,9 +499,9 @@ const SidebarContent = ({
 	// CHANGED: Use the environment variable for the namespace
 	const { isPro } = usePlan()
 
-	const handleShowDemo = () => {
+	const handleReplayTaskDemo = () => {
 		setHelpMenuOpen(false)
-		router.push("/chat?show_demo=true")
+		tour.startTaskDemo()
 	}
 
 	const handleShowVideo = () => {
@@ -509,7 +511,12 @@ const SidebarContent = ({
 
 	const navLinks = [
 		{ title: "Chat", href: "/chat", icon: <IconMessage size={20} /> },
-		{ title: "Tasks", href: "/tasks", icon: <IconChecklist size={20} /> },
+		{
+			title: "Tasks",
+			href: "/tasks",
+			icon: <IconChecklist size={20} />,
+			tourId: "sidebar-tasks-icon"
+		},
 		{ title: "Memories", href: "/memories", icon: <IconBrain size={20} /> },
 		{
 			title: "Integrations",
@@ -554,7 +561,7 @@ const SidebarContent = ({
 				{isHelpMenuOpen && (
 					<HelpMenuModal
 						onClose={() => setHelpMenuOpen(false)}
-						onShowDemo={handleShowDemo}
+						onShowDemo={handleReplayTaskDemo}
 						onShowVideo={handleShowVideo}
 					/>
 				)}

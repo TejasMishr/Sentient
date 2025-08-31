@@ -25,6 +25,7 @@ import ListView from "@components/tasks/ListView"
 import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { usePlan } from "@hooks/usePlan"
+import { useTour } from "@components/LayoutWrapper"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -146,10 +147,44 @@ function TasksPageContent() {
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const [isComposerOpen, setIsComposerOpen] = useState(false)
 	const [composerInitialData, setComposerInitialData] = useState(null)
-	const { isPro } = usePlan()
+    const { isPro } = usePlan()
+    const tour = useTour()
+    const { tourState, setTourState } = tour
+
+    const demoTask = useMemo(() => {
+        if (!tourState.isActive || tourState.step < 4 || tourState.step > 4) return null;
+
+        const statuses = ["planning", "processing", "waiting", "completed"];
+        const currentStatus = statuses[tourState.subStep] || "planning";
+
+        return {
+            task_id: "demo-task-123",
+            name: "Onboard New Client 'Innovate Inc.'",
+            description: "A simulated task to demonstrate the lifecycle of an automated project.",
+            status: currentStatus,
+            task_type: "long_form",
+            isDemo: true,
+            created_at: new Date().toISOString(),
+            runs: [{
+                run_id: "demo-run-1",
+                status: currentStatus,
+                progress_updates: [
+                    { message: { type: 'info', content: 'Simulated execution log...' }, timestamp: new Date().toISOString() },
+                    ...(tourState.subStep > 0 ? [{ message: { type: 'tool_call', tool_name: 'gmail', parameters: { to: 'client@innovate.inc' } }, timestamp: new Date().toISOString() }] : []),
+                    ...(tourState.subStep > 1 ? [{ message: { type: 'tool_result', tool_name: 'gmail', result: { status: 'success', message: 'Welcome email sent.' } }, timestamp: new Date().toISOString() }] : []),
+					...(tourState.subStep > 2 ? [{ message: { type: 'info', content: 'Waiting for client to reply to meeting request...' }, timestamp: new Date().toISOString() }] : []),
+                    ...(tourState.subStep > 3 ? [{ message: { type: 'info', content: 'Client replied. Meeting booked. Summary generated.' }, timestamp: new Date().toISOString() }] : []),
+                ]
+            }]
+        };
+    }, [tourState.isActive, tourState.step, tourState.subStep]);
 
 	const handleClosePanel = useCallback(() => {
-		router.push("/tasks", { scroll: false }) // Clear URL param
+        if (tourState.isActive && tourState.step === 4) {
+            // Don't close panel during tour simulation
+        } else {
+            router.push("/tasks", { scroll: false }) // Clear URL param
+        }
 		setIsModalOpen(false)
 	}, [router])
 
@@ -178,7 +213,11 @@ function TasksPageContent() {
 		// This prevents clearing the URL prematurely on page load.
 		if (!isLoading) {
 			const taskId = searchParams.get("taskId")
-			if (taskId) {
+            if (tourState.isActive && tourState.step === 4) {
+                if (isMobile) setIsModalOpen(true);
+                // Keep the panel open for the demo task
+            }
+			else if (taskId) {
 				const task = allTasks.find((t) => t.task_id === taskId)
 				if (task) {
 					// Task exists, open the modal on mobile.
@@ -194,7 +233,18 @@ function TasksPageContent() {
 				setIsModalOpen(false)
 			}
 		}
-	}, [searchParams, allTasks, isMobile, isLoading, handleClosePanel])
+	}, [searchParams, allTasks, isMobile, isLoading, handleClosePanel, tourState])
+
+    const tasksWithDemo = useMemo(() => {
+        if (demoTask) {
+            return [demoTask, ...allTasks];
+        }
+        return allTasks;
+    }, [allTasks, demoTask]);
+
+    const selectedTaskOrDemo = useMemo(() => {
+        return demoTask || selectedTask;
+    }, [demoTask, selectedTask]);
 
 	const fetchTasks = useCallback(async () => {
 		setIsLoading(true)
@@ -496,7 +546,7 @@ function TasksPageContent() {
 									className="h-full max-w-7xl mx-auto"
 								>
 									<ListView
-										tasks={allTasks}
+										tasks={tasksWithDemo}
 										view={view}
 										onSelectTask={handleSelectItem}
 										searchQuery={searchQuery}
@@ -550,6 +600,7 @@ function TasksPageContent() {
 											? "Create new workflow"
 											: "Create new task"
 									}
+									data-tour-id="create-task-button"
 								>
 									<IconPlus size={20} />
 									<span>
@@ -564,7 +615,7 @@ function TasksPageContent() {
 				</main>
 
 				<AnimatePresence>
-					{!isMobile && selectedTask && (
+					{!isMobile && selectedTaskOrDemo && (
 						<motion.div
 							initial={{ width: 0 }}
 							animate={{ width: 550 }}
@@ -576,7 +627,7 @@ function TasksPageContent() {
 							}}
 							className="h-full flex-shrink-0 bg-neutral-900/80 backdrop-blur-lg overflow-hidden"
 						>
-							{renderTaskDetails(selectedTask)}
+							{renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -601,7 +652,7 @@ function TasksPageContent() {
 							}}
 							className="absolute inset-0"
 						>
-							{selectedTask && renderTaskDetails(selectedTask)}
+							{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
 					</motion.div>
 				)}

@@ -103,9 +103,8 @@ const PRO_ONLY_INTEGRATIONS = [
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
 	{ name: "Voice Chat", limit: "10 minutes per day" },
-	{ name: "One-Time Tasks", limit: "20 async tasks per day" },
-	{ name: "Recurring Tasks", limit: "10 active recurring workflows" },
-	{ name: "Triggered Tasks", limit: "10 triggered workflows" },
+	{ name: "Async Tasks", limit: "100 tasks per month" },
+	{ name: "Active Workflows", limit: "25 recurring & triggered" },
 	{
 		name: "Parallel Agents",
 		limit: "5 complex tasks per day with 50 sub agents"

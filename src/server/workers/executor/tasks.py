@@ -99,12 +99,20 @@ async def update_task_run_status(db, task_id: str, run_id: str, status: str, use
         {"$set": update_payload}
     )
 
-    task_description = task.get("name", "Unnamed Task")
+    await push_task_list_update(user_id, task_id, run_id)
 
-    if status in ["completed", "error"]:
+    # --- MODIFIED NOTIFICATION LOGIC ---
+    # Only send notifications for the final completion of non-workflow tasks.
+    schedule_type = (task.get('schedule') or {}).get('type')
+    task_type = task.get('task_type')
+    is_workflow = schedule_type in ['recurring', 'triggered'] or task_type in ['recurring', 'triggered']
+
+    if status in ["completed", "error"] and not is_workflow:
+        task_description = task.get("name", "Unnamed Task")
         notification_message = f"Task '{task_description}' has finished with status: {status}."
         notification_type = "taskCompleted" if status == "completed" else "taskFailed"
         await notify_user(user_id, notification_message, task_id, notification_type=notification_type)
+
 
 async def add_progress_update(db, task_id: str, run_id: str, user_id: str, message: Any, block_id: Optional[str] = None):
     logger.info(f"Adding progress update to task {task_id}: '{message}'")
@@ -502,6 +510,7 @@ async def async_aggregate_results(results, parent_task_id: str, user_id: str, pa
             {"task_id": parent_task_id},
             {"$set": {"status": "error", "error": f"Failed during result aggregation: {str(e)}"}}
         )
+        await push_task_list_update(user_id, parent_task_id, parent_run_id)
 
 @celery_app.task(name="generate_task_result")
 def generate_task_result(task_id: str, run_id: str, user_id: str, aggregated_results: Optional[List[Any]] = None):

@@ -31,6 +31,15 @@ router = APIRouter(
 
 logger = logging.getLogger(__name__)
 
+async def push_update(user_id: str):
+    """Pushes a task list update notification to the user via WebSocket."""
+    await websocket_manager.send_personal_json_message(
+        {"type": "task_list_updated"},
+        user_id,
+        connection_type="notifications"
+    )
+
+
 @router.post("/generate-plan", status_code=status.HTTP_200_OK)
 async def generate_plan_from_prompt(
     request: GeneratePlanRequest,
@@ -159,6 +168,7 @@ async def add_task(
             raise HTTPException(status_code=500, detail="Failed to create swarm task.")
 
         orchestrate_swarm_task.delay(task_id, user_id)
+        await push_update(user_id)
         return {"message": "Swarm task created. The agents will begin work shortly.", "task_id": task_id}
 
     elif schedule_type in ["recurring", "triggered"]:
@@ -176,6 +186,7 @@ async def add_task(
             raise HTTPException(status_code=500, detail="Failed to create workflow.")
 
         generate_plan_from_context.delay(task_id, user_id)
+        await push_update(user_id)
         return {"message": "Workflow created successfully. It will be planned shortly.", "task_id": task_id}
 
     elif schedule_type == "once" and run_at is not None:
@@ -193,6 +204,7 @@ async def add_task(
             raise HTTPException(status_code=500, detail="Failed to create scheduled task.")
 
         generate_plan_from_context.delay(task_id, user_id)
+        await push_update(user_id)
         return {"message": "Scheduled task created successfully. It will be planned shortly.", "task_id": task_id}
 
     else: # This covers immediate one-shot tasks (run_at is null or no schedule at all)
@@ -211,6 +223,7 @@ async def add_task(
             raise HTTPException(status_code=500, detail="Failed to create task.")
 
         start_long_form_task.delay(task_id, user_id)
+        await push_update(user_id)
         return {"message": "Task created successfully. The orchestrator will begin planning shortly.", "task_id": task_id}
 
 @router.post("/fetch-tasks")
@@ -251,6 +264,7 @@ async def update_task(
     success = await mongo_manager.update_task(request.taskId, update_data)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or no updates applied.")
+    await push_update(user_id)
     return {"message": "Task updated successfully."}
 
 @router.post("/delete-task")
@@ -273,6 +287,7 @@ async def delete_task(
     for deleted_id in all_deleted_ids:
         await mongo_manager.delete_notifications_for_task(user_id, deleted_id)
 
+    await push_update(user_id)
     return {"message": "Task and its sub-tasks were deleted."}
 
 @router.post("/task-action", status_code=status.HTTP_200_OK)
@@ -284,6 +299,7 @@ async def task_action(
         message = await mongo_manager.decline_task(request.taskId, user_id)
         if not message:
             raise HTTPException(status_code=400, detail="Failed to decline task.")
+        await push_update(user_id)
         return JSONResponse(content={"message": message})
     elif request.action == "execute":
         # This implies immediate execution
@@ -313,6 +329,7 @@ async def task_action(
         await mongo_manager.update_task(request.taskId, update_payload)
         # Trigger the Celery task with the new run_id
         execute_task_plan.delay(request.taskId, user_id, new_run['run_id'])
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task execution has been initiated."})
     else:
         raise HTTPException(status_code=400, detail="Invalid task action.")
@@ -329,6 +346,7 @@ async def rerun_task(
     # Trigger the planner for the new task
     generate_plan_from_context.delay(new_task_id, user_id)
     logger.info(f"Rerunning task {request.taskId}. New task {new_task_id} created and sent to planner.")
+    await push_update(user_id)
     return {"message": "Task has been duplicated for re-run.", "new_task_id": new_task_id}
 
 @router.post("/approve-task", status_code=status.HTTP_200_OK)
@@ -409,6 +427,7 @@ async def approve_task(
             }
             await mongo_manager.update_task(task_id, update_payload)
 
+            await push_update(user_id)
             execute_task_plan.delay(task_id, user_id, new_run['run_id'])
             return JSONResponse(content={"message": "Task approved and execution has been initiated."})
 
@@ -417,6 +436,7 @@ async def approve_task(
         if not success:
             logger.warning(f"Approve task for {task_id} resulted in 0 modified documents.")
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Task approved and scheduled."})
 
 @router.post("/task-chat", status_code=status.HTTP_200_OK)
@@ -458,6 +478,7 @@ async def task_chat(
 
     # Re-trigger the planner for the same task
     generate_plan_from_context.delay(task_id, user_id)
+    await push_update(user_id)
     return JSONResponse(content={"message": "Change request received. The task is now being re-planned."})
 
 @router.post("/internal/progress-update", include_in_schema=False)
@@ -529,6 +550,7 @@ async def answer_clarifications(
 
     execute_task_plan.delay(request.task_id, user_id, last_run['run_id'])
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Answers submitted successfully. The task will now resume."})
 
 @router.post("/{task_id}/clarifications", status_code=status.HTTP_200_OK)
@@ -568,6 +590,7 @@ async def answer_clarification(
     # Trigger the orchestrator to re-evaluate with the new information
     execute_orchestrator_cycle.delay(task_id)
 
+    await push_update(user_id)
     return JSONResponse(content={"message": "Answer received. Resuming task."})
 
 
@@ -585,10 +608,12 @@ async def long_form_task_action(
     action = request.action.lower()
     if action == "pause":
         await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "PAUSED"})
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task paused."})
     elif action == "resume":
         await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "ACTIVE"})
         execute_orchestrator_cycle.delay(task_id)
+        await push_update(user_id)
         return JSONResponse(content={"message": "Task resumed."})
     else:
         raise HTTPException(status_code=400, detail="Invalid action. Must be 'pause' or 'resume'.")

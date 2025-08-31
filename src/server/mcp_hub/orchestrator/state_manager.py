@@ -45,7 +45,37 @@ async def update_orchestrator_state(task_id: str, user_id: str, state_updates: D
             if new_state in status_map:
                 update_payload['status'] = status_map[new_state]
 
+            # Send notifications for critical state changes
+            notification_type = None
+            message = None
+            task_name = task.get("name", "your task")
+
+            if new_state == "SUSPENDED":
+                notification_type = "taskNeedsClarification"
+                message = f"'{task_name}' needs your input to continue."
+            elif new_state == "COMPLETED":
+                notification_type = "taskCompleted"
+                message = f"'{task_name}' has completed."
+            elif new_state == "FAILED":
+                notification_type = "taskFailed"
+                message = f"'{task_name}' has failed."
+
+            if notification_type and message:
+                try:
+                    from workers.utils.api_client import notify_user
+                    await notify_user(user_id, message, task_id, notification_type)
+                except Exception as e:
+                    logger.error(f"Failed to send notification for task {task_id} state change to {new_state}: {e}")
+
         await db.update_task_field(task_id, user_id, update_payload)
+
+        try:
+            from workers.utils.api_client import push_task_list_update
+            await push_task_list_update(user_id, task_id, "orchestrator_state_change")
+        except ImportError:
+            logger.error("Could not import push_task_list_update. Check python path for mcp_hub.")
+        except Exception as e:
+            logger.error(f"Failed to push task list update from orchestrator: {e}")
     finally:
         await db.close()
 
@@ -136,17 +166,28 @@ async def mark_step_as_complete(task_id: str, user_id: str, step_id: str, result
             return
 
         step_found = False
+        target_step = None
         for step in dynamic_plan:
             if step.get("step_id") == step_id:
-                step["status"] = "completed"
-                step["result"] = result
-                step["completed_at"] = datetime.datetime.now(datetime.timezone.utc)
+                target_step = step
                 step_found = True
                 break
-        
-        if step_found:
+
+        if not step_found:
+            logger.warning(f"Could not find step_id {step_id} in task {task_id}. Attempting to find first pending step as a fallback.")
+            for step in dynamic_plan:
+                if step.get("status") == "pending":
+                    target_step = step
+                    logger.warning(f"Fallback successful: Found pending step with ID {target_step.get('step_id')}.")
+                    step_found = True
+                    break
+
+        if step_found and target_step:
+            target_step["status"] = "completed"
+            target_step["result"] = result
+            target_step["completed_at"] = datetime.datetime.now(datetime.timezone.utc)
             await db.update_task_field(task_id, user_id, {"dynamic_plan": dynamic_plan})
         else:
-            logger.warning(f"Could not find step_id {step_id} in task {task_id} to mark as complete.")
+            logger.warning(f"Could not find step_id {step_id} in task {task_id} to mark as complete, and no pending step found as fallback.")
     finally:
         await db.close()

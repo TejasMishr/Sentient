@@ -751,9 +751,11 @@ async def async_generate_plan(task_id: str, user_id: str):
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during plan generation for task {task_id}: {e}", exc_info=True)
         await db_manager.update_task_status(task_id, "error", {"error": "Sorry, our AI provider is currently down. Please try again later."})
+        await push_task_list_update(user_id, task_id, "plan_failed_llm_down")
     except Exception as e:
         logger.error(f"Error generating plan for task {task_id}: {e}", exc_info=True)
         await db_manager.update_task_status(task_id, "error", {"error": str(e)})
+        await push_task_list_update(user_id, task_id, "plan_failed_exception")
     finally:
         await db_manager.close()
 

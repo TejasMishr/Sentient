@@ -41,7 +41,8 @@ import {
 	IconEye,
 	IconPlug,
 	IconArrowUpCircle,
-	IconCheck
+	IconCheck,
+	IconListCheck
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import { usePostHog } from "posthog-js/react"
@@ -70,6 +71,7 @@ const integrationColorIcons = {
 	internet_search: IconWorldSearch,
 	gdrive: IconBrandGoogleDrive,
 	gdocs: IconFileText,
+	gtasks: IconListCheck,
 	gslides: IconPresentation,
 	gsheets: IconTable,
 	gmaps: IconMapPin,

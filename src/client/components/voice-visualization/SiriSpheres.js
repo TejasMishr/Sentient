@@ -156,30 +156,23 @@ const Scene = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 
 const SiriSpheres = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	return (
-		<div className="w-full h-full flex items-center justify-center overflow-hidden">
-			<Canvas
-				camera={{ position: [0, 0, 5], fov: 50 }}
-				style={{
-					width: "100%",
-					height: "100%",
-					border: "none",
-					outline: "none"
-				}}
-				gl={{
-					alpha: true,
-					antialias: true,
-					outputColorSpace: THREE.SRGBColorSpace,
-					toneMapping: THREE.ACESFilmicToneMapping,
-					toneMappingExposure: 1.05
-				}}
-			>
-				<Scene
-					status={status}
-					audioLevel={audioLevel}
-					reactionIntensity={reactionIntensity}
-				/>
-			</Canvas>
-		</div>
+		<Canvas
+			className="w-full h-full"
+			camera={{ position: [0, 0, 5], fov: 50 }}
+			gl={{
+				alpha: true,
+				antialias: true,
+				outputColorSpace: THREE.SRGBColorSpace,
+				toneMapping: THREE.ACESFilmicToneMapping,
+				toneMappingExposure: 1.05
+			}}
+		>
+			<Scene
+				status={status}
+				audioLevel={audioLevel}
+				reactionIntensity={reactionIntensity}
+			/>
+		</Canvas>
 	)
 }
 

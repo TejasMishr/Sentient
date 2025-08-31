@@ -15,7 +15,7 @@ const introStages = [
 	},
 	{
 		id: "communication",
-		text: "Text, or call me...",
+		text: "Text or call me...",
 		iconStage: "communication",
 		duration: 1000
 	},
@@ -109,24 +109,22 @@ const IntroSequence = ({ onComplete }) => {
 	return (
 		<motion.div
 			key="intro-sequence"
-			className="relative w-full h-screen flex flex-col items-center justify-center text-center overflow-hidden"
+			className="relative w-full h-screen text-center overflow-hidden"
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
 		>
 			<InteractiveNetworkBackground />
-
-			{/* Floating Icons - Moved here to be relative to the full screen */}
 			<FloatingIcons
 				currentStage={currentStage.iconStage}
 				allStages={allVisitedStages}
 			/>
 
-			{/* SiriSpheres Container with floating icons */}
-			<div className="relative">
+			{/* SiriSpheres Container - centered and behind text */}
+			<div className="absolute inset-0 -top-[10vh] flex items-center justify-center pointer-events-none">
 				<motion.div
 					layoutId="onboarding-sphere"
-					className="w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center relative"
+					className="w-[300px] h-[300px] md:w-[450px] md:h-[450px] flex items-center justify-center"
 					animate={{
 						y: sphereReacting ? 0 : [0, -15, 0]
 					}}
@@ -144,43 +142,48 @@ const IntroSequence = ({ onComplete }) => {
 				</motion.div>
 			</div>
 
-			{/* Text Content */}
-			<div className="w-full flex flex-col items-center justify-start pt-8 md:pt-12 px-4 h-48 md:h-56">
-				<AnimatePresence mode="wait">
-					<motion.div
-						key={currentStageIndex}
-						initial={{ opacity: 0, y: 20 }}
-						animate={{ opacity: 1, y: 0 }}
-						exit={{ opacity: 0, y: -20 }}
-						transition={{ duration: 0.5 }}
-						className="text-3xl md:text-5xl font-medium text-neutral-200"
-						dangerouslySetInnerHTML={{ __html: currentStage.text }}
-					/>
-				</AnimatePresence>
-
-				{/* Continue Button */}
-				<AnimatePresence>
-					{showNextButton && (
-						<motion.button
+			{/* Text Content Container - positioned at the bottom */}
+			<div className="absolute bottom-0 left-0 right-0 w-full flex flex-col items-center justify-center px-4 pb-16 md:pb-24">
+				<div className="min-h-[14rem] flex flex-col items-center justify-center">
+					<AnimatePresence mode="wait">
+						<motion.div
+							key={currentStageIndex}
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
 							exit={{ opacity: 0, y: -20 }}
-							onClick={
-								currentStageIndex === introStages.length - 1
-									? handleContinue
-									: goToNextStage
-							}
-							className="mt-8 px-8 py-3 md:px-10 md:py-4 text-base md:text-lg bg-brand-orange text-brand-black font-semibold rounded-lg hover:bg-brand-orange/90 transition-colors flex items-center gap-2"
-						>
-							<span>
-								{currentStageIndex === introStages.length - 1
-									? "Let's get started"
-									: "Next"}
-							</span>
-							<IconArrowRight size={22} strokeWidth={2.5} />
-						</motion.button>
-					)}
-				</AnimatePresence>
+							transition={{ duration: 0.5 }}
+							className="text-3xl md:text-5xl font-medium text-neutral-200"
+							dangerouslySetInnerHTML={{
+								__html: currentStage.text
+							}}
+						/>
+					</AnimatePresence>
+
+					{/* Continue Button */}
+					<AnimatePresence>
+						{showNextButton && (
+							<motion.button
+								initial={{ opacity: 0, y: 20 }}
+								animate={{ opacity: 1, y: 0 }}
+								exit={{ opacity: 0, y: -20 }}
+								onClick={
+									currentStageIndex === introStages.length - 1
+										? handleContinue
+										: goToNextStage
+								}
+								className="mt-8 px-8 py-3 md:px-10 md:py-4 text-base md:text-lg bg-brand-orange text-brand-black font-semibold rounded-lg hover:bg-brand-orange/90 transition-colors flex items-center gap-2"
+							>
+								<span>
+									{currentStageIndex ===
+									introStages.length - 1
+										? "Let's get started"
+										: "Next"}
+								</span>
+								<IconArrowRight size={22} strokeWidth={2.5} />
+							</motion.button>
+						)}
+					</AnimatePresence>
+				</div>
 			</div>
 		</motion.div>
 	)

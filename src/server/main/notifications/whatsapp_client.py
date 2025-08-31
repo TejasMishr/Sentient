@@ -3,7 +3,7 @@ import logging
 from typing import Optional, Dict
 import asyncio
 
-from main.config import WAHA_URL, WAHA_API_KEY
+from main.config import WAHA_URL, WAHA_API_KEY, ENVIRONMENT
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,12 @@ async def _waha_request(method: str, endpoint: str, params: Optional[Dict] = Non
 
 async def check_phone_number_exists(phone_number: str) -> Optional[Dict]:
     """Checks if a phone number is registered on WhatsApp using WAHA."""
+    # --- DEV-LOCAL BYPASS ---
+    # If running locally without the WAHA container, mock a successful response.
+    if ENVIRONMENT == "dev-local":
+        logger.info(f"DEV-LOCAL BYPASS: Mocking successful WhatsApp number verification for {phone_number}.")
+        return {"numberExists": True, "chatId": f"{phone_number.replace('+', '')}@c.us"}
+    # --- END BYPASS ---
     try:
         response = await _waha_request("GET", "/api/contacts/check-exists", params={"phone": phone_number, "session": "default"})
         return response.json()

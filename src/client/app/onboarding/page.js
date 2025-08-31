@@ -65,7 +65,7 @@ const questionStyles = {
 	description:
 		"text-sm md:text-base text-neutral-400 mt-3 max-w-2xl mx-auto leading-relaxed",
 	container:
-		"min-h-[140px] md:min-h-[160px] flex items-center justify-center w-full"
+		"min-h-[100px] md:min-h-[120px] flex items-center justify-center w-full"
 }
 
 // Standard input styles
@@ -653,7 +653,7 @@ const OnboardingPage = () => {
 							initial={{ scale: 1, y: 0 }}
 							animate={{ scale: 0.7, y: -20 }}
 							transition={{ duration: 0.8, ease: "easeInOut" }}
-							className="absolute top-[-44px] md:top-[-28px] left-1/2 -translate-x-1/2 w-[400px] h-[400px] md:w-[500px] md:h-[500px] flex items-center justify-center pointer-events-none z-0"
+							className="absolute md:top-[-30px] sm:top-[100px] left-1/2 -translate-x-1/2 right-1/2 w-[300px] h-[300px] md:w-[450px] md:h-[450px] pointer-events-none z-0"
 						>
 							<div className="w-full h-full opacity-90">
 								<SiriSpheres
@@ -662,6 +662,16 @@ const OnboardingPage = () => {
 								/>
 							</div>
 						</motion.div>
+
+						{/* Progress Bar */}
+						<div className="fixed bottom-0 left-0 right-0 w-full px-4 py-6 md:py-8 z-20 pointer-events-none">
+							<div className="max-w-4xl mx-auto">
+								<ProgressBar
+									score={score}
+									totalQuestions={questions.length}
+								/>
+							</div>
+						</div>
 
 						{/* Questions Container */}
 						<div className="relative z-10 w-full h-full flex flex-col items-center justify-center pt-32 md:pt-40 pb-8">
@@ -749,10 +759,12 @@ const OnboardingPage = () => {
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
-						className="text-center"
+						className="w-full h-full flex flex-col items-center justify-center text-center"
 					>
-						<IconLoader className="w-16 h-16 animate-spin text-brand-orange mx-auto mb-6" />
-						<h1 className="text-3xl font-bold">
+						<div className="w-[300px] h-[300px] md:w-[400px] md:h-[400px]">
+							<SiriSpheres status="connecting" />
+						</div>
+						<h1 className="text-2xl md:text-3xl font-medium text-neutral-200 mt-8">
 							Personalizing your experience...
 						</h1>
 					</motion.div>

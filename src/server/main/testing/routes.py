@@ -164,7 +164,9 @@ async def reprocess_onboarding_data(user_id: str = Depends(auth_helper.get_curre
             "location": "The user's location is around '{}'.", # Simplified for string location
             "timezone": "The user's timezone is {}.",
             "professional-context": "Professionally, the user has shared: {}",
-            "personal-context": "Personally, the user is interested in: {}",
+            "working-hours": "The user's usual working hours are: {}",
+            "key-people": "The user has mentioned these key people to remember: {}",
+            "personal-context": "The user has shared these personal details to keep track of: {}",
         }
 
         onboarding_facts = []

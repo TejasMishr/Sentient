@@ -150,7 +150,7 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             # SAFE UPDATE: Fetch swarm_details, modify, and set the whole object back.
             current_swarm_details = task.get("swarm_details", {})
             current_swarm_details["items"] = items
-            await db_manager.update_task(task_id, {"swarm_details": current_swarm_details})
+            await db_manager.update_task(task_id, user_id, {"swarm_details": current_swarm_details})
 
         if not goal or not items: # Re-check after potential extraction attempt
             raise ValueError("Swarm task is missing goal or items after extraction attempt.")
@@ -280,7 +280,7 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
             "swarm_details.total_agents": total_agents,
             "swarm_details.completed_agents": 0 # Initialize completed count
         }
-        await db_manager.update_task(task_id, update_payload)
+        await db_manager.update_task(task_id, user_id, update_payload)
         await push_task_list_update(user_id, task_id, "swarm_plan_created")
 
         # Create and dispatch the chord
@@ -293,10 +293,10 @@ async def async_orchestrate_swarm_task(task_id: str, user_id: str):
 
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during swarm orchestration for {task_id}: {e}", exc_info=True)
-        await db_manager.update_task(task_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
     except Exception as e:
         logger.error(f"Error in orchestrate_swarm_task for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task(task_id, {"status": "error", "error": str(e)})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": str(e)})
     finally:
         await db_manager.close()
 
@@ -943,7 +943,7 @@ async def async_execute_triggered_task(user_id: str, source: str, event_type: st
                     "runs": current_runs,
                     "status": "processing",
                 }
-                await db_manager.update_task(task_id, update_payload)
+                await db_manager.update_task(task_id, user_id, update_payload)
 
                 # Queue the executor with the new run_id
                 execute_task_plan.delay(task_id, user_id, new_run['run_id'])

@@ -85,13 +85,13 @@ class MyVoiceChatHandler(ReplyOnPause):
             fn=self.process_audio_chunk,
             model_options=SileroVadOptions(
                 threshold=0.5,                  # Standard speech probability threshold.
-                min_speech_duration_ms=250,     # Filters out short noises like clicks.
-                min_silence_duration_ms=4000,   # **KEY CHANGE**: Wait for 4 full seconds of silence. Accommodates thinking pauses.
+                min_speech_duration_ms=400,     # Filters out short noises like clicks.
+                min_silence_duration_ms=2000,   # Wait for 1.2 seconds of silence. Accommodates thinking pauses.
                 speech_pad_ms=400,              # Add a 400ms buffer to the start/end of speech.
                 max_speech_duration_s=25,       # Allow for longer, more complex commands.
             ),
             algo_options=AlgoOptions(
-                audio_chunk_duration=0.5,       # Analyze audio in 500ms chunks.
+                audio_chunk_duration=0.7,       # Analyze audio in 700ms chunks.
                 started_talking_threshold=0.2,
                 speech_threshold=0.1,           # A chunk must be >90% silent to be considered a pause.
             ),

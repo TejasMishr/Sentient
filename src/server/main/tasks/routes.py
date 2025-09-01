@@ -305,7 +305,7 @@ async def update_task(
 
     # The plan is now a top-level field, so a simple update is sufficient.
     # The special logic for updating a plan within a run is no longer needed.
-    success = await mongo_manager.update_task(request.taskId, update_data)
+    success = await mongo_manager.update_task(request.taskId, user_id, update_data)
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or no updates applied.")
     await push_update(user_id)
@@ -340,7 +340,7 @@ async def task_action(
     user_id: str = Depends(PermissionChecker(required_permissions=["write:tasks"]))
 ):
     if request.action == "decline":
-        message = await mongo_manager.decline_task(request.taskId, user_id)
+        message = await mongo_manager.decline_task(request.taskId, user_id) # decline_task already uses user_id
         if not message:
             raise HTTPException(status_code=400, detail="Failed to decline task.")
         await push_update(user_id)
@@ -370,7 +370,7 @@ async def task_action(
             "status": "processing",
             "last_execution_at": now
         }
-        await mongo_manager.update_task(request.taskId, update_payload)
+        await mongo_manager.update_task(request.taskId, user_id, update_payload)
         # Trigger the Celery task with the new run_id
         execute_task_plan.delay(request.taskId, user_id, new_run['run_id'])
         await push_update(user_id)
@@ -445,7 +445,7 @@ async def approve_task(
             # It's a future-scheduled task, so it becomes 'pending'.
             update_data["status"] = "pending"
             update_data["next_execution_at"] = run_at_time
-            await mongo_manager.update_task(task_id, update_data)
+            await mongo_manager.update_task(task_id, user_id, update_data)
             return JSONResponse(content={"message": "Task approved and scheduled for the future."})
         else:
             # It's an immediate task.
@@ -469,14 +469,14 @@ async def approve_task(
                 "last_execution_at": now,
                 "next_execution_at": None,
             }
-            await mongo_manager.update_task(task_id, update_payload)
+            await mongo_manager.update_task(task_id, user_id, update_payload)
 
             await push_update(user_id)
             execute_task_plan.delay(task_id, user_id, new_run['run_id'])
             return JSONResponse(content={"message": "Task approved and execution has been initiated."})
 
     if update_data:
-        success = await mongo_manager.update_task(task_id, update_data)
+        success = await mongo_manager.update_task(task_id, user_id, update_data)
         if not success:
             logger.warning(f"Approve task for {task_id} resulted in 0 modified documents.")
 
@@ -518,7 +518,7 @@ async def task_chat(
     }
 
     # The update_task method will handle re-encrypting the entire chat_history field
-    await mongo_manager.update_task(task_id, update_payload)
+    await mongo_manager.update_task(task_id, user_id, update_payload)
 
     # Re-trigger the planner for the same task
     generate_plan_from_context.delay(task_id, user_id)
@@ -590,7 +590,7 @@ async def answer_clarifications(
     if not last_run:
         raise HTTPException(status_code=500, detail="Cannot resume task: no previous run found.")
 
-    await mongo_manager.update_task(request.task_id, {"status": "clarification_answered"})
+    await mongo_manager.update_task(request.task_id, user_id, {"status": "clarification_answered"})
 
     execute_task_plan.delay(request.task_id, user_id, last_run['run_id'])
 
@@ -629,7 +629,7 @@ async def answer_clarification(
         "clarification_requests": clarification_requests,
         "orchestrator_state.current_state": "ACTIVE"
     }
-    await mongo_manager.update_task(task_id, update_payload)
+    await mongo_manager.update_task(task_id, user_id, update_payload)
 
     # Trigger the orchestrator to re-evaluate with the new information
     execute_orchestrator_cycle.delay(task_id)
@@ -651,11 +651,11 @@ async def long_form_task_action(
 
     action = request.action.lower()
     if action == "pause":
-        await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "PAUSED"})
+        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "PAUSED"})
         await push_update(user_id)
         return JSONResponse(content={"message": "Task paused."})
     elif action == "resume":
-        await mongo_manager.update_task(task_id, {"orchestrator_state.current_state": "ACTIVE"})
+        await mongo_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "ACTIVE"})
         execute_orchestrator_cycle.delay(task_id)
         await push_update(user_id)
         return JSONResponse(content={"message": "Task resumed."})

@@ -1,12 +1,12 @@
 import logging
 import datetime
 from typing import Dict, Any, List, Optional
-from workers.planner.db import PlannerMongoManager
+from main.db import MongoManager
 
 logger = logging.getLogger(__name__)
 
 async def get_task_state(task_id: str, user_id: str) -> Dict:
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task or task.get("user_id") != user_id:
@@ -16,7 +16,7 @@ async def get_task_state(task_id: str, user_id: str) -> Dict:
         await db.close()
 
 async def update_orchestrator_state(task_id: str, user_id: str, state_updates: Dict):
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task:
@@ -67,7 +67,7 @@ async def update_orchestrator_state(task_id: str, user_id: str, state_updates: D
                 except Exception as e:
                     logger.error(f"Failed to send notification for task {task_id} state change to {new_state}: {e}")
 
-        await db.update_task_field(task_id, user_id, update_payload)
+        await db.update_task(task_id, user_id, update_payload)
 
         try:
             from workers.utils.api_client import push_task_list_update
@@ -80,7 +80,7 @@ async def update_orchestrator_state(task_id: str, user_id: str, state_updates: D
         await db.close()
 
 async def add_execution_log(task_id: str, user_id: str, action: str, details: Dict, reasoning: str):
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task:
@@ -98,12 +98,12 @@ async def add_execution_log(task_id: str, user_id: str, action: str, details: Di
             "agent_reasoning": reasoning
         }
         execution_log.append(log_entry)
-        await db.update_task_field(task_id, user_id, {"execution_log": execution_log})
+        await db.update_task(task_id, user_id, {"execution_log": execution_log})
     finally:
         await db.close()
 async def add_step_to_dynamic_plan(task_id: str, user_id: str, new_step: Dict, goal: Optional[str] = None):
     """Appends a new step to the task's dynamic_plan array."""
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task:
@@ -126,12 +126,12 @@ async def add_step_to_dynamic_plan(task_id: str, user_id: str, new_step: Dict, g
             orchestrator_state["main_goal"] = goal
             update_payload["orchestrator_state"] = orchestrator_state
 
-        await db.update_task_field(task_id, user_id, update_payload)
+        await db.update_task(task_id, user_id, update_payload)
     finally:
         await db.close()
 
 async def update_context_store(task_id: str, user_id: str, key: str, value: Any):
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task:
@@ -149,12 +149,12 @@ async def update_context_store(task_id: str, user_id: str, key: str, value: Any)
         context_store[key] = value
         orchestrator_state["context_store"] = context_store
 
-        await db.update_task_field(task_id, user_id, {"orchestrator_state": orchestrator_state})
+        await db.update_task(task_id, user_id, {"orchestrator_state": orchestrator_state})
     finally:
         await db.close()
 
 async def mark_step_as_complete(task_id: str, user_id: str, step_id: str, result: Dict):
-    db = PlannerMongoManager()
+    db = MongoManager()
     try:
         task = await db.get_task(task_id, user_id)
         if not task:
@@ -186,7 +186,7 @@ async def mark_step_as_complete(task_id: str, user_id: str, step_id: str, result
             target_step["status"] = "completed"
             target_step["result"] = result
             target_step["completed_at"] = datetime.datetime.now(datetime.timezone.utc)
-            await db.update_task_field(task_id, user_id, {"dynamic_plan": dynamic_plan})
+            await db.update_task(task_id, user_id, {"dynamic_plan": dynamic_plan})
         else:
             logger.warning(f"Could not find step_id {step_id} in task {task_id} to mark as complete, and no pending step found as fallback.")
     finally:

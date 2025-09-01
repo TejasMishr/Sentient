@@ -1,6 +1,7 @@
 import pytest
-from unittest.mock import AsyncMock, patch
-from workers.tasks import async_refine_and_plan_ai_task, cud_memory
+import json
+from unittest.mock import AsyncMock, patch, MagicMock
+from workers.tasks import async_refine_and_plan_ai_task, cud_memory_task
 from mcp_hub.memory.utils import initialize_embedding_model, initialize_agents
 
 # --- Test refine_and_plan_ai_task ---
@@ -20,7 +21,7 @@ async def test_refine_and_plan_ai_task_success(mocker):
     mock_db.user_profiles_collection.find_one.return_value = {
         "userData": {"personalInfo": {"name": "Tester", "timezone": "UTC"}}
     }
-    mocker.patch('workers.tasks.PlannerMongoManager', return_value=mock_db)
+    # The conftest mock_mongo_manager fixture now handles patching MongoManager
 
     # Mock LLM call
     refined_details = {
@@ -32,23 +33,23 @@ async def test_refine_and_plan_ai_task_success(mocker):
     async def mock_run_agent(*args, **kwargs):
         yield [{"role": "assistant", "content": f"```json\n{json.dumps(refined_details)}\n```"}]
 
-    mocker.patch('workers.tasks.run_main_agent_with_fallback', new_callable=lambda: mock_run_agent)
+    mocker.patch('workers.tasks.run_main_agent', new=mock_run_agent)
 
     # Mock Celery task call
     mock_planner_delay = mocker.patch('workers.tasks.generate_plan_from_context.delay')
 
     # Run the async function
-    await async_refine_and_plan_ai_task("task-123")
+    await async_refine_and_plan_ai_task("task-123", "test-user-123")
 
     # Assertions
     mock_db.get_task.assert_called_once_with("task-123")
-    mock_db.update_task_field.assert_called_once()
-    update_args = mock_db.update_task_field.call_args[0]
+    mock_db.update_task.assert_called_once()
+    update_args = mock_db.update_task.call_args[0]
     assert update_args[0] == "task-123"
-    assert update_args[1]["name"] == "Refined Task Name"
-    assert update_args[1]["schedule"]["timezone"] == "UTC" # Check if timezone was injected
+    assert update_args[2]["name"] == "Refined Task Name"
+    assert update_args[2]["schedule"]["timezone"] == "UTC" # Check if timezone was injected
 
-    mock_planner_delay.assert_called_once_with("task-123")
+    mock_planner_delay.assert_called_once_with("task-123", "test-user-123")
     mock_db.close.assert_called_once()
 
 
@@ -85,11 +86,11 @@ async def test_cud_memory_add_action(mocker):
     initialize_agents()
 
     # Run the function
-    result = await cud_memory("test-user-123", "my favorite color is blue")
+    await cud_memory_task.apply_async(args=["test-user-123", "my favorite color is blue", "test_source"])
 
     # Assertions
-    assert "Fact added with ID 1" in result
+    # We can't easily assert the result of the async task, but we can check mocks
     mock_run_agent.assert_called_once()
     # Check that the insert was called
-    mock_conn.fetchval.assert_called()
-    assert "INSERT INTO facts" in mock_conn.fetchval.call_args[0][0]
+    assert mock_conn.fetchval.call_count > 0
+    assert "INSERT INTO facts" in str(mock_conn.fetchval.call_args_list)

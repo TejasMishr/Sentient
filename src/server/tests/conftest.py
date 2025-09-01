@@ -41,8 +41,8 @@ def mock_mongo_manager(mocker):
     mock.delete_task = AsyncMock(return_value="Task deleted successfully.")
     
     mocker.patch('main.dependencies.mongo_manager', new=mock)
-    mocker.patch('workers.tasks.mongo_manager', new=mock) # Also patch in workers
-    mocker.patch('workers.planner.db.PlannerMongoManager', return_value=mock)
+    # Patch the class to affect all direct instantiations in workers
+    mocker.patch('main.db.MongoManager', return_value=mock)
     return mock
 
 @pytest.fixture(scope="function")

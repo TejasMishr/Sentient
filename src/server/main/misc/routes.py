@@ -166,7 +166,9 @@ async def save_onboarding_data_endpoint(
                 "location": "The user's location is at latitude {latitude}, longitude {longitude}.",
                 "timezone": "The user's timezone is {}",
                 "professional-context": "Professionally, the user has shared: {}",
-                "personal-context": "Personally, the user is interested in: {}",
+                "working-hours": "The user's usual working hours are: {}",
+                "key-people": "The user has mentioned these key people to remember: {}",
+                "personal-context": "The user has shared these personal details to keep track of: {}",
             }
             onboarding_facts = []
             for key, value in onboarding_data.items():

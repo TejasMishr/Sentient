@@ -4,7 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber"
 import * as THREE from "three"
 import { Color } from "three"
 
-const Ring = ({ color, initialRotation }) => {
+const Ring = ({ color, initialRotation, reactionIntensity = 0 }) => {
 	const ringRef = useRef()
 
 	useFrame(({ clock }) => {
@@ -14,31 +14,55 @@ const Ring = ({ color, initialRotation }) => {
 			ringRef.current.rotation.x = initialRotation[0] + t * 0.1
 			ringRef.current.rotation.y = initialRotation[1] + t * 0.2
 			ringRef.current.rotation.z = initialRotation[2] + t * 0.15
+
+			// Add reaction wobble
+			if (reactionIntensity > 0) {
+				ringRef.current.rotation.x +=
+					Math.sin(t * 20) * reactionIntensity * 0.3
+				ringRef.current.rotation.y +=
+					Math.cos(t * 25) * reactionIntensity * 0.2
+			}
 		}
 	})
 
 	return (
-		<mesh ref={ringRef}>
-			<torusGeometry args={[1.0, 0.04, 32, 100]} />
-			<meshPhysicalMaterial
-				color={color}
-				emissive={color}
-				emissiveIntensity={0.3} // Reduced from 1.2 to prevent overexposure
-				transmission={0}
-				roughness={0.4}
-				metalness={0.0}
-				thickness={0}
-				ior={1.0}
-				transparent
-				opacity={0.9} // Slightly transparent for better blending
-			/>
-		</mesh>
+		<group ref={ringRef}>
+			{/** Core ring */}
+			<mesh>
+				<torusGeometry args={[1.2, 0.055, 64, 200]} />
+				<meshPhysicalMaterial
+					color={color}
+					emissive={color}
+					emissiveIntensity={0.55}
+					transmission={0}
+					roughness={0.35}
+					metalness={0.05}
+					thickness={0}
+					ior={1.0}
+					transparent
+					opacity={0.95}
+				/>
+			</mesh>
+
+			{/** Faux-bloom outer glow */}
+			<mesh scale={[1.04, 1.04, 1.04]}>
+				<torusGeometry args={[1.2, 0.095, 64, 200]} />
+				<meshBasicMaterial
+					color={color}
+					transparent
+					opacity={0.25}
+					depthWrite={false}
+					blending={THREE.AdditiveBlending}
+				/>
+			</mesh>
+		</group>
 	)
 }
 
-const Scene = ({ status, audioLevel = 0 }) => {
+const Scene = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	const groupRef = useRef()
-	const [currentScale, setCurrentScale] = useState(1)
+	const scale = useRef(1)
+	const velocity = useRef(0)
 	const dullOrange = useMemo(() => new Color("#8B5F11"), [])
 	const brandOrange = useMemo(() => new Color("#F1A21D"), [])
 
@@ -76,16 +100,29 @@ const Scene = ({ status, audioLevel = 0 }) => {
 			targetScale = 1 + Math.sin(t * 4) * 0.2
 		} else if (status === "connected") {
 			// Clamp the audio level's effect to prevent excessive scaling
-			targetScale = 1 + Math.min(audioLevel, 1.0) * 0.5
+			targetScale =
+				1 + Math.min(audioLevel, 1.0) * 0.5 + reactionIntensity * 0.8
 		}
 
-		setCurrentScale((prevScale) => {
-			const diff = targetScale - prevScale
-			return prevScale + diff * 0.1 // Smooth interpolation
-		})
+		// Spring physics for a more natural animation
+		const stiffness = 0.15 // How springy it is
+		const damping = 0.2 // How much it resists motion
+
+		const force = stiffness * (targetScale - scale.current)
+		velocity.current = (velocity.current + force) * (1 - damping)
+		scale.current += velocity.current
+
+		// Settle if very close to target to prevent endless small movements
+		if (
+			Math.abs(scale.current - targetScale) < 0.001 &&
+			Math.abs(velocity.current) < 0.001
+		) {
+			scale.current = targetScale
+			velocity.current = 0
+		}
 
 		if (groupRef.current) {
-			groupRef.current.scale.setScalar(currentScale)
+			groupRef.current.scale.setScalar(scale.current)
 		}
 	})
 
@@ -109,6 +146,7 @@ const Scene = ({ status, audioLevel = 0 }) => {
 						key={i}
 						color={ringColors[i]}
 						initialRotation={config.initialRotation}
+						reactionIntensity={reactionIntensity}
 					/>
 				))}
 			</group>
@@ -116,20 +154,25 @@ const Scene = ({ status, audioLevel = 0 }) => {
 	)
 }
 
-const SiriSpheres = ({ status, audioLevel = 0 }) => {
+const SiriSpheres = ({ status, audioLevel = 0, reactionIntensity = 0 }) => {
 	return (
-		<div className="absolute inset-0 z-10">
-			<Canvas
-				camera={{ position: [0, 0, 4], fov: 50 }}
-				gl={{
-					outputColorSpace: THREE.SRGBColorSpace,
-					toneMapping: THREE.ACESFilmicToneMapping,
-					toneMappingExposure: 1.0
-				}}
-			>
-				<Scene status={status} audioLevel={audioLevel} />
-			</Canvas>
-		</div>
+		<Canvas
+			className="w-full h-full"
+			camera={{ position: [0, 0, 5], fov: 50 }}
+			gl={{
+				alpha: true,
+				antialias: true,
+				outputColorSpace: THREE.SRGBColorSpace,
+				toneMapping: THREE.ACESFilmicToneMapping,
+				toneMappingExposure: 1.05
+			}}
+		>
+			<Scene
+				status={status}
+				audioLevel={audioLevel}
+				reactionIntensity={reactionIntensity}
+			/>
+		</Canvas>
 	)
 }
 

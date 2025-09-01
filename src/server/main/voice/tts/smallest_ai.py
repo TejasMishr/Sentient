@@ -78,4 +78,5 @@ class SmallestAITTS(BaseTTS):
             audio_array = np.frombuffer(chunk, dtype=np.int16)
             yield (config.sample_rate, audio_array)
         
-        producer_thread.join()        logger.info(f"Finished streaming {chunk_count} audio chunks from SmallestAI TTS.")
+        producer_thread.join()        
+        logger.info(f"Finished streaming {chunk_count} audio chunks from SmallestAI TTS.")

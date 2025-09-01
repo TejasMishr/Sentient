@@ -3,7 +3,7 @@ from typing import Dict, Any
 import datetime
 from workers.celery_app import celery_app
 from workers.utils.api_client import notify_user
-from workers.planner.db import PlannerMongoManager
+from main.db import MongoManager
 import httpx
 import json
 from json_extractor import JsonExtractor
@@ -36,9 +36,9 @@ def start_long_form_task(task_id: str, user_id: str):
     run_async(async_start_long_form_task(task_id, user_id))
 
 async def async_start_long_form_task(task_id: str, user_id: str):
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        await db_manager.update_task_field(task_id, user_id, {
+        await db_manager.update_task(task_id, user_id, {
             "orchestrator_state.current_state": "PLANNING",
             "status": "processing" # Visually indicate that something is happening
         })
@@ -50,7 +50,7 @@ async def async_start_long_form_task(task_id: str, user_id: str):
 
     except Exception as e:
         logger.error(f"Error starting long-form task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, user_id, {
+        await db_manager.update_task(task_id, user_id, {
             "orchestrator_state.current_state": "FAILED",
             "status": "error",
             "error": f"Failed to start orchestrator: {str(e)}"
@@ -59,15 +59,21 @@ async def async_start_long_form_task(task_id: str, user_id: str):
         await db_manager.close()
 
 @celery_app.task(name="execute_orchestrator_cycle")
-def execute_orchestrator_cycle(task_id: str):
+def execute_orchestrator_cycle(task_id: str, user_id: str = None):
     """Main orchestrator execution cycle."""
     logger.info(f"Executing orchestrator cycle for task {task_id}")
-    run_async(async_execute_orchestrator_cycle(task_id))
+    run_async(async_execute_orchestrator_cycle(task_id, user_id))
 
-async def async_execute_orchestrator_cycle(task_id: str):
-    db_manager = PlannerMongoManager()
+async def async_execute_orchestrator_cycle(task_id: str, user_id: str = None):
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
+        # If user_id is not passed, we need to fetch it first.
+        # This is less efficient but necessary for calls from timeouts.
+        if not user_id:
+            task_doc_for_id = await db_manager.tasks_collection.find_one({"task_id": task_id}, {"user_id": 1})
+            if task_doc_for_id:
+                user_id = task_doc_for_id.get("user_id")
+        task = await db_manager.get_task(task_id, user_id)
         if not task:
             logger.error(f"Orchestrator cycle: Task {task_id} not found.")
             return
@@ -147,14 +153,24 @@ async def async_execute_orchestrator_cycle(task_id: str):
             raise Exception("Orchestrator agent failed to produce a response.")
     except Exception as e:
         logger.error(f"Error in orchestrator cycle for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, user_id, {"orchestrator_state.current_state": "FAILED", "status": "error", "error": f"Orchestrator cycle failed: {str(e)}"})
+        await db_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "FAILED", "status": "error", "error": f"Orchestrator cycle failed: {str(e)}"})
     finally:
         await db_manager.close()
 
 async def async_handle_waiting_timeout(task_id: str, waiting_type: str):
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
+        # First, find the user_id for the task without user context
+        task_doc_for_id = await db_manager.tasks_collection.find_one({"task_id": task_id}, {"user_id": 1})
+        if not task_doc_for_id:
+            logger.warning(f"Timeout handler: Task {task_id} not found.")
+            return
+        user_id = task_doc_for_id.get("user_id")
+        if not user_id:
+            logger.error(f"Cannot update task {task_id}, user_id is missing.")
+            return
+
+        task = await db_manager.get_task(task_id, user_id)
         if not task:
             logger.warning(f"Timeout handler: Task {task_id} not found.")
             return
@@ -168,12 +184,8 @@ async def async_handle_waiting_timeout(task_id: str, waiting_type: str):
             timeout_at = waiting_config.get("timeout_at")
             if timeout_at and datetime.datetime.now(datetime.timezone.utc) >= timeout_at:
                 logger.info(f"Task {task_id} has timed out. Transitioning to ACTIVE and triggering orchestrator.")
-                user_id = task.get("user_id")
-                if not user_id:
-                    logger.error(f"Cannot update task {task_id}, user_id is missing.")
-                    return
-                await db_manager.update_task_field(task_id, user_id, {"orchestrator_state.current_state": "ACTIVE"})
-                execute_orchestrator_cycle.delay(task_id)
+                await db_manager.update_task(task_id, user_id, {"orchestrator_state.current_state": "ACTIVE"})
+                execute_orchestrator_cycle.delay(task_id, user_id)
             else:
                 logger.info(f"Timeout handler for task {task_id} ran, but timeout has not been reached. No action taken.")
         else:
@@ -194,19 +206,25 @@ def process_external_trigger(task_id: str, trigger_data: Dict):
     run_async(async_process_external_trigger(task_id, trigger_data))
 
 async def async_process_external_trigger(task_id: str, trigger_data: Dict):
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
-        if not task:
+        # First, find the user_id for the task without user context
+        task_doc_for_id = await db_manager.tasks_collection.find_one({"task_id": task_id}, {"user_id": 1})
+        if not task_doc_for_id:
             logger.error(f"Cannot process external trigger for task {task_id}: Task not found.")
             return
-        user_id = task.get("user_id")
+        user_id = task_doc_for_id.get("user_id")
         if not user_id:
             logger.error(f"Cannot process external trigger for task {task_id}: user_id not found in task.")
             return
-        # 1. Update context store with new information
-        await db_manager.update_task_field(task_id, user_id, {f"orchestrator_state.context_store.trigger_{datetime.datetime.now(datetime.timezone.utc).isoformat()}": trigger_data})
+
+        task = await db_manager.get_task(task_id, user_id)
+        if not task:
+            logger.error(f"Cannot process external trigger for task {task_id}: Task not found for user.")
+            return
+
+        await db_manager.update_task(task_id, user_id, {f"orchestrator_state.context_store.trigger_{datetime.datetime.now(datetime.timezone.utc).isoformat()}": trigger_data})
         # 2. Resume task execution
-        execute_orchestrator_cycle.delay(task_id)
+        execute_orchestrator_cycle.delay(task_id, user_id)
     finally:
         await db_manager.close()

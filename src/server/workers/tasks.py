@@ -14,6 +14,7 @@ from celery import group, chord
 from main.analytics import capture_event
 from json_extractor import JsonExtractor
 from workers.utils.api_client import notify_user, push_task_list_update # noqa: E501
+from workers.planner.prompts import SYSTEM_PROMPT
 from workers.utils.text_utils import parse_assistant_response
 from main.plans import PLAN_LIMITS
 from main.config import INTEGRATIONS_CONFIG
@@ -22,8 +23,7 @@ from mcp_hub.memory.utils import initialize_embedding_model, initialize_agents, 
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
 from main.db import MongoManager
 from workers.celery_app import celery_app # noqa: E501
-from workers.planner.llm import get_planner_agent
-from workers.planner.db import PlannerMongoManager, get_all_mcp_descriptions
+from workers.planner.utils import get_all_mcp_descriptions
 from workers.executor.tasks import async_execute_task_plan, run_single_item_worker, aggregate_results_callback, execute_task_plan
 from main.vector_db import get_conversation_summaries_collection
 from mcp_hub.tasks.prompts import ITEM_EXTRACTOR_SYSTEM_PROMPT, RESOURCE_MANAGER_SYSTEM_PROMPT
@@ -324,9 +324,9 @@ def refine_and_plan_ai_task(task_id: str, user_id: str):
 
 async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
     """Async logic for refining an AI task and then kicking off the planner."""
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
+        task = await db_manager.get_task(task_id, user_id)
         if not task or task.get("assignee") != "ai":
             logger.warning(f"Skipping refine/plan for task {task_id}: not found or not assigned to AI.")
             return
@@ -393,7 +393,7 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
             # Ensure description is not empty, fall back to original prompt if needed
             if not parsed_data.get("name"):
                 parsed_data["name"] = task["description"] or task["name"]
-            await db_manager.update_task_field(task_id, user_id, parsed_data)
+            await db_manager.update_task(task_id, user_id, parsed_data)
             logger.info(f"Successfully refined and updated AI task {task_id} with new details.")
         else:
             logger.warning(f"Could not parse details for AI task {task_id}, proceeding with raw description.")
@@ -404,10 +404,10 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
 
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during task refinement for {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
     except Exception as e:
         logger.error(f"Error refining and planning AI task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_field(task_id, user_id, {"status": "error", "error": "Failed during initial refinement."})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Failed during initial refinement."})
     finally:
         await db_manager.close()
 
@@ -419,10 +419,10 @@ def process_task_change_request(task_id: str, user_id: str, user_message: str):
 
 async def async_process_change_request(task_id: str, user_id: str, user_message: str):
     """DEPRECATED: This logic is now handled by the main planner flow."""
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
         # 1. Fetch the task and its full history
-        task = await db_manager.get_task(task_id)
+        task = await db_manager.get_task(task_id, user_id)
         if not task:
             logger.error(f"Task Change Request: Task {task_id} not found.")
             return
@@ -436,7 +436,7 @@ async def async_process_change_request(task_id: str, user_id: str, user_message:
         })
 
         # 3. Update task status and chat history in DB
-        await db_manager.update_task_field(task_id, user_id, {
+        await db_manager.update_task(task_id, user_id, {
             "chat_history": chat_history,
             "status": "planning" # Revert to planning to re-evaluate
         })
@@ -471,7 +471,7 @@ def process_action_item(user_id: str, action_items: list, topics: list, source_e
 
 async def async_process_action_item(user_id: str, action_items: list, topics: list, source_event_id: str, original_context: dict):
     """Async logic for the proactive task orchestrator."""
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     task_id = None
     try:
         task_description = " ".join(map(str, action_items))
@@ -487,7 +487,7 @@ async def async_process_action_item(user_id: str, action_items: list, topics: li
     except Exception as e:
         logger.error(f"Error in process_action_item: {e}", exc_info=True)
         if task_id:
-            await db_manager.update_task_status(task_id, "error", {"error": str(e)})
+            await db_manager.update_task(task_id, user_id, {"status": "error", "error": str(e)})
     finally:
         await db_manager.close()
 
@@ -498,16 +498,16 @@ def generate_plan_from_context(task_id: str, user_id: str):
 
 async def async_generate_plan(task_id: str, user_id: str):
     """Async logic for plan generation."""
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
+        task = await db_manager.get_task(task_id, user_id)
         if not task:
             logger.error(f"Cannot generate plan: Task {task_id} not found.")
             return
 
         if task.get("runs") is None:
              logger.error(f"Cannot generate plan: Task {task_id} is malformed (missing 'runs' array).")
-             await db_manager.update_task_status(task_id, "error", {"error": "Task data is malformed: missing 'runs' array."})
+             await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Task data is malformed: missing 'runs' array."})
              return
 
         # Determine if this is a change request before proceeding.
@@ -526,7 +526,7 @@ async def async_generate_plan(task_id: str, user_id: str):
         if not task.get("user_id"):
             logger.warning(f"Task {task_id} document is missing user_id. Proceeding with passed user_id '{user_id}'.")
             # Attempt to heal the document
-            await db_manager.update_task_field(task_id, user_id, {"user_id": user_id})
+            await db_manager.update_task(task_id, user_id, {"user_id": user_id})
 
         original_context = task.get("original_context", {})
 
@@ -557,8 +557,17 @@ async def async_generate_plan(task_id: str, user_id: str):
         current_user_time = datetime.datetime.now(user_timezone).strftime('%Y-%m-%d %H:%M:%S %Z')
 
         available_tools = get_all_mcp_descriptions()
-        agent_config = get_planner_agent(available_tools, current_user_time, user_name, user_location)
+        system_prompt = SYSTEM_PROMPT.format(
+            user_name=user_name,
+            user_location=user_location,
+            current_time=current_user_time,
+            available_tools_json=json.dumps(available_tools, indent=2)
+        )
 
+        agent_config = {
+            "system_message": system_prompt,
+            "function_list": []  # Planner agent does not call tools, it generates a plan.
+        }
         messages = []
         if is_change_request:
             logger.info(f"Task {task_id} has chat history. Constructing messages from history for re-planning.")
@@ -656,7 +665,7 @@ async def async_generate_plan(task_id: str, user_id: str):
 
         final_response_str = ""
         final_history = None
-        for chunk in run_main_agent(system_message=agent_config["system_message"], function_list=agent_config["function_list"], messages=messages):
+        for chunk in run_main_agent(system_message=agent_config["system_message"], function_list=agent_config.get("function_list", []), messages=messages):
             final_history = chunk # Keep track of the latest state
             if isinstance(chunk, list) and chunk and chunk[-1].get("role") == "assistant":
                 final_response_str = chunk[-1].get("content", "")
@@ -698,7 +707,7 @@ async def async_generate_plan(task_id: str, user_id: str):
                     missing_tools.append(config.get("display_name", tool_name))
         
         # Update the task with the generated plan first, regardless of auto-approval.
-        await db_manager.update_task_with_plan(task_id, plan_data, is_change_request)
+        await db_manager.update_task_with_plan(task_id, user_id, plan_data, is_change_request)
 
         if is_auto_approvable and not missing_tools:
             logger.info(f"Task {task_id} is a sub-task with auto-approval enabled and all tools connected. Approving now.")
@@ -724,7 +733,7 @@ async def async_generate_plan(task_id: str, user_id: str):
                 "last_execution_at": now,
                 "next_execution_at": None,
             }
-            await db_manager.update_task_field(task_id, user_id, update_payload)
+            await db_manager.update_task(task_id, user_id, update_payload)
             await async_execute_task_plan(task_id, user_id, new_run['run_id'])
             await notify_user(user_id, f"Auto-approved and started task: '{plan_data.get('name', '...')[:50]}...'", task_id, notification_type="taskStarted")
             return # End execution here for auto-approved tasks
@@ -750,11 +759,11 @@ async def async_generate_plan(task_id: str, user_id: str):
 
     except LLMProviderDownError as e:
         logger.error(f"LLM provider down during plan generation for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_status(task_id, "error", {"error": "Sorry, our AI provider is currently down. Please try again later."})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": "Sorry, our AI provider is currently down. Please try again later."})
         await push_task_list_update(user_id, task_id, "plan_failed_llm_down")
     except Exception as e:
         logger.error(f"Error generating plan for task {task_id}: {e}", exc_info=True)
-        await db_manager.update_task_status(task_id, "error", {"error": str(e)})
+        await db_manager.update_task(task_id, user_id, {"status": "error", "error": str(e)})
         await push_task_list_update(user_id, task_id, "plan_failed_exception")
     finally:
         await db_manager.close()
@@ -769,14 +778,23 @@ def refine_task_details(task_id: str):
     run_async(async_refine_task_details(task_id))
 
 async def async_refine_task_details(task_id: str):
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
-        task = await db_manager.get_task(task_id)
+        # First, find the user_id for the task without user context
+        task_doc_for_id = await db_manager.tasks_collection.find_one({"task_id": task_id}, {"user_id": 1})
+        if not task_doc_for_id:
+            logger.error(f"Cannot refine task details: Task {task_id} not found.")
+            return
+        user_id = task_doc_for_id.get("user_id")
+        if not user_id:
+            logger.error(f"Cannot refine task details for task {task_id}: user_id not found in task.")
+            return
+
+        task = await db_manager.get_task(task_id, user_id)
         if not task or task.get("assignee") != "user":
             logger.warning(f"Skipping refinement for task {task_id}: not found or not assigned to user.")
             return
 
-        user_id = task["user_id"]
         user_profile = await db_manager.user_profiles_collection.find_one({"user_id": user_id})
         personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
         user_name = personal_info.get("name", "User")
@@ -801,7 +819,7 @@ async def async_refine_task_details(task_id: str):
             # Inject user's timezone into the schedule object if it exists
             if 'schedule' in parsed_data and parsed_data.get('schedule'):
                 parsed_data['schedule']['timezone'] = user_timezone_str
-            await db_manager.update_task_field(task_id, user_id, parsed_data)
+            await db_manager.update_task(task_id, user_id, parsed_data)
             logger.info(f"Successfully refined and updated user task {task_id} with new details.")
 
     except Exception as e:
@@ -1068,7 +1086,7 @@ def summarize_old_conversations():
 # src/server/workers/tasks.py
 
 async def async_summarize_conversations():
-    db_manager = PlannerMongoManager()  # Re-using for its mongo access
+    db_manager = MongoManager()
     try:
         # 1. Find users with recent, unsummarized messages
         # We process one user at a time to keep the task manageable.

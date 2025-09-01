@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { TextLoop } from "@/components/ui/TextLoop"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
 import { usePostHog } from "posthog-js/react"
@@ -11,84 +12,65 @@ import {
 	IconBrandWhatsapp,
 	IconLoader,
 	IconCheck,
-	IconX
+	IconX,
+	IconBrain
 } from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ProgressBar from "@components/onboarding/ProgressBar"
 import SparkleEffect from "@components/ui/SparkleEffect"
-import { GridBackground } from "@components/ui/GridBackground"
-import { UseCaseCarousel } from "@components/onboarding/UseCaseCarousel"
+import SiriSpheres from "@components/voice-visualization/SiriSpheres"
+import IntroSequence from "@components/onboarding/IntroSequence"
+
+const countryData = [
+	{ name: "United States", code: "US", dial_code: "+1", flag: "🇺🇸" },
+	{ name: "India", code: "IN", dial_code: "+91", flag: "🇮🇳" },
+	{ name: "United Kingdom", code: "GB", dial_code: "+44", flag: "🇬🇧" },
+	{ name: "Canada", code: "CA", dial_code: "+1", flag: "🇨🇦" },
+	{ name: "Australia", code: "AU", dial_code: "+61", flag: "🇦🇺" },
+	{ name: "Germany", code: "DE", dial_code: "+49", flag: "🇩🇪" },
+	{ name: "France", code: "FR", dial_code: "+33", flag: "🇫🇷" },
+	{ name: "Brazil", code: "BR", dial_code: "+55", flag: "🇧🇷" },
+	{ name: "China", code: "CN", dial_code: "+86", flag: "🇨🇳" },
+	{ name: "Japan", code: "JP", dial_code: "+81", flag: "🇯🇵" },
+	{ name: "Singapore", code: "SG", dial_code: "+65", flag: "🇸🇬" },
+	{ name: "United Arab Emirates", code: "AE", dial_code: "+971", flag: "🇦🇪" },
+	{ name: "Other", code: "OTHER", dial_code: "", flag: "🌍" }
+]
 
 // --- Helper Components ---
 
 const FormattedPaQuestion = () => (
-	<div className="text-neutral-200 space-y-4 mt-4 pl-4">
-		<p>
-			Are you someone who finds themselves spending too much time on
-			administrative work? For example:
-		</p>
-		<ul className="list-disc list-inside pl-4 space-y-2 text-neutral-300">
-			<li>Juggling multiple priorities</li>
-			<li>Managing a small team or leading projects</li>
-			<li>Scheduling meetings and organizing calendars</li>
-			<li>Responding to routine emails</li>
-		</ul>
-		<p className="font-semibold pt-2">
-			Do you ever feel the need for a personal assistant (human or AI) to
-			handle these repetitive tasks?
-		</p>
-	</div>
-)
-
-const TypingIndicator = () => (
-	<motion.div
-		initial={{ opacity: 0 }}
-		animate={{ opacity: 1 }}
-		exit={{ opacity: 0 }}
-		className="flex items-center gap-2"
-	>
-		<span className="text-brand-orange">[SENTIENT]:</span>
-		<motion.div
-			className="w-2 h-4 bg-brand-orange"
-			animate={{ opacity: [0, 1, 0] }}
-			transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-		/>
-	</motion.div>
-)
-
-const NavigationHint = ({ onBack, onNext, isNextDisabled }) => (
-	<div className="mt-6 text-center">
-		{/* Mobile Buttons */}
-		<div className="md:hidden flex justify-center gap-4">
-			<button
-				onClick={onBack}
-				className="py-2 px-5 rounded-md bg-neutral-700 hover:bg-neutral-600 text-sm font-semibold"
+	<div className="text-neutral-200 space-y-6 md:space-y-8 text-center">
+		<div className="text-xl md:text-2xl text-neutral-300 font-medium leading-relaxed">
+			<span>Are you someone who often finds themselves </span>
+			<TextLoop
+				className="inline-block text-brand-orange font-semibold min-w-[280px] md:min-w-[340px]"
+				interval={2.5}
 			>
-				Back
-			</button>
-			<button
-				onClick={onNext}
-				disabled={isNextDisabled}
-				className="py-2 px-5 rounded-md bg-brand-orange/80 hover:bg-brand-orange text-brand-black text-sm font-semibold disabled:opacity-50"
-			>
-				Next
-			</button>
+				<span>juggling multiple priorities?</span>
+				<span>spending too much time on admin tasks?</span>
+				<span>managing a small team?</span>
+				<span>wishing you had help with scheduling?</span>
+			</TextLoop>
 		</div>
-
-		{/* Desktop Hint */}
-		<p className="hidden md:block text-xs text-neutral-500">
-			Press{" "}
-			<kbd className="px-2 py-1 text-xs font-semibold text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md">
-				Enter
-			</kbd>{" "}
-			to continue, or{" "}
-			<kbd className="px-2 py-1 text-xs font-semibold text-neutral-400 bg-neutral-800 border border-neutral-700 rounded-md">
-				←
-			</kbd>{" "}
-			to go back.
-		</p>
+		<h2 className="font-semibold text-xl md:text-2xl text-white leading-relaxed">
+			Do you need a personal assistant (human or AI)?
+		</h2>
 	</div>
 )
+
+// Standard typography styles for questions
+const questionStyles = {
+	title: "text-xl md:text-2xl text-white font-medium leading-relaxed",
+	description:
+		"text-sm md:text-base text-neutral-400 mt-3 max-w-2xl mx-auto leading-relaxed",
+	container:
+		"min-h-[100px] md:min-h-[120px] flex items-center justify-center w-full"
+}
+
+// Standard input styles
+const inputStyles =
+	"w-full px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 
 // --- Onboarding Data ---
 
@@ -98,7 +80,7 @@ const questions = [
 		question: "First, what should I call you?",
 		type: "text-input",
 		required: true,
-		placeholder: "e.g., Alex"
+		placeholder: "Your name"
 	},
 	{
 		id: "timezone",
@@ -181,29 +163,46 @@ const questions = [
 	},
 	{
 		id: "professional-context",
-		question: "What is your professional background?",
+		question: "Tell me about your professional background",
 		type: "textarea",
 		required: true,
 		placeholder: "e.g., I'm a software developer at a startup..."
 	},
 	{
-		id: "personal-context",
-		question: "What about your personal life and interests?",
+		id: "working-hours",
+		question: "What are your usual working hours?",
+		description: "This helps me know when to proactively reach out",
+		type: "text-input",
+		required: false,
+		placeholder: "e.g., Mon-Fri, 9 AM to 6 PM"
+	},
+	{
+		id: "key-people",
+		question: "Who are the key people in your life I should remember?",
+		description:
+			"Family members, colleagues, or assistants I should know about",
 		type: "textarea",
-		required: true,
-		placeholder: "e.g., I enjoy hiking, learning guitar, and soccer.",
-		icon: <IconHeart />
+		required: false,
+		placeholder: "e.g., Jane Doe - spouse, John Smith - assistant"
+	},
+	{
+		id: "personal-context",
+		question: "Any personal details you'd like me to remember?",
+		description:
+			"Birthdays, anniversaries, preferences, or anything important to you",
+		type: "textarea",
+		required: false,
+		placeholder: "e.g., My anniversary is on June 5th. I love Italian food."
 	},
 	{
 		id: "needs-pa",
-		question:
-			"Do you often juggle multiple priorities, manage a small team, lead projects, and handle countless day-to-day tasks on your own? Many professionals spend too much time scheduling meetings, organizing their calendar, responding to emails, and doing other administrative work that eats into their day. Do you ever wish you had someone to take these repetitive tasks off your plate?\n\nDo you ever feel the need for a personal assistant?",
+		question: "", // The question is rendered by FormattedPaQuestion component
 		type: "yes-no",
 		required: true
 	},
 	{
 		id: "whatsapp_notifications_number",
-		question: "Please enter your WhatsApp number with the country code.",
+		question: "What's your WhatsApp number?",
 		type: "text-input",
 		required: true,
 		placeholder: "+14155552671",
@@ -216,8 +215,10 @@ const sentientComments = [
 	"Great to meet you, {user-name}! To make sure I'm always on your time...",
 	"Perfect. Now, to help with local info like weather and places...",
 	"This helps me understand your professional goals and context.",
-	"And when you're not working? Tell me about your hobbies.",
-	"Got it. One more thing before we get to the last step...",
+	"Understood. Knowing your work hours helps me be a better assistant.",
+	"Thanks. Remembering key people helps me understand your world better.",
+	"Great! I'll keep those personal details in mind.",
+	"This helps me understand what kind of user you are and how I can best assist you.",
 	"Finally, I will send you important notifications, task updates, and reminders on WhatsApp. We're in the process of getting an official number, so for now, messages will come from our co-founder Sarthak (+91827507823), who may also occasionally reach out for feedback.",
 	"Awesome! That's all I need. Let's get you set up."
 ]
@@ -229,18 +230,22 @@ const OnboardingPage = () => {
 	const [answers, setAnswers] = useState({})
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
-	const [conversation, setConversation] = useState([])
 	const [score, setScore] = useState(0)
 	const [maxQuestionIndexReached, setMaxQuestionIndexReached] = useState(0)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
-	const [isAiTyping, setIsAiTyping] = useState(false)
 	const posthog = usePostHog()
 	const router = useRouter()
-	const chatEndRef = useRef(null)
 	const statusChecked = useRef(false)
 	const [whatsappStatus, setWhatsappStatus] = useState("idle") // idle, checking, valid, invalid
 	const [whatsappError, setWhatsappError] = useState("")
 	const debounceTimeoutRef = useRef(null)
+	const [customDialCode, setCustomDialCode] = useState("")
+	const [showCustomDialCode, setShowCustomDialCode] = useState(false)
+	const [modelReacting, setModelReacting] = useState(false)
+	const [audioLevel, setAudioLevel] = useState(0.1)
+	const [timezoneDetected, setTimezoneDetected] = useState(null) // null: checking, true: detected, false: not detected
+	const [whatsappCountry, setWhatsappCountry] = useState(countryData[1]) // Default to India
+	const [whatsappLocalNumber, setWhatsappLocalNumber] = useState("")
 
 	const [locationState, setLocationState] = useState({
 		loading: false,
@@ -248,44 +253,16 @@ const OnboardingPage = () => {
 		error: null
 	})
 
-	const addAiMessage = useCallback(
-		(index) => {
-			let message = sentientComments[index]
-			if (message.includes("{user-name}")) {
-				message = message.replace(
-					"{user-name}",
-					answers["user-name"] || "friend"
-				)
-			}
-			// Append the question text if it exists for the current step
-			if (index < questions.length) {
-				const question = questions[index]
-				if (question) {
-					if (question.id === "needs-pa") {
-						setConversation((prev) => [
-							...prev,
-							{
-								sender: "ai",
-								text: message,
-								type: "formatted-pa-question"
-							}
-						])
-						return
-					}
-					message += `\n\n${question.question}`
-				}
-			}
-
-			setConversation((prev) => [
-				...prev,
-				{ sender: "ai", text: message }
-			])
-		},
-		[answers]
-	)
+	// Handle country selection
+	const handleCountryChange = (countryCode) => {
+		const selectedCountry = countryData.find((c) => c.code === countryCode)
+		setWhatsappCountry(selectedCountry)
+		setShowCustomDialCode(countryCode === "OTHER")
+		if (countryCode !== "OTHER") setCustomDialCode("")
+	}
 
 	const verifyWhatsappNumber = async (number) => {
-		if (!/^\+[1-9]\d{1,14}$/.test(number.trim())) {
+		if (!/^\+[1-9]\d{6,14}$/.test(number.trim())) {
 			setWhatsappStatus("invalid")
 			setWhatsappError(
 				"Please use E.164 format with country code (e.g., +14155552671)."
@@ -334,6 +311,7 @@ const OnboardingPage = () => {
 					verifyWhatsappNumber(answer)
 				}, 800)
 			} else {
+				setWhatsappStatus("idle")
 				setWhatsappError("")
 			}
 		}
@@ -438,10 +416,17 @@ const OnboardingPage = () => {
 		const currentQuestion = questions[currentQuestionIndex]
 		if (!currentQuestion.required) return true
 		const answer = answers[currentQuestion.id]
-		if (answer === undefined || answer === null || answer === "")
-			return false
+
+		// Check for undefined, null, or empty values
+		if (answer === undefined || answer === null) return false
+
+		// For string values, check if empty or whitespace-only
+		if (typeof answer === "string" && answer.trim() === "") return false
+
+		// For arrays, check if empty
 		if (Array.isArray(answer) && answer.length === 0) return false
-		// NEW check for whatsapp
+
+		// Check for whatsapp validation
 		if (
 			currentQuestion.id === "whatsapp_notifications_number" &&
 			whatsappStatus !== "valid"
@@ -449,7 +434,7 @@ const OnboardingPage = () => {
 			return false
 		}
 		return true
-	}, [answers, currentQuestionIndex, stage, questions.length, whatsappStatus])
+	}, [answers, currentQuestionIndex, stage, whatsappStatus])
 
 	const handleSubmit = async () => {
 		setStage("submitting")
@@ -517,70 +502,54 @@ const OnboardingPage = () => {
 	}
 
 	const handleNext = useCallback(() => {
-		if (!isCurrentQuestionAnswered() || isAiTyping) return
+		if (!isCurrentQuestionAnswered()) return
 
-		// Slice conversation history to the correct point before adding the new answer.
-		// This ensures that if a user goes back and changes an answer, the subsequent
-		// conversation history is cleared.
-		const conversationSliceIndex = 1 + currentQuestionIndex * 2
-		const currentQuestion = questions[currentQuestionIndex]
-		const answer = answers[currentQuestion.id]
-
-		// Format answer for display
-		let displayAnswer = answer
-		if (Array.isArray(answer)) {
-			displayAnswer = answer.join(", ")
-		}
-
-		setConversation((prev) => {
-			const slicedPrev = prev.slice(0, conversationSliceIndex)
-			return [...slicedPrev, { sender: "user", text: displayAnswer }]
-		})
-
-		if (currentQuestionIndex >= maxQuestionIndexReached) {
-			setScore((s) => s + 10)
-			setMaxQuestionIndexReached(currentQuestionIndex + 1)
-		}
-
+		// Trigger sphere reaction immediately
+		setModelReacting(true)
+		setAudioLevel(0.9) // High impact
 		setSparkleTrigger((c) => c + 1)
-		setIsAiTyping(true)
 
 		setTimeout(() => {
-			setIsAiTyping(false)
-			if (currentQuestionIndex < questions.length - 1) {
-				setCurrentQuestionIndex((prev) => prev + 1)
-				addAiMessage(currentQuestionIndex + 1)
-			} else {
-				addAiMessage(questions.length) // Final comment
-				setTimeout(handleSubmit, 1500)
+			setModelReacting(false)
+			if (currentQuestionIndex >= maxQuestionIndexReached) {
+				setScore((s) => s + 10)
+				setMaxQuestionIndexReached(currentQuestionIndex + 1)
 			}
-		}, 1500) // 1.5 second typing delay
+		}, 400)
+
+		if (currentQuestionIndex < questions.length - 1) {
+			setCurrentQuestionIndex((prev) => prev + 1)
+		} else {
+			handleSubmit()
+		}
 	}, [
 		currentQuestionIndex,
-		answers,
 		isCurrentQuestionAnswered,
 		handleSubmit,
-		addAiMessage,
-		locationState.data,
-		maxQuestionIndexReached,
-		isAiTyping
+		maxQuestionIndexReached
 	])
 
-	const handleBack = useCallback(() => {
-		if (currentQuestionIndex > 0 && !isAiTyping) {
-			setCurrentQuestionIndex((prev) => {
-				const newIndex = prev - 1
-				// Slice conversation to remove the last user answer and the AI question that followed.
-				const conversationSliceIndex = 1 + newIndex * 2
-				setConversation((prevConv) =>
-					prevConv.slice(0, conversationSliceIndex)
-				)
-				return newIndex
-			})
-		}
-	}, [currentQuestionIndex, isAiTyping])
-
 	// --- Effects ---
+
+	useEffect(() => {
+		if (whatsappCountry && whatsappLocalNumber.trim()) {
+			const dialCode =
+				whatsappCountry.code === "OTHER"
+					? customDialCode.startsWith("+")
+						? customDialCode
+						: `+${customDialCode}`
+					: whatsappCountry.dial_code
+
+			const fullNumber = `${
+				dialCode
+			}${whatsappLocalNumber.replace(/\D/g, "")}`
+			handleAnswer("whatsapp_notifications_number", fullNumber)
+		} else {
+			// Clear the answer if the local number is empty
+			handleAnswer("whatsapp_notifications_number", "")
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [whatsappCountry, whatsappLocalNumber, customDialCode])
 
 	useEffect(() => {
 		if (statusChecked.current) return
@@ -596,13 +565,6 @@ const OnboardingPage = () => {
 				if (result?.data?.onboardingComplete) {
 					router.push("/chat")
 				} else {
-					const firstQuestion = questions[0]?.question || ""
-					setConversation([
-						{
-							sender: "ai",
-							text: `${sentientComments[0]}\n\n${firstQuestion}`
-						}
-					])
 					setIsLoading(false)
 				}
 			} catch (error) {
@@ -618,22 +580,23 @@ const OnboardingPage = () => {
 		try {
 			const userTimezone =
 				Intl.DateTimeFormat().resolvedOptions().timeZone
-			if (userTimezone) handleAnswer("timezone", userTimezone)
+			if (userTimezone) {
+				handleAnswer("timezone", userTimezone)
+				setTimezoneDetected(true)
+			} else {
+				setTimezoneDetected(false)
+			}
 		} catch (e) {
 			console.warn("Could not detect user timezone.")
+			setTimezoneDetected(false)
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
-			if (stage === "intro" && e.key === "Enter") {
-				e.preventDefault()
-				setStage("questions")
-			} else if (stage === "questions") {
-				if (e.key === "ArrowLeft") {
-					e.preventDefault()
-					handleBack()
-				} else if (e.key === "Enter") {
+			if (stage === "questions") {
+				if (e.key === "Enter") {
 					const currentQuestion = questions[currentQuestionIndex]
 					if (currentQuestion.type === "textarea" && e.shiftKey) {
 						return
@@ -646,11 +609,20 @@ const OnboardingPage = () => {
 
 		window.addEventListener("keydown", handleKeyDown)
 		return () => window.removeEventListener("keydown", handleKeyDown)
-	}, [stage, handleBack, handleNext, currentQuestionIndex])
+	}, [stage, handleNext, currentQuestionIndex])
 
 	useEffect(() => {
-		chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
-	}, [conversation, isAiTyping])
+		let interval
+		if (modelReacting) {
+			setAudioLevel(0.8) // Spike the level for reaction
+		} else {
+			// Gentle pulse
+			interval = setInterval(() => {
+				setAudioLevel(Math.sin(Date.now() / 400) * 0.05 + 0.1)
+			}, 50)
+		}
+		return () => clearInterval(interval)
+	}, [modelReacting])
 
 	// --- Render Logic ---
 
@@ -663,152 +635,119 @@ const OnboardingPage = () => {
 	}
 
 	const renderContent = () => {
-		const introVariants = {
-			hidden: { opacity: 0 },
-			visible: {
-				opacity: 1,
-				transition: {
-					staggerChildren: 0.3
-				}
-			}
-		}
-
-		const itemVariants = {
-			hidden: { y: 20, opacity: 0 },
-			visible: {
-				y: 0,
-				opacity: 1,
-				transition: { type: "spring", stiffness: 100 }
-			}
-		}
-
 		switch (stage) {
-			case "intro":
-				return (
-					<motion.div
-						key="intro"
-						variants={introVariants}
-						initial="hidden"
-						animate="visible"
-						exit={{ opacity: 0, y: -20 }}
-						className="text-center flex flex-col items-center"
-					>
-						<motion.div variants={itemVariants} className="mb-8">
-							<IconSparkles
-								size={80}
-								className="mx-auto text-brand-orange drop-shadow-[0_0_15px_rgba(0,173,181,0.5)]"
-							/>
-						</motion.div>
-						<motion.h1
-							variants={itemVariants}
-							className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400"
-						>
-							Welcome. I'm Sentient.
-						</motion.h1>
-						<motion.p
-							variants={itemVariants}
-							className="text-lg md:text-xl text-neutral-300 max-w-xl mx-auto"
-						>
-							I'm excited to get to know you.
-						</motion.p>
-						<motion.div
-							variants={itemVariants}
-							className="mt-12 flex flex-col items-center gap-4"
-						>
-							<motion.button
-								onClick={() => {
-									setStage("questions")
-								}}
-								className="rounded-lg bg-brand-orange px-8 py-3 text-lg font-semibold text-brand-black transition-colors hover:bg-brand-orange/90"
-								whileHover={{ scale: 1.05 }}
-								whileTap={{ scale: 0.95 }}
-							>
-								Let's Begin
-							</motion.button>
-						</motion.div>
-					</motion.div>
-				)
-
 			case "questions":
 				const currentQuestion = questions[currentQuestionIndex] ?? null
 				return (
+					// Use a motion.div for AnimatePresence transitions
 					<motion.div
-						key="questions"
+						key="questions-view"
+						className="w-full h-full relative"
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
-						className="w-full h-full flex flex-col font-mono"
 					>
-						<div className="pt-8 pb-4 flex-shrink-0">
-							<ProgressBar
-								score={score}
-								totalQuestions={questions.length}
-							/>
+						{/* SiriSpheres at top */}
+						<motion.div
+							layoutId="onboarding-sphere"
+							initial={{ scale: 1, y: 0 }}
+							animate={{ scale: 0.7, y: -20 }}
+							transition={{ duration: 0.8, ease: "easeInOut" }}
+							className="absolute md:top-[-30px] sm:top-[100px] left-1/2 -translate-x-1/2 right-1/2 w-[300px] h-[300px] md:w-[450px] md:h-[450px] pointer-events-none z-0"
+						>
+							<div className="w-full h-full opacity-90">
+								<SiriSpheres
+									status="connected"
+									audioLevel={audioLevel}
+								/>
+							</div>
+						</motion.div>
+
+						{/* Progress Bar */}
+						<div className="fixed bottom-0 left-0 right-0 w-full px-4 py-6 md:py-8 z-20 pointer-events-none">
+							<div className="max-w-4xl mx-auto">
+								<ProgressBar
+									score={score}
+									totalQuestions={questions.length}
+								/>
+							</div>
 						</div>
-						<div className="flex-1 w-full max-w-4xl mx-auto overflow-y-auto custom-scrollbar p-4 space-y-2 text-sm md:text-base bg-black/30 border border-brand-gray rounded-lg">
-							{conversation.map((msg, index) => (
-								<div key={index}>
-									{msg.sender === "ai" ? (
-										<div>
-											<p className="whitespace-pre-wrap">
-												<span className="text-brand-orange">
-													[SENTIENT]:
-												</span>
-												<span className="text-brand-white">
-													{" "}
-													{msg.text}
-												</span>
-											</p>
-											{msg.type ===
-												"formatted-pa-question" && (
-												<FormattedPaQuestion />
-											)}
-										</div>
-									) : (
-										<p className="whitespace-pre-wrap">
-											<span className="text-green-400">
-												[YOU]:
-											</span>
-											<span className="text-neutral-300">
-												{" "}
-												{msg.text}
-											</span>
-										</p>
-									)}
-								</div>
-							))}
-							{isAiTyping && <TypingIndicator />}
-							<div ref={chatEndRef} />
-						</div>
-						<div className="w-full max-w-4xl mx-auto p-4 flex-shrink-0">
-							<AnimatePresence mode="wait">
-								{currentQuestion && !isAiTyping && (
+
+						{/* Questions Container */}
+						<div className="relative z-10 w-full h-full flex flex-col items-center justify-center pt-32 md:pt-40 pb-8">
+							<motion.div
+								key="questions-stage"
+								initial={{ opacity: 0, y: 30 }}
+								animate={{ opacity: 1, y: 0 }}
+								transition={{ delay: 0.3, duration: 0.6 }}
+								className="w-full max-w-4xl flex flex-col items-center gap-6 md:gap-8 text-center px-4"
+							>
+								{/* Question Text */}
+								<AnimatePresence mode="wait" initial={false}>
 									<motion.div
 										key={currentQuestionIndex}
 										initial={{ opacity: 0, y: 20 }}
 										animate={{ opacity: 1, y: 0 }}
 										exit={{ opacity: 0, y: -20 }}
+										transition={{ duration: 0.4 }}
+										className={questionStyles.container}
 									>
-										<div className="flex items-center gap-2">
-											<span className="text-green-400">
-												{">"}
-											</span>
-											<div className="flex-1">
-												{renderInput(currentQuestion)}
-											</div>
+										<div className="w-full">
+											{currentQuestion.id ===
+											"needs-pa" ? (
+												<FormattedPaQuestion />
+											) : (
+												<>
+													<h2
+														className={
+															questionStyles.title
+														}
+													>
+														{
+															currentQuestion.question
+														}
+													</h2>
+													{currentQuestion.description && (
+														<p
+															className={
+																questionStyles.description
+															}
+														>
+															{
+																currentQuestion.description
+															}
+														</p>
+													)}
+												</>
+											)}
 										</div>
 									</motion.div>
+								</AnimatePresence>
+
+								{/* Answer Input */}
+								<div className="w-full max-w-2xl min-h-[80px] flex items-center justify-center">
+									{currentQuestion &&
+										renderInput(currentQuestion)}
+								</div>
+
+								{/* Navigation */}
+								{currentQuestion.type !== "yes-no" && (
+									<div className="mt-4 md:mt-6">
+										<button
+											onClick={handleNext}
+											disabled={
+												!isCurrentQuestionAnswered()
+											}
+											className="px-8 md:px-12 py-3 md:py-4 rounded-xl bg-brand-orange text-brand-black text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:bg-brand-orange/90 hover:scale-105 shadow-lg shadow-brand-orange/25"
+										>
+											{currentQuestionIndex ===
+											questions.length - 1
+												? "Finish"
+												: "Next"}
+										</button>
+									</div>
 								)}
-							</AnimatePresence>
-							{currentQuestion && !isAiTyping && (
-								<NavigationHint
-									onBack={handleBack}
-									onNext={handleNext}
-									isNextDisabled={
-										!isCurrentQuestionAnswered()
-									}
-								/>
-							)}
+							</motion.div>
 						</div>
 					</motion.div>
 				)
@@ -820,19 +759,16 @@ const OnboardingPage = () => {
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
-						className="text-center"
+						className="w-full h-full flex flex-col items-center justify-center text-center"
 					>
-						<IconLoader className="w-16 h-16 animate-spin text-brand-orange mx-auto mb-6" />
-						<h1 className="text-3xl font-bold">
+						<div className="w-[300px] h-[300px] md:w-[400px] md:h-[400px]">
+							<SiriSpheres status="connecting" />
+						</div>
+						<h1 className="text-2xl md:text-3xl font-medium text-neutral-200 mt-8">
 							Personalizing your experience...
 						</h1>
 					</motion.div>
 				)
-
-			case "whatsNext":
-				// This stage is removed as per the simplified flow.
-				// The app will redirect directly after submitting.
-				return null
 
 			case "complete":
 				return (
@@ -863,8 +799,100 @@ const OnboardingPage = () => {
 	const renderInput = (currentQuestion) => {
 		switch (currentQuestion.type) {
 			case "text-input":
+				if (currentQuestion.id === "whatsapp_notifications_number") {
+					return (
+						<div className="relative w-full max-w-lg mx-auto space-y-4">
+							<div className="flex items-center gap-0 w-full bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus-within:ring-2 focus-within:ring-brand-orange/50 focus-within:border-brand-orange/50 transition-all duration-300 shadow-lg shadow-black/20">
+								<div className="relative border-r border-neutral-700/50">
+									<select
+										value={whatsappCountry.code}
+										onChange={(e) => {
+											handleCountryChange(e.target.value)
+										}}
+										className="bg-transparent pl-4 pr-10 py-4 md:py-5 text-base appearance-none focus:outline-none cursor-pointer min-w-[120px]"
+									>
+										{countryData.map((country) => (
+											<option
+												key={country.code}
+												value={country.code}
+												className="bg-brand-gray text-brand-white"
+											>
+												{country.flag}{" "}
+												{country.dial_code || "Other"}
+											</option>
+										))}
+									</select>
+									<div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-neutral-400">
+										<svg
+											className="h-4 w-4 fill-current"
+											viewBox="0 0 20 20"
+										>
+											<path d="M5.516 7.548c.436-.446 1.043-.481 1.576 0L10 10.405l2.908-2.857c.533-.481 1.141-.446 1.574 0 .436.445.408 1.197 0 1.642l-3.417 3.356c-.27.267-.672.423-1.065.423s-.795-.156-1.065-.423L5.516 9.19c-.408-.445-.436-1.197 0-1.642z" />
+										</svg>
+									</div>
+								</div>
+								{showCustomDialCode && (
+									<input
+										type="text"
+										value={customDialCode}
+										onChange={(e) =>
+											setCustomDialCode(e.target.value)
+										}
+										placeholder="+XXX"
+										className="bg-transparent px-4 py-4 md:py-5 text-base focus:outline-none border-r border-neutral-700/50 w-20"
+									/>
+								)}
+								<input
+									type="tel"
+									value={whatsappLocalNumber}
+									onChange={(e) =>
+										setWhatsappLocalNumber(e.target.value)
+									}
+									placeholder="Your number"
+									required={currentQuestion.required}
+									autoFocus
+									className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg placeholder:text-neutral-500 focus:outline-none"
+								/>
+							</div>
+
+							{/* Status Icons */}
+							<div className="absolute right-4 top-1/2 -translate-y-1/2">
+								{whatsappStatus === "checking" && (
+									<IconLoader
+										size={20}
+										className="animate-spin text-brand-orange"
+									/>
+								)}
+								{whatsappStatus === "valid" && (
+									<IconCheck
+										size={20}
+										className="text-green-400"
+									/>
+								)}
+								{whatsappStatus === "invalid" && (
+									<IconX size={20} className="text-red-400" />
+								)}
+							</div>
+
+							{/* Error Message */}
+							{whatsappStatus === "invalid" && whatsappError && (
+								<p className="text-red-400 text-sm mt-2 text-center bg-red-400/10 border border-red-400/20 rounded-lg px-4 py-2">
+									{whatsappError}
+								</p>
+							)}
+
+							{/* Instructions for Other option */}
+							{showCustomDialCode && (
+								<p className="text-neutral-400 text-sm text-center">
+									Enter your country code (e.g., +33 for
+									France)
+								</p>
+							)}
+						</div>
+					)
+				}
 				return (
-					<div className="relative w-full">
+					<div className="relative w-full max-w-lg mx-auto">
 						<input
 							type="text"
 							value={answers[currentQuestion.id] || ""}
@@ -874,76 +902,122 @@ const OnboardingPage = () => {
 							placeholder={currentQuestion.placeholder}
 							required={currentQuestion.required}
 							autoFocus
-							className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0"
+							className={inputStyles}
 						/>
-						{currentQuestion.id ===
-							"whatsapp_notifications_number" && (
-							<div className="absolute right-0 top-1/2 -translate-y-1/2">
-								{whatsappStatus === "checking" && (
-									<IconLoader
-										size={18}
-										className="animate-spin text-neutral-400"
-									/>
-								)}
-								{whatsappStatus === "valid" && (
-									<IconCheck
-										size={18}
-										className="text-green-500"
-									/>
-								)}
-								{whatsappStatus === "invalid" && (
-									<IconX size={18} className="text-red-500" />
-								)}
-							</div>
-						)}
-						{currentQuestion.id ===
-							"whatsapp_notifications_number" &&
-							whatsappStatus === "invalid" &&
-							whatsappError && (
-								<p className="text-red-500 text-xs mt-2">
-									{whatsappError}
-								</p>
-							)}
 					</div>
 				)
 			case "select":
-				return (
-					<select
-						value={answers[currentQuestion.id] || ""}
-						onChange={(e) =>
-							handleAnswer(currentQuestion.id, e.target.value)
+				// Special handling for timezone question
+				if (currentQuestion.id === "timezone") {
+					const detectedTimezone = answers[currentQuestion.id]
+					const isTimezoneInOptions = currentQuestion.options.some(
+						(opt) => opt.value === detectedTimezone
+					)
+
+					// Create a dynamic options list
+					let timezoneOptions = [...currentQuestion.options]
+
+					// If detected timezone is not in the list, add it
+					if (
+						timezoneDetected &&
+						detectedTimezone &&
+						!isTimezoneInOptions
+					) {
+						timezoneOptions.unshift({
+							value: detectedTimezone,
+							label: detectedTimezone.replace(/_/g, " ")
+						})
+					}
+
+					// Modify placeholder if detection failed
+					if (timezoneDetected === false) {
+						timezoneOptions[0] = {
+							value: "",
+							label: "Couldn't detect. Please select..."
 						}
-						required={currentQuestion.required}
-						className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0 appearance-none"
-					>
-						{currentQuestion.options.map((option) => (
-							<option
-								key={option.value}
-								value={option.value}
-								disabled={option.disabled}
-								className="bg-brand-gray text-brand-white"
+					}
+
+					return (
+						<div className="w-full max-w-xl mx-auto text-center">
+							<select
+								value={answers[currentQuestion.id] || ""}
+								onChange={(e) =>
+									handleAnswer(
+										currentQuestion.id,
+										e.target.value
+									)
+								}
+								required={currentQuestion.required}
+								disabled={timezoneDetected === true}
+								className={cn(inputStyles, "appearance-none")}
 							>
-								{option.label}
-							</option>
-						))}
-					</select>
+								{timezoneOptions.map((option) => (
+									<option
+										key={option.value}
+										value={option.value}
+										disabled={option.disabled}
+										className="bg-brand-gray text-brand-white"
+									>
+										{option.label}
+									</option>
+								))}
+							</select>
+							{timezoneDetected === true && (
+								<p className="text-green-400 text-sm mt-3 bg-green-400/10 border border-green-400/20 rounded-lg px-4 py-2">
+									We've automatically detected your timezone.
+								</p>
+							)}
+							{timezoneDetected === false && (
+								<p className="text-yellow-400 text-sm mt-3 bg-yellow-400/10 border border-yellow-400/20 rounded-lg px-4 py-2">
+									We couldn't detect your timezone
+									automatically.
+								</p>
+							)}
+						</div>
+					)
+				}
+				// Default select rendering for other questions
+				return (
+					<div className="w-full max-w-xl mx-auto">
+						<select
+							value={answers[currentQuestion.id] || ""}
+							onChange={(e) =>
+								handleAnswer(currentQuestion.id, e.target.value)
+							}
+							required={currentQuestion.required}
+							className={cn(inputStyles, "appearance-none")}
+						>
+							{currentQuestion.options.map((option) => (
+								<option
+									key={option.value}
+									value={option.value}
+									disabled={option.disabled}
+									className="bg-brand-gray text-brand-white"
+								>
+									{option.label}
+								</option>
+							))}
+						</select>
+					</div>
 				)
 			case "textarea":
 				return (
-					<textarea
-						value={answers[currentQuestion.id] || ""}
-						onChange={(e) =>
-							handleAnswer(currentQuestion.id, e.target.value)
-						}
-						className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0 resize-none"
-						placeholder={currentQuestion.placeholder}
-						autoFocus
-						rows={1}
-					/>
+					<div className="w-full max-w-3xl mx-auto">
+						<textarea
+							value={answers[currentQuestion.id] || ""}
+							onChange={(e) =>
+								handleAnswer(currentQuestion.id, e.target.value)
+							}
+							className="w-full h-32 md:h-40 px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-none transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
+							placeholder={currentQuestion.placeholder}
+							autoFocus
+							rows={4}
+						/>
+					</div>
 				)
 			case "location":
 				return (
-					<div className="flex flex-col sm:flex-row gap-4 items-start">
+					<div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl mx-auto">
 						<input
 							type="text"
 							placeholder="Enter Locality, City, State..."
@@ -955,38 +1029,39 @@ const OnboardingPage = () => {
 							onChange={(e) =>
 								handleAnswer("location", e.target.value)
 							}
-							className="w-full px-4 py-2 bg-transparent text-brand-white placeholder:text-neutral-500 focus:ring-0 border-none p-0"
+							className={cn(inputStyles, "sm:flex-grow")}
 						/>
+						<span className="hidden sm:inline text-neutral-400 text-base font-medium">
+							or
+						</span>
+						<span className="sm:hidden text-neutral-400 text-base">
+							or
+						</span>
 						<button
 							type="button"
 							onClick={handleGetLocation}
 							disabled={locationState.loading}
-							className="translate-y-3 text-sm text-center text-brand-orange hover:underline whitespace-nowrap"
+							className="px-6 py-3 md:py-4 bg-brand-orange/10 border border-brand-orange/30 rounded-xl text-brand-orange hover:bg-brand-orange/20 transition-all duration-300 whitespace-nowrap disabled:opacity-50 font-medium"
 						>
 							{locationState.loading
 								? "Detecting..."
-								: "or [Detect Current Location]"}
+								: "Detect Current Location"}
 						</button>
-						{locationState.data && !isAiTyping && (
-							<p className="text-sm text-green-400">
-								Location captured!
-							</p>
-						)}
 					</div>
 				)
 			case "yes-no":
 				return (
-					<div className="flex gap-4">
+					<div className="flex gap-4 md:gap-6 justify-center w-full max-w-lg mx-auto">
 						<button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "yes")
-								setTimeout(handleNext, 100)
+								setTimeout(handleNext, 150)
 							}}
 							className={cn(
-								"px-6 py-2 rounded-lg font-semibold transition-colors",
+								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "yes"
-									? "bg-brand-orange text-brand-black"
-									: "bg-neutral-700 hover:bg-neutral-600"
+									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
 							)}
 						>
 							Yes
@@ -994,55 +1069,42 @@ const OnboardingPage = () => {
 						<button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "no")
-								setTimeout(handleNext, 100)
+								setTimeout(handleNext, 150)
 							}}
 							className={cn(
-								"px-6 py-2 rounded-lg font-semibold transition-colors",
+								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "no"
-									? "bg-brand-orange text-brand-black"
-									: "bg-neutral-700 hover:bg-neutral-600"
+									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
 							)}
 						>
 							No
 						</button>
 					</div>
 				)
+
 			default:
 				return null
 		}
 	}
 
 	return (
-		<div className="grid md:grid-cols-20 min-h-screen w-full text-brand-white overflow-hidden">
-			{/* Left Column: Onboarding Flow */}
-			<div className="relative flex flex-col items-center justify-center w-full p-4 sm:p-8 overflow-hidden md:col-span-13">
-				<div className="absolute inset-0 z-[-1]">
-					<InteractiveNetworkBackground />
-				</div>
-				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
-				<div className="relative z-10 w-full h-full flex flex-col items-center justify-center">
-					<SparkleEffect trigger={sparkleTrigger} />
-					<AnimatePresence mode="wait">
-						{renderContent()}
-					</AnimatePresence>
-				</div>
+		<div className="relative flex flex-col items-center min-h-screen w-full text-brand-white overflow-hidden">
+			<div className="absolute inset-0 z-[-1]">
+				<InteractiveNetworkBackground />
 			</div>
-
-			{/* Right Column: Use Case Carousel (Desktop Only) */}
-			<div className="hidden md:flex flex-col items-center justify-center relative md:col-span-7">
-				<GridBackground>
-					<motion.div
-						initial={{ opacity: 0, scale: 0.9 }}
-						animate={{ opacity: 1, scale: 1 }}
-						transition={{
-							duration: 0.5,
-							delay: 0.2,
-							ease: "easeOut"
-						}}
-					>
-						<UseCaseCarousel />
-					</motion.div>
-				</GridBackground>
+			<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
+			<div className={cn("relative z-10 w-full h-screen")}>
+				<SparkleEffect trigger={sparkleTrigger} />
+				<AnimatePresence mode="wait">
+					{stage === "intro" ? (
+						<IntroSequence
+							onComplete={() => setStage("questions")}
+						/>
+					) : (
+						renderContent()
+					)}
+				</AnimatePresence>
 			</div>
 		</div>
 	)

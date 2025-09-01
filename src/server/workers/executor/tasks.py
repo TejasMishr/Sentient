@@ -400,7 +400,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
             await update_task_run_status(db, task_id, run_id, "error", user_id, details={"error": error_message}, block_id=block_id)
         else:
             logger.info(f"Task {task_id} execution phase completed. Dispatching to result generator.")
-            await add_progress_update(db, task_id, run_id, user_id, {"type": "info", "content": "Execution finished. Generating final report..."}, block_id=block_id)
+            await add_progress_update(db, task_id, run_id, user_id, {"type": "info", "content": "Execution finished"}, block_id=block_id)
             await update_task_run_status(db, task_id, run_id, "completed", user_id, block_id=block_id)
             capture_event(user_id, "task_execution_succeeded", {"task_id": task_id, "run_id": run_id})
             await async_generate_task_result(task_id, run_id, user_id)

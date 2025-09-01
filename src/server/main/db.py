@@ -171,6 +171,29 @@ class MongoManager:
         )
         return result.matched_count > 0 or result.upserted_id is not None
 
+    async def get_completed_task_count_for_period(self, user_id: str, start_date: datetime.datetime, end_date: datetime.datetime) -> int:
+        """Counts completed tasks for a user within a specific date range."""
+        query = {
+            "user_id": user_id,
+            "status": "completed",
+            "updated_at": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        }
+        count = await self.tasks_collection.count_documents(query)
+        return count
+
+    async def has_notification_type(self, user_id: str, notification_type: str) -> bool:
+        """Checks if a user has ever received a notification of a specific type."""
+        if not user_id or not notification_type:
+            return False
+        # Use find_one for better performance, as we only need to know if at least one exists.
+        notification_doc = await self.notifications_collection.find_one(
+            {"user_id": user_id, "notifications.type": notification_type}
+        )
+        return notification_doc is not None
+
     # --- Usage Tracking Methods ---
     async def get_or_create_daily_usage(self, user_id: str) -> Dict[str, Any]:
         today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -276,6 +299,21 @@ class MongoManager:
             {"user_id": user_id},
             {"$set": {"notifications": []}}
         )
+
+    async def get_recent_completed_tasks_for_period(self, user_id: str, start_date: datetime.datetime, end_date: datetime.datetime, limit: int = 2) -> List[Dict]:
+        """Fetches a few recent completed tasks for a user within a specific date range."""
+        query = {
+            "user_id": user_id,
+            "status": "completed",
+            "updated_at": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        }
+        cursor = self.tasks_collection.find(query, {"name": 1}).sort("updated_at", DESCENDING).limit(limit)
+        tasks = await cursor.to_list(length=limit)
+        decrypt_doc({"tasks": tasks}, ["tasks"]) # Decrypt the name field
+        return tasks
 
     # --- Task Methods ---
     async def add_task(self, user_id: str, task_data: dict) -> str:

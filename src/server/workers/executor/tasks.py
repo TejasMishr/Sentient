@@ -17,6 +17,7 @@ from qwen_agent.agents import Assistant
 from workers.celery_app import celery_app
 from workers.executor.prompts import RESULT_GENERATOR_SYSTEM_PROMPT # noqa: E501
 from workers.utils.api_client import notify_user, push_progress_update, push_task_list_update
+from workers.utils.worker_helpers import run_async
 from workers.utils.text_utils import clean_llm_output
 from celery import chord, group
 from main.llm import run_agent as run_main_agent, LLMProviderDownError
@@ -34,20 +35,6 @@ DB_ENCRYPTION_ENABLED = ENVIRONMENT == 'stag'
 # --- Database Connection within Celery Task ---
 def get_db_client():
     return motor.motor_asyncio.AsyncIOMotorClient(MONGO_URI)[MONGO_DB_NAME]
-
-# Helper to run async functions from sync Celery tasks
-def run_async(coro):
-    # Always create a new loop for each task to ensure isolation and prevent conflicts.
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        # Ensure the connection pool for this specific loop is closed.
-        from mcp_hub.memory.db import close_db_pool_for_loop
-        loop.run_until_complete(close_db_pool_for_loop(loop))
-        loop.close()
-        asyncio.set_event_loop(None)
 
 async def update_task_run_status(db, task_id: str, run_id: str, status: str, user_id: str, details: Dict = None, block_id: Optional[str] = None):
     """

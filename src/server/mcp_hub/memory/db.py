@@ -116,7 +116,8 @@ async def setup_database(pool: asyncpg.Pool):
                     source TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL
+                    expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+                    last_reminded_at TIMESTAMP WITH TIME ZONE DEFAULT NULL
                 );
             """)
 

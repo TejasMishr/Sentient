@@ -11,8 +11,8 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 sys.path.insert(0, project_root)
 
 from workers.tasks import _get_tool_lists, _select_relevant_tools, clean_llm_output
-from workers.planner.llm import get_question_generator_agent
-from workers.planner.db import PlannerMongoManager
+from main.db import MongoManager
+from workers.planner.prompts import SYSTEM_PROMPT # Assuming prompts are still relevant
 from main.config import INTEGRATIONS_CONFIG
 from json_extractor import JsonExtractor
 
@@ -32,7 +32,7 @@ async def test_context_verification(task_description: str):
     print(f"   '{task_description}'")
     print("="*50 + "\n")
 
-    db_manager = PlannerMongoManager()
+    db_manager = MongoManager()
     try:
         # 1. --- Fetch User Profile and Available Tools ---
         user_profile = await db_manager.user_profiles_collection.find_one({"user_id": TEST_USER_ID})

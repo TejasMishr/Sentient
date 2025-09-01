@@ -66,7 +66,7 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
-    db = state_manager.PlannerMongoManager()
+    db = state_manager.MongoManager()
     sub_task_id = None
     try:
         parent_task = await db.get_task(task_id, user_id)
@@ -206,7 +206,7 @@ async def ask_user_clarification(ctx: Context, question: str, urgency: str = "no
     logger.info(f"Executing tool: ask_user_clarification with question='{question}', urgency='{urgency}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)
-    db = state_manager.PlannerMongoManager()
+    db = state_manager.MongoManager()
     try:
         request_id = str(uuid.uuid4())
         clarification_request = {

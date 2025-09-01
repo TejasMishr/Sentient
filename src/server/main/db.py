@@ -352,12 +352,12 @@ class MongoManager:
         _decrypt_docs(docs, SENSITIVE_TASK_FIELDS)
         return docs
 
-    async def update_task(self, task_id: str, updates: Dict) -> bool:
+    async def update_task(self, task_id: str, user_id: str, updates: Dict) -> bool:
         """Updates an existing task document."""
         updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
         encrypt_doc(updates, SENSITIVE_TASK_FIELDS)
         result = await self.tasks_collection.update_one(
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             {"$set": updates}
         )
         return result.modified_count > 0
@@ -384,7 +384,7 @@ class MongoManager:
             if q_id in answer_map:
                 question["answer"] = answer_map[q_id]
         # Always write back to the top-level field for consistency
-        return await self.update_task(task_id, {"clarifying_questions": current_questions})
+        return await self.update_task(task_id, user_id, {"clarifying_questions": current_questions})
 
     async def delete_task(self, task_id: str, user_id: str) -> Tuple[bool, List[str]]:
         """
@@ -418,7 +418,7 @@ class MongoManager:
 
     async def decline_task(self, task_id: str, user_id: str) -> str:
         """Declines a task by setting its status to 'declined'."""
-        success = await self.update_task(task_id, {"status": "declined"})
+        success = await self.update_task(task_id, user_id, {"status": "declined"})
         return "Task declined." if success else None
 
     async def delete_tasks_by_tool(self, user_id: str, tool_name: str) -> int:
@@ -449,7 +449,7 @@ class MongoManager:
             "status": "completed",
             "runs": runs
         }
-        return await self.update_task(task_id, update_payload)
+        return await self.update_task(task_id, user_id, update_payload)
 
     async def delete_notifications_for_task(self, user_id: str, task_id: str):
         """Deletes all notifications associated with a specific task_id for a user."""
@@ -484,6 +484,84 @@ class MongoManager:
         encrypt_doc(new_task_doc, SENSITIVE_TASK_FIELDS)
         await self.tasks_collection.insert_one(new_task_doc)
         return new_task_id
+
+    async def create_initial_task(self, user_id: str, name: str, description: str, action_items: list, topics: list, original_context: dict, source_event_id: str) -> Dict:
+        """Creates an initial task document when an action item is first processed."""
+        task_id = str(uuid.uuid4())
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        task_doc = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "name": name,
+            "description": description,
+            "status": "planning",
+            "assignee": "ai",
+            "priority": 1,
+            "plan": [],
+            "runs": [],
+            "original_context": original_context,
+            "source_event_id": source_event_id,
+            "created_at": now_utc,
+            "updated_at": now_utc,
+            "chat_history": [],
+        }
+
+        encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
+
+        await self.tasks_collection.insert_one(task_doc)
+        logger.info(f"Created initial task {task_id} for user {user_id}")
+        return task_doc
+
+    async def update_task_with_plan(self, task_id: str, user_id: str, plan_data: dict, is_change_request: bool = False, chat_history: Optional[List[Dict]] = None):
+        """Updates a task with a generated plan and sets it to pending approval."""
+        plan_steps = plan_data.get("plan", [])
+
+        update_doc = {
+            "status": "approval_pending",
+            "plan": plan_steps,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc)
+        }
+
+        if chat_history is not None:
+            update_doc["chat_history"] = chat_history
+
+        if not is_change_request:
+            name = plan_data.get("name", "Proactively generated plan")
+            update_doc["name"] = name
+            update_doc["description"] = plan_data.get("description", "")
+
+        encrypt_doc(update_doc, SENSITIVE_TASK_FIELDS)
+
+        result = await self.tasks_collection.update_one(
+            {"task_id": task_id, "user_id": user_id},
+            {"$set": update_doc}
+        )
+        logger.info(f"Updated task {task_id} with a generated plan. Matched: {result.matched_count}")
+
+    async def save_plan_as_task(self, user_id: str, name: str, description: str, plan: list, original_context: dict, source_event_id: str) -> str:
+        """Saves a generated plan to the tasks collection for user approval."""
+        task_id = str(uuid.uuid4())
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        task_doc = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "name": name,
+            "description": description,
+            "status": "approval_pending",
+            "priority": 1,
+            "plan": plan,
+            "runs": [],
+            "original_context": original_context,
+            "source_event_id": source_event_id,
+            "created_at": now_utc,
+            "updated_at": now_utc,
+            "agent_id": "planner_agent"
+        }
+        encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
+        await self.tasks_collection.insert_one(task_doc)
+        logger.info(f"Saved new plan with task_id: {task_id} for user: {user_id}")
+        return task_id
 
     # --- Message Methods ---
     async def add_message(self, user_id: str, role: str, content: str, message_id: Optional[str] = None, turn_steps: Optional[List[Dict]] = None) -> Dict:

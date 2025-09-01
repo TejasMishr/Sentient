@@ -79,14 +79,19 @@ const GuidedTour = ({
 
 	const { positionStyle, isPositionedBelow, hideArrow } = useMemo(() => {
 		if (!targetRect)
-			return { positionStyle: {}, isPositionedBelow: true, hideArrow: false }
+			return {
+				positionStyle: {},
+				isPositionedBelow: true,
+				hideArrow: false
+			}
 
 		const { innerWidth, innerHeight } = window
 		const margin = 10
 		const tooltipWidth = 320 // from maxWidth
 
 		// NEW: Special positioning for full-screen mobile modals
-		const isFullScreenModal = isMobile() && targetRect.height > innerHeight * 0.8
+		const isFullScreenModal =
+			isMobile() && targetRect.height > innerHeight * 0.8
 
 		if (isFullScreenModal) {
 			return {
@@ -109,14 +114,22 @@ const GuidedTour = ({
 		const positionBelow =
 			spaceBelow > tooltipHeightEstimate || spaceAbove < spaceBelow
 		const top = positionBelow ? targetRect.bottom + margin : "auto"
-		const bottom = positionBelow ? "auto" : innerHeight - targetRect.top + margin
+		const bottom = positionBelow
+			? "auto"
+			: innerHeight - targetRect.top + margin
 		let left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2
 		if (left < margin) left = margin
 		if (left + tooltipWidth > innerWidth - margin)
 			left = innerWidth - tooltipWidth - margin
 
 		return {
-			positionStyle: { top, bottom, left, maxWidth: tooltipWidth, width: tooltipWidth },
+			positionStyle: {
+				top,
+				bottom,
+				left,
+				maxWidth: tooltipWidth,
+				width: tooltipWidth
+			},
 			isPositionedBelow: positionBelow,
 			hideArrow: false
 		}
@@ -412,9 +425,9 @@ const GuidedTour = ({
 							left: hideArrow
 								? 0
 								: targetRect.left -
-								  positionStyle.left +
-								  targetRect.width / 2 -
-								  6
+									positionStyle.left +
+									targetRect.width / 2 -
+									6
 						}}
 					/>
 					<h3 className="font-bold text-white mb-1">
@@ -872,9 +885,7 @@ export default function LayoutWrapper({ children }) {
 		]
 	)
 
-	const showNav = !["/", "/onboarding", "/complete-profile"].includes(
-		pathname
-	)
+	const showNav = !["/", "/onboarding"].includes(pathname)
 
 	useEffect(() => {
 		if (user && posthog) {
@@ -1021,22 +1032,12 @@ export default function LayoutWrapper({ children }) {
 				const data = result?.data || {}
 
 				const onboardingComplete = data.onboardingComplete
-				const needsDataCompletion = data.needsDataCompletion
 
 				if (!onboardingComplete) {
 					toast.error("Please complete onboarding first.", {
 						id: "onboarding-check"
 					})
 					router.push("/onboarding")
-				} else if (needsDataCompletion) {
-					// User is onboarded but is missing the new required fields.
-					// Force them to the completion page from anywhere else.
-					if (pathname !== "/complete-profile") {
-						router.push("/complete-profile")
-					} else {
-						// If they are already on the correct page, allow it to render.
-						setIsAllowed(true)
-					}
 				} else {
 					// User is fully onboarded and profile is complete.
 					setIsAllowed(true)

@@ -173,28 +173,3 @@ async def get_user_properties_from_sheet(user_email: str) -> dict:
     except Exception as e:
         logger.error(f"An error occurred while reading Google Sheet for {user_email}: {e}", exc_info=True)
         return { "is_insider": False, "plan_type": "free" }
-
-async def check_if_contact_is_missing(user_email: str) -> bool:
-    """Checks if the contact number (Column B) is missing for a user in the sheet. Returns True if missing."""
-    service = _get_sheets_service()
-    if not service:
-        # If we can't check the sheet, assume data is not missing to avoid blocking the user.
-        logger.error("Could not get Google Sheets service to check for missing contact.")
-        return False
-
-    try:
-        range_to_read = f"{SHEET_NAME}!C:C" # Read email column
-        result = service.spreadsheets().values().get(spreadsheetId=GOOGLE_SHEET_ID, range=range_to_read).execute()
-        rows = result.get('values', [])
-
-        for i, row in enumerate(rows):
-            if row and row[0] == user_email:
-                # Found the user, now check their contact cell in column B
-                contact_range = f"{SHEET_NAME}!B{i + 1}"
-                contact_result = service.spreadsheets().values().get(spreadsheetId=GOOGLE_SHEET_ID, range=contact_range).execute()
-                contact_values = contact_result.get('values', [[]])
-                return not (contact_values and contact_values[0] and contact_values[0][0])
-        return True # User not found in sheet at all, so data is missing.
-    except Exception as e:
-        logger.error(f"Error checking for missing contact for {user_email} in GSheet: {e}")
-        return False # Fail safe: don't block the user on GSheet error.

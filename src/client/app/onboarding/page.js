@@ -438,45 +438,12 @@ const OnboardingPage = () => {
 
 	const handleSubmit = async () => {
 		setStage("submitting")
-		const mainOnboardingData = { ...answers }
-
-		// Save WhatsApp number if provided
-		const whatsappNumber = mainOnboardingData.whatsapp_notifications_number
-		if (whatsappNumber && whatsappNumber.trim() !== "") {
-			try {
-				const whatsappResponse = await fetch(
-					"/api/settings/whatsapp-notifications",
-					{
-						method: "POST",
-						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({
-							whatsapp_notifications_number: whatsappNumber
-						})
-					}
-				)
-				if (!whatsappResponse.ok) {
-					// Don't block onboarding for this, just show a toast.
-					toast.error(
-						"Could not save WhatsApp number, but onboarding will continue."
-					)
-					console.error(
-						"Failed to save WhatsApp number during onboarding."
-					)
-				}
-			} catch (error) {
-				toast.error("An error occurred while saving WhatsApp number.")
-				console.error(
-					"Error saving WhatsApp number during onboarding:",
-					error
-				)
-			}
-		}
 
 		try {
 			const response = await fetch("/api/onboarding", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ data: mainOnboardingData })
+				body: JSON.stringify({ data: answers })
 			})
 			if (!response.ok) {
 				const result = await response.json()
@@ -487,7 +454,7 @@ const OnboardingPage = () => {
 			// Identify the user in PostHog as soon as we have their name
 			posthog?.identify(
 				(await (await fetch("/api/user/profile")).json()).sub, // Fetch user ID from session
-				{ name: mainOnboardingData["user-name"] }
+				{ name: answers["user-name"] }
 			)
 			posthog?.capture("user_signed_up", {
 				signup_method: "auth0", // or derive from user profile if available

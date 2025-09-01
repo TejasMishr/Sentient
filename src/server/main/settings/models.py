@@ -18,12 +18,5 @@ class ProfileUpdateRequest(BaseModel):
     personalInfo: Dict[str, Any]
     preferences: Dict[str, Any]
 
-class CompleteProfileRequest(BaseModel):
-    needs_pa: str = Field(..., alias="needs-pa")  # "yes" or "no"
-    whatsapp_notifications_number: str
-
-    class Config:
-        allow_population_by_field_name = True
-
 class WhatsAppVerifyRequest(BaseModel):
     phone_number: str

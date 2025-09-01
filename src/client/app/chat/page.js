@@ -211,7 +211,7 @@ export default function ChatPage() {
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { isPro } = usePlan()
-	const tour = useTour()
+	const { startTour, tourState } = useTour()
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
@@ -301,11 +301,15 @@ export default function ChatPage() {
 	}, [fetchInitialMessages, fetchUserDetails])
 
 	useEffect(() => {
-		if (searchParams.get("show_demo") === "true" && tour) {
-			tour.startTour()
+		if (
+			searchParams.get("show_demo") === "true" &&
+			startTour &&
+			!tourState.isActive
+		) {
+			startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
-	}, [searchParams, router, tour])
+	}, [searchParams, router, startTour, tourState.isActive])
 
 	useEffect(() => {
 		const messageId = searchParams.get("messageId")
@@ -372,10 +376,10 @@ export default function ChatPage() {
 		if (textareaRef.current) textareaRef.current.style.height = "auto"
 
 		try {
-			if (tour?.tourState.isActive && tour.tourState.step === 1) {
+			if (tourState.isActive && tourState.step === 1) {
 				// --- TOUR SIMULATION ---
-				const subStep = tour.tourState.subStep
-				tour.setHighlightPaused(true) // Pause highlight as soon as message is sent
+				const subStep = tourState.subStep
+				startTour.setHighlightPaused(true) // Pause highlight as soon as message is sent
 				setThinking(true)
 
 				if (subStep === 0) {
@@ -390,8 +394,8 @@ export default function ChatPage() {
 						setDisplayedMessages((prev) => [...prev, fakeResponse])
 						setThinking(false)
 						setTimeout(() => {
-							tour.setHighlightPaused(false) // Resume highlight for next instruction
-							tour.nextSubStep()
+							startTour.setHighlightPaused(false) // Resume highlight for next instruction
+							startTour.nextSubStep()
 						}, 2000) // 2 second delay to read the message
 					}, 1500) // Delay for assistant to "think"
 				} else if (subStep === 1) {
@@ -414,8 +418,8 @@ export default function ChatPage() {
 						setThinking(false)
 						setStatusText("")
 						setTimeout(() => {
-							tour.setHighlightPaused(false) // Resume highlight for next instruction
-							tour.nextSubStep()
+							startTour.setHighlightPaused(false) // Resume highlight for next instruction
+							startTour.nextSubStep()
 						}, 2000)
 					}, 2500) // Delay for assistant to "work"
 				} else if (subStep === 2) {
@@ -438,7 +442,7 @@ export default function ChatPage() {
 						// This is the last chat step, move to the next main step.
 						setTimeout(() => {
 							// No need to resume highlight, as the next step will have a new target.
-							tour.nextStep()
+							startTour.nextStep()
 						}, 2000)
 					}, 2500)
 				}
@@ -592,20 +596,20 @@ export default function ChatPage() {
 
 	// Attach chat functions to the tour context's ref
 	useEffect(() => {
-		if (tour?.chatActionsRef) {
+		if (startTour?.chatActionsRef) {
 			// Attach the functions the tour needs to the ref
-			tour.chatActionsRef.current = {
+			startTour.chatActionsRef.current = {
 				setInput: setInput,
 				sendMessage: sendMessage
 			}
 		}
 		// Cleanup function to nullify the ref when the component unmounts
 		return () => {
-			if (tour?.chatActionsRef) {
-				tour.chatActionsRef.current = null
+			if (startTour?.chatActionsRef) {
+				startTour.chatActionsRef.current = null
 			}
 		}
-	}, [tour, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
+	}, [startTour, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
 
 	const fetchIntegrations = useCallback(async () => {
 		try {

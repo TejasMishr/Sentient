@@ -15,10 +15,10 @@ from mcp_hub.memory.utils import _get_normalized_embedding
 from pgvector.asyncpg import register_vector
 from main.auth.utils import PermissionChecker, AuthHelper
 from main.config import AUTH0_AUDIENCE
-from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager
+from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager # noqa: E501
 from pydantic import BaseModel
 from workers.tasks import cud_memory_task
-from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, check_if_contact_is_missing, get_user_properties_from_sheet
+from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, get_user_properties_from_sheet
 from main.notifications.whatsapp_client import check_phone_number_exists, send_whatsapp_message
 
 # Google API libraries for validation
@@ -221,12 +221,6 @@ async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded
 
     # Check if profile exists and if plan is up-to-date
     profile_exists = profile_doc is not None
-    onboarding_complete = profile_doc.get("userData", {}).get("onboardingComplete", False) if profile_exists else False
-    needs_data_completion = False
-
-    # If onboarding is complete, check if we need to ask for the new questions
-    if onboarding_complete and user_email:
-        needs_data_completion = await check_if_contact_is_missing(user_email)
 
     stored_plan = profile_doc.get("userData", {}).get("plan") if profile_exists else None
 
@@ -246,12 +240,11 @@ async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded
 
     if profile_doc and "userData" in profile_doc:
         response_data = profile_doc["userData"]
-        response_data["needsDataCompletion"] = needs_data_completion
         return JSONResponse(content={"data": response_data, "status": 200})
 
     # Fallback in case re-fetch fails or returns an empty doc
     logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")
-    return JSONResponse(content={"data": {"needsDataCompletion": needs_data_completion}, "status": 200})
+    return JSONResponse(content={"data": {}, "status": 200})
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket_endpoint(websocket: WebSocket):

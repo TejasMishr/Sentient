@@ -404,7 +404,7 @@ const ChatBubble = ({
 			style={{ wordBreak: "break-word" }}
 		>
 			{processedContent.repliedTo && (
-				<div className="mb-3 p-2 border-l-2 border-neutral-500 bg-black/20 rounded-md">
+				<div className="mb-3 p-2 border-l-2 border-neutral-500 bg-black/20 rounded-md overflow-hidden">
 					<p className="text-xs text-neutral-400 font-semibold">
 						Replying to{" "}
 						{processedContent.repliedTo.role === "user"

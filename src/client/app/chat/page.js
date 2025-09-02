@@ -14,14 +14,14 @@ import {
 	IconDotsVertical,
 	IconPhone,
 	IconPhoneOff,
-	IconWaveSine,
+	IconHeadphonesFilled,
 	IconMicrophone,
 	IconMicrophoneOff,
 	IconMessageOff,
 	IconPaperclip,
 	IconFile,
 	IconPlus,
-	IconTools,
+	IconBolt,
 	IconTool,
 	IconInfoCircle,
 	IconSparkles,
@@ -59,7 +59,7 @@ import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import { WebRTCClient } from "@lib/webrtc-client"
 import useClickOutside from "@hooks/useClickOutside"
 import { usePlan } from "@hooks/usePlan"
-import { POST } from "@app/api/memories/route"
+import { useTour } from "@components/LayoutWrapper"
 
 const toolIcons = {
 	gmail: IconGoogleMail,
@@ -85,9 +85,8 @@ const toolIcons = {
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
 	{ name: "Voice Chat", limit: "10 minutes per day" },
-	{ name: "One-Time Tasks", limit: "20 async tasks per day" },
-	{ name: "Recurring Tasks", limit: "10 active recurring workflows" },
-	{ name: "Triggered Tasks", limit: "10 triggered workflows" },
+	{ name: "Async Tasks", limit: "100 tasks per month" },
+	{ name: "Active Workflows", limit: "25 recurring & triggered" },
 	{
 		name: "Parallel Agents",
 		limit: "5 complex tasks per day with 50 sub agents"
@@ -131,8 +130,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock Voice Mode and other powerful features.
@@ -164,7 +163,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -177,57 +176,6 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 				</motion.div>
 			)}
 		</AnimatePresence>
-	)
-}
-
-const StorylaneDemoModal = ({ onClose }) => {
-	// The script adds a global Storylane object. The button's onClick will use it.
-	const embedHtml = `
-        <style>
-            .sl-heading-text { max-width:53%; }
-            @media (max-width: 1024px) { .sl-heading-text { max-width:90%; } }
-        </style>
-        <div class="sl-embed-container" style="position:relative;display:flex;align-items:center;justify-content:center;border: 1px solid rgba(63,95,172,0.35);box-shadow: 0px 0px 18px rgba(26, 19, 72, 0.15);border-radius:10px">
-            <div class="sl-preview-heading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background-color:transparent;z-index:999999;font-family:Poppins, Arial, sans-serif;font-size:clamp(20px, 2.664vw, 28px);font-weight:500;line-height:normal;text-align:center;border-radius:10px;">
-                <button onclick="Storylane.Play({type: 'preview_embed',demo_type: 'image', width: 1920, height: 918, element: this, demo_url: 'https://app.storylane.io/demo/d6oo4tbg4fbb?embed=inline_overlay'})" class="sl-preview-cta" style="background-color:#9939EB;border:none;border-radius:8px;box-shadow:0px 0px 15px rgba(26, 19, 72, 0.45);color:#FFFFFF;display:inline-block;font-family:Poppins, Arial, sans-serif;font-size:clamp(16px, 1.599vw, 20px);font-weight:600;height:clamp(40px, 3.996vw, 50px);line-height:1.2;padding:0 clamp(15px, 1.776vw, 20px);text-overflow:ellipsis;transform:translateZ(0);transition:background 0.4s;white-space:nowrap;width:auto;z-index:999999;cursor:pointer">Take a Tour</button>
-            </div>
-            <div class="sl-embed" data-sl-demo-type="image" style="position:relative;padding-bottom:calc(47.81% + 25px);width:100%;height:0;transform:scale(1);overflow:hidden;">
-                <div class="sl-preview" style="width:100%;height:100%;z-index:99999;position:absolute;background:url('https://storylane-prod-uploads.s3.us-east-2.amazonaws.com/company/company_35e9ec7f-ae05-4316-ad70-1f931aaacad6/project/project_8f4dcfca-3161-478c-834d-28eb1993ad1b/page/fFud9OKzDoQ4hDFpQaYu7.jpg') no-repeat;background-size:100% 100%;border-radius:inherit;filter:blur(2px)"></div>
-                <iframe class="sl-demo" src="" name="sl-embed" allow="fullscreen" allowfullscreen style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;border:none;"></iframe>
-            </div>
-            <iframe class="sl-demo" src="" name="sl-embed" allow="fullscreen" allowfullscreen style="display:none;position:absolute;top:0;left:0;width:100%;height:100%;border:none;"></iframe>
-        </div>
-    `
-
-	return (
-		<>
-			<Script async src="https://js.storylane.io/js/v2/storylane.js" />
-			<motion.div
-				initial={{ opacity: 0 }}
-				animate={{ opacity: 1 }}
-				exit={{ opacity: 0 }}
-				className="fixed inset-0 bg-black/70 backdrop-blur-md z-[60] flex items-center justify-center p-4"
-				onClick={onClose}
-			>
-				<motion.div
-					initial={{ scale: 0.95, y: 20 }}
-					animate={{ scale: 1, y: 0 }}
-					exit={{ scale: 0.95, y: -20 }}
-					transition={{ duration: 0.2, ease: "easeInOut" }}
-					onClick={(e) => e.stopPropagation()}
-					className="relative w-full max-w-4xl"
-				>
-					<div dangerouslySetInnerHTML={{ __html: embedHtml }} />
-					<button
-						onClick={onClose}
-						className="absolute -top-3 -right-3 z-[9999999] p-1.5 bg-neutral-800 text-white rounded-full hover:bg-neutral-700"
-						aria-label="Close demo"
-					>
-						<IconX size={18} />
-					</button>
-				</motion.div>
-			</motion.div>
-		</>
 	)
 }
 
@@ -245,6 +193,7 @@ export default function ChatPage() {
 	// State for infinite scroll
 	const [isLoadingOlder, setIsLoadingOlder] = useState(false)
 	const [hasMoreMessages, setHasMoreMessages] = useState(true)
+	const [searchingForMessageId, setSearchingForMessageId] = useState(null)
 
 	// State for UI enhancements
 	const [userDetails, setUserDetails] = useState(null)
@@ -258,11 +207,11 @@ export default function ChatPage() {
 	const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
 	const toolsMenuRef = useRef(null)
 	const toolsButtonRef = useRef(null)
-	const [isDemoModalOpen, setDemoModalOpen] = useState(false)
 
 	const searchParams = useSearchParams()
 	const router = useRouter()
 	const { isPro } = usePlan()
+	const { startTour, tourState } = useTour()
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
@@ -352,235 +301,44 @@ export default function ChatPage() {
 	}, [fetchInitialMessages, fetchUserDetails])
 
 	useEffect(() => {
-		if (searchParams.get("show_demo") === "true") {
-			setDemoModalOpen(true)
-		}
-	}, [searchParams])
-
-	const handleCloseDemo = () => {
-		setDemoModalOpen(false)
-		// Clean up the URL to prevent the modal from reappearing on refresh
-		// Using replace to avoid adding to browser history
-		router.replace("/chat", { scroll: false })
-	}
-
-	const fetchIntegrations = useCallback(async () => {
-		try {
-			const res = await fetch("/api/settings/integrations", {
-				method: "POST"
-			})
-			if (!res.ok) throw new Error("Failed to fetch integrations")
-			const data = await res.json()
-			setIntegrations(data.integrations || [])
-		} catch (error) {
-			console.error(
-				"Failed to fetch integrations for tools menu:",
-				error.message
-			)
-		}
-	}, [])
-
-	useEffect(() => {
-		fetchIntegrations()
-	}, [fetchIntegrations])
-
-	useClickOutside(toolsMenuRef, (event) => {
 		if (
-			toolsButtonRef.current &&
-			!toolsButtonRef.current.contains(event.target)
+			searchParams.get("show_demo") === "true" &&
+			startTour &&
+			!tourState.isActive
 		) {
-			setIsToolsMenuOpen(false)
+			startTour()
+			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
-	})
-
-	const { connectedTools, builtinTools } = useMemo(() => {
-		const hiddenTools = [
-			"progress_updater",
-			"chat_tools",
-			"tasks",
-			"google_search"
-		]
-		const connected = integrations.filter(
-			(i) =>
-				i.connected &&
-				(i.auth_type === "oauth" || i.auth_type === "manual")
-		)
-		const builtin = integrations.filter(
-			(i) => i.auth_type === "builtin" && !hiddenTools.includes(i.name)
-		)
-		return { connectedTools: connected, builtinTools: builtin }
-	}, [integrations])
-
-	const fetchOlderMessages = useCallback(async () => {
-		if (
-			isLoadingOlder ||
-			!hasMoreMessages ||
-			displayedMessages.length === 0
-		)
-			return
-
-		setIsLoadingOlder(true)
-		const oldestMessageTimestamp = displayedMessages[0].timestamp
-
-		try {
-			const res = await fetch(`/api/chat/history`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					limit: 50,
-					before_timestamp: oldestMessageTimestamp
-				})
-			})
-			if (!res.ok) throw new Error("Failed to fetch older messages")
-			const data = await res.json()
-
-			if (data.messages && data.messages.length > 0) {
-				const scrollContainer = scrollContainerRef.current
-				const oldScrollHeight = scrollContainer.scrollHeight
-
-				const olderMessages = data.messages.map((m) => ({
-					...m,
-					id: m.message_id
-				}))
-				setDisplayedMessages((prev) => [...olderMessages, ...prev])
-				setHasMoreMessages(data.messages.length === 50)
-
-				setTimeout(() => {
-					scrollContainer.scrollTop =
-						scrollContainer.scrollHeight - oldScrollHeight
-				}, 0)
-			} else {
-				setHasMoreMessages(false)
-			}
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoadingOlder(false)
-		}
-	}, [isLoadingOlder, hasMoreMessages, displayedMessages])
+	}, [searchParams, router, startTour, tourState.isActive])
 
 	useEffect(() => {
-		const container = scrollContainerRef.current
-		const handleScroll = () => {
-			if (container && container.scrollTop === 0) {
-				fetchOlderMessages()
-			}
+		const messageId = searchParams.get("messageId")
+		if (!messageId || displayedMessages.length === 0) return
+
+		const element = document.getElementById(`message-${messageId}`)
+		if (element) {
+			// Message is already rendered, scroll to it.
+			element.scrollIntoView({ behavior: "smooth", block: "center" })
+			element.classList.add("highlight-message")
+			setTimeout(() => {
+				element.classList.remove("highlight-message")
+			}, 3000)
+
+			// Clean up state and URL
+			setSearchingForMessageId(null)
+			router.replace("/chat", { scroll: false })
+		} else if (!searchingForMessageId) {
+			// Message is not rendered, start the search process.
+			setSearchingForMessageId(messageId)
 		}
-		container?.addEventListener("scroll", handleScroll)
-		return () => container?.removeEventListener("scroll", handleScroll)
-	}, [fetchOlderMessages])
+	}, [searchParams, displayedMessages, router, searchingForMessageId])
 
-	const handleInputChange = (e) => {
-		const value = e.target.value
-		setInput(value)
-		if (textareaRef.current) {
-			textareaRef.current.style.height = "auto"
-			textareaRef.current.style.height = `${Math.min(
-				textareaRef.current.scrollHeight,
-				200
-			)}px`
+	useEffect(() => {
+		// This effect triggers the fetching loop when a search is initiated.
+		if (searchingForMessageId) {
+			fetchOlderMessages()
 		}
-	}
-
-	const handleReply = (message) => {
-		setReplyingTo(message)
-		textareaRef.current?.focus()
-	}
-
-	const handleFileChange = async (event) => {
-		const file = event.target.files?.[0]
-		if (!file) return
-
-		// Reset file input to allow re-uploading the same file
-		event.target.value = ""
-
-		// --- ADDED: File Type Validation ---
-		const supportedExtensions = [
-			".csv",
-			".doc",
-			".docx",
-			".eml",
-			".epub",
-			".gif",
-			".jpg",
-			".jpeg",
-			".json",
-			".html",
-			".htm",
-			".msg",
-			".odt",
-			".pdf",
-			".png",
-			".pptx",
-			".ps",
-			".rtf",
-			".tiff",
-			".tif",
-			".txt",
-			".xlsx",
-			".xls"
-		]
-		const fileExtension = `.${file.name.split(".").pop()?.toLowerCase()}`
-
-		if (!supportedExtensions.includes(fileExtension)) {
-			toast.error(
-				`Unsupported file type: ${fileExtension}. Please upload a supported file.`
-			)
-			return
-		}
-		// --- END ADDED SECTION ---
-		if (file.size > 5 * 1024 * 1024) {
-			// 5MB limit
-			toast.error(
-				"File is too large. Please select a file smaller than 5MB."
-			)
-			return
-		}
-
-		setSelectedFile(file)
-		setIsUploading(true)
-		setUploadedFilename(null)
-		const toastId = toast.loading(`Uploading ${file.name}...`)
-
-		try {
-			const formData = new FormData()
-			formData.append("file", file)
-
-			const response = await fetch("/api/files/upload", {
-				method: "POST",
-				body: formData
-			})
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "File upload failed")
-				error.status = response.status
-				throw error
-			}
-
-			const result = await response.json()
-			setUploadedFilename(result.filename)
-			toast.success(`${result.filename} uploaded successfully.`, {
-				id: toastId
-			})
-		} catch (error) {
-			if (error.status === 429) {
-				toast.error(
-					error.message ||
-						"You've reached your daily file upload limit for the free plan.",
-					{ id: toastId }
-				)
-				if (!isPro) {
-					setUpgradeModalOpen(true)
-				}
-			} else {
-				toast.error(`Error: ${error.message}`, { id: toastId })
-			}
-			setSelectedFile(null)
-		} finally {
-			setIsUploading(false)
-		}
-	}
+	}, [searchingForMessageId]) // Dependency on searchingForMessageId
 
 	const sendMessage = async () => {
 		if ((!input.trim() && !uploadedFilename) || thinking || isUploading)
@@ -618,6 +376,79 @@ export default function ChatPage() {
 		if (textareaRef.current) textareaRef.current.style.height = "auto"
 
 		try {
+			if (tourState.isActive && tourState.step === 1) {
+				// --- TOUR SIMULATION ---
+				const subStep = tourState.subStep
+				startTour.setHighlightPaused(true) // Pause highlight as soon as message is sent
+				setThinking(true)
+
+				if (subStep === 0) {
+					// First message: "Hi Sentient!"
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content: "Hey there, I'm ready to help.",
+							timestamp: new Date().toISOString()
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setTimeout(() => {
+							startTour.setHighlightPaused(false) // Resume highlight for next instruction
+							startTour.nextSubStep()
+						}, 2000) // 2 second delay to read the message
+					}, 1500) // Delay for assistant to "think"
+				} else if (subStep === 1) {
+					// Second message: "Send an email..."
+					setStatusText("Analyzing request...")
+					setTimeout(() => {
+						setStatusText("Using tool: gmail")
+					}, 1000)
+
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content:
+								"Cool, I've sent that email. Is there anything else you want to do?",
+							timestamp: new Date().toISOString(),
+							tools: ["gmail"]
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setStatusText("")
+						setTimeout(() => {
+							startTour.setHighlightPaused(false) // Resume highlight for next instruction
+							startTour.nextSubStep()
+						}, 2000)
+					}, 2500) // Delay for assistant to "work"
+				} else if (subStep === 2) {
+					// Third message: "Create workflow..."
+					setStatusText("Analyzing request...")
+					setTimeout(() => {
+						setStatusText("Using tool: tasks")
+					}, 1000)
+					setTimeout(() => {
+						const fakeResponse = {
+							id: `assistant-${Date.now()}`,
+							role: "assistant",
+							content: "Cool, I've created the workflow.",
+							timestamp: new Date().toISOString(),
+							tools: ["tasks"]
+						}
+						setDisplayedMessages((prev) => [...prev, fakeResponse])
+						setThinking(false)
+						setStatusText("")
+						// This is the last chat step, move to the next main step.
+						setTimeout(() => {
+							// No need to resume highlight, as the next step will have a new target.
+							startTour.nextStep()
+						}, 2000)
+					}, 2500)
+				}
+				return // End simulation here
+			}
+
 			const response = await fetch("/api/chat/message", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -760,6 +591,263 @@ export default function ChatPage() {
 		} finally {
 			setThinking(false)
 			setStatusText("")
+		}
+	}
+
+	// Attach chat functions to the tour context's ref
+	useEffect(() => {
+		if (startTour?.chatActionsRef) {
+			// Attach the functions the tour needs to the ref
+			startTour.chatActionsRef.current = {
+				setInput: setInput,
+				sendMessage: sendMessage
+			}
+		}
+		// Cleanup function to nullify the ref when the component unmounts
+		return () => {
+			if (startTour?.chatActionsRef) {
+				startTour.chatActionsRef.current = null
+			}
+		}
+	}, [startTour, sendMessage]) // setInput is stable, but sendMessage is wrapped in useCallback
+
+	const fetchIntegrations = useCallback(async () => {
+		try {
+			const res = await fetch("/api/settings/integrations", {
+				method: "POST"
+			})
+			if (!res.ok) throw new Error("Failed to fetch integrations")
+			const data = await res.json()
+			setIntegrations(data.integrations || [])
+		} catch (error) {
+			console.error(
+				"Failed to fetch integrations for tools menu:",
+				error.message
+			)
+		}
+	}, [])
+
+	useEffect(() => {
+		fetchIntegrations()
+	}, [fetchIntegrations])
+
+	useClickOutside(toolsMenuRef, (event) => {
+		if (
+			toolsButtonRef.current &&
+			!toolsButtonRef.current.contains(event.target)
+		) {
+			setIsToolsMenuOpen(false)
+		}
+	})
+
+	const { connectedTools, builtinTools } = useMemo(() => {
+		const hiddenTools = [
+			"progress_updater",
+			"chat_tools",
+			"tasks",
+			"google_search"
+		]
+		const connected = integrations.filter(
+			(i) =>
+				i.connected &&
+				(i.auth_type === "oauth" || i.auth_type === "manual")
+		)
+		const builtin = integrations.filter(
+			(i) => i.auth_type === "builtin" && !hiddenTools.includes(i.name)
+		)
+		return { connectedTools: connected, builtinTools: builtin }
+	}, [integrations])
+
+	const fetchOlderMessages = useCallback(async () => {
+		if (
+			isLoadingOlder ||
+			!hasMoreMessages ||
+			displayedMessages.length === 0
+		) {
+			return
+		}
+
+		setIsLoadingOlder(true)
+		const oldestMessageTimestamp = displayedMessages[0].timestamp
+
+		try {
+			const res = await fetch(`/api/chat/history`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					limit: 50,
+					before_timestamp: oldestMessageTimestamp
+				})
+			})
+			if (!res.ok) throw new Error("Failed to fetch older messages")
+			const data = await res.json()
+
+			if (data.messages && data.messages.length > 0) {
+				const scrollContainer = scrollContainerRef.current
+				const oldScrollHeight = scrollContainer.scrollHeight
+
+				const olderMessages = data.messages.map((m) => ({
+					...m,
+					id: m.message_id
+				}))
+
+				const isTargetInBatch = olderMessages.some(
+					(m) => m.id === searchingForMessageId
+				)
+
+				setDisplayedMessages((prev) => [...olderMessages, ...prev]) // This will trigger the other useEffect to scroll
+				setHasMoreMessages(data.messages.length === 50)
+
+				if (searchingForMessageId) {
+					// If we are searching and didn't find the target, and there are more messages, fetch again.
+					if (!isTargetInBatch && data.messages.length === 50) {
+						// We call fetchOlderMessages again, but it will use the *new* oldest timestamp
+						// from the state that was just updated. We wrap in a timeout to allow React to re-render.
+						setTimeout(() => fetchOlderMessages(), 100)
+					}
+				} else {
+					// Normal infinite scroll behavior
+					setTimeout(() => {
+						scrollContainer.scrollTop =
+							scrollContainer.scrollHeight - oldScrollHeight
+					}, 0)
+				}
+			} else {
+				setHasMoreMessages(false)
+				setSearchingForMessageId(null) // Stop searching if no more messages
+			}
+		} catch (error) {
+			toast.error(error.message)
+		} finally {
+			setIsLoadingOlder(false)
+		}
+	}, [
+		isLoadingOlder,
+		hasMoreMessages,
+		displayedMessages,
+		searchingForMessageId
+	])
+
+	useEffect(() => {
+		const container = scrollContainerRef.current
+		const handleScroll = () => {
+			if (container && container.scrollTop === 0) {
+				fetchOlderMessages()
+			}
+		}
+		container?.addEventListener("scroll", handleScroll)
+		return () => container?.removeEventListener("scroll", handleScroll)
+	}, [fetchOlderMessages])
+
+	const handleInputChange = (e) => {
+		const value = e.target.value
+		setInput(value)
+		if (textareaRef.current) {
+			textareaRef.current.style.height = "auto"
+			textareaRef.current.style.height = `${Math.min(
+				textareaRef.current.scrollHeight,
+				200
+			)}px`
+		}
+	}
+
+	const handleReply = (message) => {
+		setReplyingTo(message)
+		textareaRef.current?.focus()
+	}
+
+	const handleFileChange = async (event) => {
+		const file = event.target.files?.[0]
+		if (!file) return
+
+		// Reset file input to allow re-uploading the same file
+		event.target.value = ""
+
+		// --- ADDED: File Type Validation ---
+		const supportedExtensions = [
+			".csv",
+			".doc",
+			".docx",
+			".eml",
+			".epub",
+			".gif",
+			".jpg",
+			".jpeg",
+			".json",
+			".html",
+			".htm",
+			".msg",
+			".odt",
+			".pdf",
+			".png",
+			".pptx",
+			".ps",
+			".rtf",
+			".tiff",
+			".tif",
+			".txt",
+			".xlsx",
+			".xls"
+		]
+		const fileExtension = `.${file.name.split(".").pop()?.toLowerCase()}`
+
+		if (!supportedExtensions.includes(fileExtension)) {
+			toast.error(
+				`Unsupported file type: ${fileExtension}. Please upload a supported file.`
+			)
+			return
+		}
+		// --- END ADDED SECTION ---
+		if (file.size > 5 * 1024 * 1024) {
+			// 5MB limit
+			toast.error(
+				"File is too large. Please select a file smaller than 5MB."
+			)
+			return
+		}
+
+		setSelectedFile(file)
+		setIsUploading(true)
+		setUploadedFilename(null)
+		const toastId = toast.loading(`Uploading ${file.name}...`)
+
+		try {
+			const formData = new FormData()
+			formData.append("file", file)
+
+			const response = await fetch("/api/files/upload", {
+				method: "POST",
+				body: formData
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}))
+				const error = new Error(errorData.error || "File upload failed")
+				error.status = response.status
+				throw error
+			}
+
+			const result = await response.json()
+			setUploadedFilename(result.filename)
+			toast.success(`${result.filename} uploaded successfully.`, {
+				id: toastId
+			})
+		} catch (error) {
+			if (error.status === 429) {
+				toast.error(
+					error.message ||
+						"You've reached your daily file upload limit for the free plan.",
+					{ id: toastId }
+				)
+				if (!isPro) {
+					setUpgradeModalOpen(true)
+				}
+			} else {
+				toast.error(`Error: ${error.message}`, { id: toastId })
+			}
+			setSelectedFile(null)
+		} finally {
+			setIsUploading(false)
 		}
 	}
 
@@ -1245,22 +1333,34 @@ export default function ChatPage() {
 					initial={{ opacity: 0, y: 10 }}
 					animate={{ opacity: 1, y: 0 }}
 					exit={{ opacity: 0, y: 10 }}
-					className="bg-neutral-800/60 p-3 rounded-t-lg border-b border-neutral-700/50 flex justify-between items-center"
+					className="bg-neutral-800/60 p-3 rounded-t-lg border-b border-neutral-700/50 flex justify-between items-center gap-4"
 				>
-					<div>
+					<div className="min-w-0 flex-1">
 						<p className="text-xs text-neutral-400 flex items-center gap-1.5">
 							<IconArrowBackUp size={14} /> Replying to{" "}
 							{replyingTo.role === "user"
 								? "yourself"
 								: "the assistant"}
 						</p>
-						<p className="text-sm text-neutral-200 mt-1 truncate">
-							{replyingTo.content.replace(/<[^>]+>/g, "").trim()}
+						<p
+							className="text-sm text-neutral-200 mt-1 truncate max-w-[320px] sm:max-w-[480px] md:max-w-[600px] overflow-hidden"
+							title={replyingTo.content
+								.replace(/<[^>]+>/g, "")
+								.trim()}
+						>
+							{(() => {
+								const clean = replyingTo.content
+									.replace(/<[^>]+>/g, "")
+									.trim()
+								return clean.length > 120
+									? clean.slice(0, 120) + "…"
+									: clean
+							})()}
 						</p>
 					</div>
 					<button
 						onClick={() => setReplyingTo(null)}
-						className="p-1.5 rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-white"
+						className="p-1.5 rounded-full text-neutral-400 hover:bg-neutral-700 hover:text-white flex-shrink-0"
 					>
 						<IconX size={16} />
 					</button>
@@ -1305,8 +1405,11 @@ export default function ChatPage() {
 	)
 
 	const renderInputArea = () => (
-		<div className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl">
-			<div className="relative p-4 flex items-start gap-4">
+		<div
+			data-tour-id="chat-input-area"
+			className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl"
+		>
+			<div className="relative p-3 md:p-4 flex items-start gap-3 md:gap-4">
 				<textarea
 					ref={textareaRef}
 					value={input}
@@ -1325,8 +1428,8 @@ export default function ChatPage() {
 					style={{ maxHeight: "200px" }}
 				/>
 				{!input && !uploadedFilename && (
-					<div className="absolute top-1/2 left-4 right-4 -translate-y-1/2 text-neutral-500 pointer-events-none z-0 overflow-hidden">
-						<TextLoop className="text-base ml-5 whitespace-normal md:whitespace-nowrap">
+					<div className="absolute top-1/2 left-3 right-3 md:left-4 md:right-4 -translate-y-1/2 text-neutral-500 pointer-events-none z-0 overflow-hidden">
+						<TextLoop className="text-base ml-4 md:ml-5 whitespace-nowrap">
 							<span>Ask anything...</span>
 							<span>Summarize my unread emails from today</span>
 							<span>
@@ -1337,7 +1440,7 @@ export default function ChatPage() {
 					</div>
 				)}
 			</div>
-			<div className="flex justify-between items-center px-3 pb-3">
+			<div className="flex justify-between items-center px-2 pb-2 md:px-3 md:pb-3">
 				<div className="flex items-center gap-1">
 					<input
 						type="file"
@@ -1388,7 +1491,7 @@ export default function ChatPage() {
 								: "Voice Mode (Pro Feature)"
 						}
 					>
-						<IconWaveSine size={18} />
+						<IconHeadphonesFilled size={18} />
 					</button>
 					{thinking ? (
 						<button
@@ -1470,7 +1573,7 @@ export default function ChatPage() {
 									</div>
 								</div>
 								<div className="flex items-start gap-4">
-									<IconTools
+									<IconTool
 										size={20}
 										className="text-brand-orange flex-shrink-0 mt-1"
 									/>
@@ -1650,11 +1753,6 @@ export default function ChatPage() {
 				isOpen={isUpgradeModalOpen}
 				onClose={() => setUpgradeModalOpen(false)}
 			></UpgradeToProModal>
-			<AnimatePresence>
-				{isDemoModalOpen && (
-					<StorylaneDemoModal onClose={handleCloseDemo} />
-				)}
-			</AnimatePresence>
 			{renderWelcomeModal()}
 			<audio ref={remoteAudioRef} autoPlay playsInline />
 			{displayedMessages.length > 0 &&
@@ -1668,7 +1766,7 @@ export default function ChatPage() {
 
 				<main
 					ref={scrollContainerRef}
-					className="flex-1 overflow-y-auto px-4 pb-4 md:p-6 flex flex-col custom-scrollbar"
+					className="flex-1 overflow-y-auto sm:p-0 md:px-4 pb-4 md:p-6 flex flex-col custom-scrollbar"
 				>
 					{isLoading ? (
 						<div className="flex-1 flex justify-center items-center">
@@ -1683,9 +1781,9 @@ export default function ChatPage() {
 							/>
 
 							{/* Overlay for controls and status text */}
-							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-6 pb-12">
+							<div className="absolute inset-0 z-20 flex flex-col translate-y-20 items-center justify-end p-4 pb-8 sm:p-6 sm:pb-12">
 								{/* Call Control Bar */}
-								<div className="flex items-center justify-center gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
+								<div className="flex items-center justify-center gap-2 sm:gap-4 p-3 bg-neutral-900/50 backdrop-blur-md rounded-full border border-neutral-700/50 shadow-lg mb-6">
 									{/* Mic Selector */}
 									<select
 										value={selectedAudioInputDevice}
@@ -1694,7 +1792,7 @@ export default function ChatPage() {
 												e.target.value
 											)
 										}
-										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[150px] truncate shadow-lg"
+										className="bg-brand-gray backdrop-blur-sm border border-brand-gray text-brand-white text-sm rounded-full px-4 py-4 focus:outline-none focus:border-brand-orange appearance-none max-w-[120px] sm:max-w-[150px] truncate shadow-lg"
 										title="Select Microphone"
 										disabled={
 											connectionStatus !== "disconnected"
@@ -1731,7 +1829,7 @@ export default function ChatPage() {
 												exit={{ opacity: 0, scale: 0 }}
 												onClick={handleToggleMute}
 												className={cn(
-													"flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
+													"flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full text-white shadow-lg transition-colors duration-200",
 													isMuted
 														? "bg-white text-black"
 														: "bg-neutral-700 hover:bg-neutral-600"
@@ -1755,13 +1853,13 @@ export default function ChatPage() {
 									{connectionStatus === "disconnected" ? (
 										<button
 											onClick={handleStartVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
 											title="Start Call"
 										>
 											<IconPhone size={24} />
 										</button>
 									) : connectionStatus === "connecting" ? (
-										<div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
+										<div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
 											<IconLoader
 												size={24}
 												className="animate-spin"
@@ -1770,7 +1868,7 @@ export default function ChatPage() {
 									) : (
 										<button
 											onClick={handleStopVoice}
-											className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
+											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
 											title="Hang Up"
 										>
 											<IconPhoneOff size={24} />
@@ -1780,7 +1878,7 @@ export default function ChatPage() {
 									{/* Switch to Text Mode Button */}
 									<button
 										onClick={toggleVoiceMode}
-										className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
+										className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
 										title="Switch to Text Mode"
 									>
 										<IconMessageOff size={24} />
@@ -1789,7 +1887,7 @@ export default function ChatPage() {
 
 								{/* Status and Message Display (below controls) */}
 								<div className="text-center space-y-2 max-w-2xl">
-									<div className="text-lg font-medium text-gray-300 min-h-[24px]">
+									<div className="text-base sm:text-lg font-medium text-gray-300 min-h-[24px]">
 										<AnimatePresence mode="wait">
 											<motion.div
 												key={voiceStatusText}
@@ -1804,7 +1902,7 @@ export default function ChatPage() {
 											</motion.div>
 										</AnimatePresence>
 									</div>
-									<div className="text-2xl font-semibold text-white min-h-[64px]">
+									<div className="text-xl sm:text-2xl font-semibold text-white min-h-[64px]">
 										<AnimatePresence mode="wait">
 											{displayedMessages
 												.filter(
@@ -1861,7 +1959,7 @@ export default function ChatPage() {
 							</div>
 						</div>
 					) : (
-						<div className="w-full max-w-4xl mx-auto flex flex-col gap-3 md:gap-4 flex-1">
+						<div className="w-full max-w-4xl px-2 mx-auto flex flex-col gap-3 md:gap-4 flex-1">
 							{isLoadingOlder && (
 								<div className="flex justify-center py-4">
 									<IconLoader className="animate-spin text-neutral-500" />
@@ -1870,6 +1968,7 @@ export default function ChatPage() {
 							{displayedMessages.map((msg, i) => (
 								<div
 									key={msg.id || i}
+									id={`message-${msg.id}`}
 									className={cn(
 										"flex w-full",
 										msg.role === "user"
@@ -1917,7 +2016,7 @@ export default function ChatPage() {
 					)}
 				</main>
 				{!isLoading && !isVoiceMode && displayedMessages.length > 0 && (
-					<div className="flex-shrink-0 px-4 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
+					<div className="flex-shrink-0 px-2 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
 						<div className="relative w-full max-w-4xl mx-auto">
 							{uploadedFilename
 								? renderUploadedFilePreview()

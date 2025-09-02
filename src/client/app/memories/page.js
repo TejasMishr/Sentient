@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react" // eslint-disable-line
 import toast from "react-hot-toast"
 import {
 	IconLoader,
@@ -12,12 +12,14 @@ import {
 	IconLayoutGrid,
 	IconShare3,
 	IconInfoCircle,
-	IconSparkles,
+	IconBolt,
 	IconHeart,
 	IconPlus,
 	IconPencil,
 	IconTrash,
-	IconDeviceFloppy
+	IconDeviceFloppy,
+	IconCheck,
+	IconSparkles
 } from "@tabler/icons-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
@@ -26,13 +28,14 @@ import dynamic from "next/dynamic"
 import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ModalDialog from "@components/ModalDialog"
+import useClickOutside from "@hooks/useClickOutside"
+import { useRouter, useSearchParams } from "next/navigation"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
 	{ name: "Voice Chat", limit: "10 minutes per day" },
-	{ name: "One-Time Tasks", limit: "20 async tasks per day" },
-	{ name: "Recurring Tasks", limit: "10 active recurring workflows" },
-	{ name: "Triggered Tasks", limit: "10 triggered workflows" },
+	{ name: "Async Tasks", limit: "100 tasks per month" },
+	{ name: "Active Workflows", limit: "25 recurring & triggered" },
 	{
 		name: "Parallel Agents",
 		limit: "5 complex tasks per day with 50 sub agents"
@@ -76,8 +79,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock unlimited memories and other powerful
@@ -110,7 +113,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -353,9 +356,12 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }) => {
 	)
 }
 
-const CreateMemoryModal = ({ isOpen, onClose, onCreate, userDetails }) => {
+const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 	const [content, setContent] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
+	const modalRef = useRef(null)
+
+	useClickOutside(modalRef, onClose)
 
 	const handleCreate = async () => {
 		if (!content.trim()) {
@@ -368,25 +374,24 @@ const CreateMemoryModal = ({ isOpen, onClose, onCreate, userDetails }) => {
 		setContent("") // Reset for next time
 	}
 
-	if (!isOpen) return null
-
 	return (
 		<motion.div
 			initial={{ opacity: 0 }}
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
-			className="fixed inset-0 bg-black/70 backdrop-blur-md z-[60] flex items-center justify-center p-4"
+			className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
 			onClick={onClose}
 		>
 			<motion.div
-				initial={{ scale: 0.95, y: 20 }}
-				animate={{ scale: 1, y: 0 }}
-				exit={{ scale: 0.95, y: -20 }}
+				ref={modalRef}
+				initial={{ opacity: 0, y: 20, scale: 0.95 }}
+				animate={{ opacity: 1, y: 0, scale: 1 }}
+				exit={{ opacity: 0, y: 20, scale: 0.95 }}
 				transition={{ duration: 0.2, ease: "easeInOut" }}
+				className="relative flex w-full max-w-lg flex-col rounded-2xl border border-neutral-700 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-xl"
 				onClick={(e) => e.stopPropagation()}
-				className="relative bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-neutral-700 flex flex-col"
 			>
-				<header className="flex justify-between items-center mb-4 flex-shrink-0">
+				<header className="flex flex-shrink-0 items-center justify-between mb-4">
 					<h2 className="text-lg font-semibold text-white">
 						Add a New Memory
 					</h2>
@@ -414,7 +419,7 @@ const CreateMemoryModal = ({ isOpen, onClose, onCreate, userDetails }) => {
 						" instead of "I like football".
 					</p>
 				</main>
-				<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end gap-2">
+				<footer className="mt-6 flex justify-end gap-2 border-t border-neutral-800 pt-4">
 					<button
 						onClick={onClose}
 						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
@@ -554,6 +559,66 @@ const MemoryGraph = ({ data, onSelectNode, onClearSelection }) => {
 	)
 }
 
+// --- Tab Component for View Switcher (from tasks page) ---
+const buttonVariants = {
+	initial: {
+		gap: 0,
+		paddingLeft: ".5rem",
+		paddingRight: ".5rem"
+	},
+	animate: (selected) => ({
+		gap: selected ? ".5rem" : 0,
+		paddingLeft: selected ? "1rem" : ".5rem",
+		paddingRight: selected ? "1rem" : ".5rem"
+	})
+}
+
+const spanVariants = {
+	initial: { width: 0, opacity: 0 },
+	animate: { width: "auto", opacity: 1 },
+	exit: { width: 0, opacity: 0 }
+}
+
+const transition = { delay: 0.1, type: "spring", bounce: 0, duration: 0.35 }
+
+const Tab = ({ text, selected, setSelected, value, children, ...props }) => {
+	return (
+		<motion.button
+			variants={buttonVariants}
+			initial="initial"
+			animate="animate"
+			{...props}
+			custom={selected}
+			onClick={() => setSelected(value)}
+			transition={transition}
+			className={`${
+				selected ? "bg-white/10 text-white " : " hover:text-white"
+			} relative flex items-center rounded-full px-4 py-2 text-sm font-medium text-neutral-400 transition-colors duration-300`}
+		>
+			{children}
+			<AnimatePresence>
+				{selected && (
+					<motion.span
+						variants={spanVariants}
+						initial="initial"
+						animate="animate"
+						exit="exit"
+						transition={transition}
+						className="overflow-hidden"
+					>
+						{text}
+					</motion.span>
+				)}
+			</AnimatePresence>
+		</motion.button>
+	)
+}
+
+const memoryTabs = [
+	{ title: "Graph", value: "graph", icon: <IconShare3 size={16} /> },
+	{ title: "List", value: "list", icon: <IconLayoutGrid size={16} /> }
+]
+
 export default function MemoriesPage() {
 	const [view, setView] = useState("graph")
 	const [memories, setMemories] = useState([])
@@ -566,6 +631,8 @@ export default function MemoriesPage() {
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const { isPro } = usePlan()
 	const [userDetails, setUserDetails] = useState(null)
+	const router = useRouter()
+	const searchParams = useSearchParams()
 
 	const topics = useMemo(() => {
 		const allTopics = new Set()
@@ -628,6 +695,19 @@ export default function MemoriesPage() {
 		fetchData()
 		fetchUserDetails()
 	}, [fetchData, fetchUserDetails])
+
+	useEffect(() => {
+		const memoryId = searchParams.get("memoryId")
+		if (memoryId && memories.length > 0) {
+			const memoryToSelect = memories.find(
+				(m) => String(m.id) === memoryId
+			)
+			if (memoryToSelect) {
+				setSelectedMemory(memoryToSelect)
+				router.replace("/memories", { scroll: false })
+			}
+		}
+	}, [searchParams, memories, router])
 
 	const handleCreateMemory = async (content) => {
 		const toastId = toast.loading("Adding memory...")
@@ -704,29 +784,18 @@ export default function MemoriesPage() {
 	}
 
 	const ViewSwitcher = () => (
-		<div className="flex items-center gap-2 p-1 bg-neutral-800/50 rounded-full">
-			<button
-				onClick={() => setView("graph")}
-				className={cn(
-					"px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2",
-					view === "graph"
-						? "bg-white text-black"
-						: "text-neutral-400 hover:text-white"
-				)}
-			>
-				<IconShare3 size={16} /> Graph
-			</button>
-			<button
-				onClick={() => setView("list")}
-				className={cn(
-					"px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2",
-					view === "list"
-						? "bg-white text-black"
-						: "text-neutral-400 hover:text-white"
-				)}
-			>
-				<IconLayoutGrid size={16} /> List
-			</button>
+		<div className="flex flex-wrap items-center gap-2">
+			{memoryTabs.map((tab) => (
+				<Tab
+					key={tab.value}
+					text={tab.title}
+					selected={view === tab.value}
+					setSelected={setView}
+					value={tab.value}
+				>
+					{tab.icon}
+				</Tab>
+			))}
 		</div>
 	)
 
@@ -802,21 +871,27 @@ export default function MemoriesPage() {
 				</div>
 				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 
-				<header className="flex flex-col md:flex-row md:items-center justify-between p-4 pt-20 md:pt-4 sm:p-6 bg-transparent shrink-0 z-10 border-b border-neutral-800/80">
-					<div>
-						<h1 className="text-3xl lg:text-4xl font-bold text-white flex items-center gap-3">
-							Memories
-						</h1>
-						<p className="text-neutral-400 mt-1">
-							A collection of facts and information I've learned
-							about you.
-						</p>
-					</div>
-					<div className="w-full md:w-auto mt-4 md:mt-0 flex justify-center items-center gap-2">
+				<header className="flex flex-wrap items-center justify-between gap-4 p-6 pt-20 md:pt-6 bg-transparent shrink-0 z-10 border-b border-neutral-800/80">
+					<h1 className="text-2xl md:text-3xl font-bold text-white">
+						Memories
+					</h1>
+					<div className="flex items-center gap-2 sm:gap-4">
+						{!isLoading && (
+							<div className="text-center">
+								<p className="text-xl sm:text-2xl font-bold text-brand-orange">
+									{memories.length}
+								</p>
+								<p className="text-[10px] sm:text-xs text-neutral-400 -mt-1">
+									Memories
+								</p>
+							</div>
+						)}
+						<div className="w-px h-8 bg-neutral-700 hidden sm:block"></div>
 						<ViewSwitcher />
 						<button
 							onClick={() => setIsInfoPanelOpen(true)}
 							className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
+							aria-label="About memories"
 						>
 							<IconInfoCircle size={20} />
 						</button>
@@ -907,7 +982,6 @@ export default function MemoriesPage() {
 			<AnimatePresence>
 				{isCreateModalOpen && (
 					<CreateMemoryModal
-						isOpen={isCreateModalOpen}
 						onClose={() => setIsCreateModalOpen(false)}
 						onCreate={handleCreateMemory}
 						userDetails={userDetails}

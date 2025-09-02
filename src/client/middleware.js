@@ -2,6 +2,12 @@ import { NextResponse } from "next/server"
 import { auth0 } from "./lib/auth0"
 
 export async function middleware(request) {
+	// Redirect the root path to the chat page
+	if (request.nextUrl.pathname === "/") {
+		const { origin } = new URL(request.url)
+		return NextResponse.redirect(`${origin}/chat`)
+	}
+
 	if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
 		// In self-host mode, authentication is handled by a static token,
 		// so we don't need Auth0's session middleware.
@@ -11,11 +17,6 @@ export async function middleware(request) {
 
 	// authentication routes — let the middleware handle it
 	if (request.nextUrl.pathname.startsWith("/auth")) {
-		return authRes
-	}
-
-	// public routes — no need to check for session
-	if (request.nextUrl.pathname === "/") {
 		return authRes
 	}
 

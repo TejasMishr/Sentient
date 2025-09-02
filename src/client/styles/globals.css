@@ -133,3 +133,12 @@ button,
 		transparent 95%
 	);
 }
+
+.highlight-message > div { /* Target the inner ChatBubble div */
+  animation: highlight-animation 3s ease-out;
+}
+
+@keyframes highlight-animation {
+  0% { background-color: rgba(241, 162, 29, 0.5); }
+  100% { background-color: transparent; }
+}

@@ -1,42 +1,38 @@
 "use client"
 
+import { cn } from "@utils/cn"
 import React, {
-	IconClock,
 	useState,
+	useMemo,
 	useEffect,
-	useCallback,
-	Suspense,
-	useMemo
+	useCallback, // eslint-disable-line
+	Suspense
 } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { format, isSameDay, parseISO } from "date-fns"
 import {
 	IconLoader,
-	IconX,
 	IconSparkles,
 	IconCheck,
-	IconPlus
+	IconPlus,
+	IconBolt // Added IconBolt
 } from "@tabler/icons-react"
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
-import { calculateNextRun } from "@utils/taskUtils"
 
 import TaskDetailsPanel from "@components/tasks/TaskDetailsPanel"
 import TaskViewSwitcher from "@components/tasks/TaskViewSwitcher"
 import ListView from "@components/tasks/ListView"
-import CalendarView from "@components/tasks/CalendarView"
-import TaskComposer from "@components/tasks/TaskComposer" // New component
+import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import DayDetailView from "@components/tasks/DayDetailView"
 import { usePlan } from "@hooks/usePlan"
+import { useTour } from "@components/LayoutWrapper"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
 	{ name: "Voice Chat", limit: "10 minutes per day" },
-	{ name: "One-Time Tasks", limit: "20 async tasks per day" },
-	{ name: "Recurring Tasks", limit: "10 active recurring workflows" },
-	{ name: "Triggered Tasks", limit: "10 triggered workflows" },
+	{ name: "Async Tasks", limit: "100 tasks per month" },
+	{ name: "Active Workflows", limit: "25 recurring & triggered" },
 	{
 		name: "Parallel Agents",
 		limit: "5 complex tasks per day with 50 sub agents"
@@ -80,8 +76,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock Parallel Agents and other powerful
@@ -114,7 +110,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -134,190 +130,212 @@ function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 
-	// Raw tasks from API
 	const [allTasks, setAllTasks] = useState([])
-	// Processed tasks for different views
-
-	const [integrations, setIntegrations] = useState([])
 	const [allTools, setAllTools] = useState([])
+	const [integrations, setIntegrations] = useState([])
 	const [isLoading, setIsLoading] = useState(true)
-
-	const [view, setView] = useState("list") // 'list' or 'calendar'
+	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
 	const [isMobile, setIsMobile] = useState(false)
 
-	// --- NEW STATE MANAGEMENT FOR SMART PANEL & MODAL ---
-	const [rightPanelContent, setRightPanelContent] = useState({
-		type: "composer",
-		data: null
-	})
-	const [isModalOpen, setIsModalOpen] = useState(false)
-	// --- END NEW STATE ---
+	const selectedTaskId = searchParams.get("taskId")
+	const selectedTask = useMemo(() => {
+		return allTasks.find((t) => t.task_id === selectedTaskId) || null
+	}, [allTasks, selectedTaskId])
 
-	const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date())
+	const [isModalOpen, setIsModalOpen] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
+	const [isComposerOpen, setIsComposerOpen] = useState(false)
+	const [composerInitialData, setComposerInitialData] = useState(null)
 	const { isPro } = usePlan()
+	const tour = useTour()
+	const { tourState, setTourState } = tour
 
-	// Processed tasks for different views are derived from allTasks
-	const {
-		oneTimeTasks,
-		recurringTasks,
-		triggeredTasks,
-		swarmTasks,
-		longFormTasks,
-		recurringInstances
-	} = useMemo(() => {
-		const oneTime = []
-		const recurring = []
-		const triggered = []
-		const swarm = []
-		const instances = []
-		const longForm = []
-		const subTasks = []
-
-		allTasks.forEach((task) => {
-			if (task.original_context?.source === "long_form_subtask") {
-				subTasks.push(task)
-				return
-			}
-
-			if (task.task_type === "swarm") {
-				swarm.push(task)
-			} else if (task.task_type === "long_form") {
-				longForm.push(task)
-			} else if (task.schedule?.type === "recurring") {
-				recurring.push(task)
-				// Process past runs from `runs` array
-				if (task.runs && Array.isArray(task.runs)) {
-					task.runs.forEach((run) => {
-						const runDate = run.execution_start_time
-							? parseISO(run.execution_start_time)
-							: null
-						if (runDate) {
-							instances.push({
-								...task,
-								status: run.status, // Use the run's specific status
-								scheduled_date: runDate,
-								instance_id: `${task.task_id}-${run.run_id}`
-							})
-						}
-					})
-				}
-				// Add next upcoming run
-				const nextRunDate = calculateNextRun(
-					task.schedule,
-					task.created_at,
-					task.runs
-				)
-				if (nextRunDate) {
-					instances.push({
-						...task,
-						status: "pending", // An upcoming run is pending
-						scheduled_date: nextRunDate,
-						instance_id: `${task.task_id}-next`
-					})
-				}
-			} else if (task.schedule?.type === "triggered") {
-				triggered.push(task)
-			} else {
-				// One-time tasks
-				const scheduledDate = task.schedule?.run_at
-					? parseISO(task.schedule.run_at)
-					: parseISO(task.created_at)
-				oneTime.push({
-					...task,
-					scheduled_date: scheduledDate,
-					instance_id: task.task_id
-				})
-			}
-		})
-
-		const subTasksByParentId = subTasks.reduce((acc, task) => {
-			const parentId = task.original_context.parent_task_id
-			if (!parentId) return acc
-			if (!acc[parentId]) {
-				acc[parentId] = []
-			}
-			acc[parentId].push(task)
-			// Sort subtasks by creation date, newest first
-			acc[parentId].sort(
-				(a, b) =>
-					new Date(b.created_at) - new Date(a.created_at)
-			)
-			return acc
-		}, {})
-
-		const longFormWithSubTasks = longForm.map((parentTask) => ({
-			...parentTask,
-			subTasks: subTasksByParentId[parentTask.task_id] || []
-		}))
+	const demoWorkflow = useMemo(() => {
+		if (!tourState.isActive || tourState.step < 6) return null
 
 		return {
-			oneTimeTasks: oneTime,
-			recurringTasks: recurring,
-			triggeredTasks: triggered,
-			swarmTasks: swarm,
-			longFormTasks: longFormWithSubTasks,
-			recurringInstances: instances
+			task_id: "demo-workflow-123",
+			name: "Daily Email Briefing",
+			description:
+				"A simulated workflow to summarize unread emails daily.",
+			status: "active",
+			task_type: "recurring",
+			isDemoWorkflow: true,
+			created_at: new Date().toISOString()
 		}
-	}, [allTasks])
+	}, [tourState.isActive, tourState.step])
 
-	// --- NEW: Handle responsive layout and initial panel state ---
+	const demoTask = useMemo(() => {
+		if (!tourState.isActive || tourState.step < 5) return null
+
+		const subStep = tourState.subStep
+		let status = "planning"
+		let subTasks = []
+
+		const baseSubTasks = [
+			{
+				task_id: "demo-sub-1",
+				name: "Email Kabeer to ask for availability",
+				status: "completed"
+			},
+			{
+				task_id: "demo-sub-2",
+				name: "Check email thread for reply from Kabeer",
+				status: "completed"
+			},
+			{
+				task_id: "demo-sub-3",
+				name: "Schedule calendar event for Monday 5 PM with Kabeer",
+				status: "completed"
+			}
+		]
+
+		if (subStep === 1) {
+			status = "processing"
+			subTasks = [baseSubTasks[0]]
+		} else if (subStep === 2) {
+			status = "waiting"
+			subTasks = [baseSubTasks[0]]
+		} else if (subStep === 3) {
+			status = "processing"
+			subTasks = [baseSubTasks[0], baseSubTasks[1]]
+		} else if (subStep === 4) {
+			status = "processing"
+			subTasks = [baseSubTasks[0], baseSubTasks[1], baseSubTasks[2]]
+		} else if (subStep >= 5) {
+			status = "completed"
+			subTasks = baseSubTasks
+		}
+
+		return {
+			task_id: "demo-task-123",
+			name: "Coordinate with Kabeer to set up a meeting next week.",
+			description:
+				"A simulated task to demonstrate the lifecycle of an automated project.",
+			status: status,
+			task_type: "long_form",
+			isDemoTask: true,
+			created_at: new Date().toISOString(),
+			subTasks: subTasks,
+			runs: [
+				{
+					run_id: "demo-run-1",
+					status: status,
+					progress_updates: [
+						{
+							message: {
+								type: "info",
+								content: `Simulating step: ${status}`
+							},
+							timestamp: new Date().toISOString()
+						}
+					]
+				}
+			]
+		}
+	}, [tourState.isActive, tourState.step, tourState.subStep])
+
+	const handleClosePanel = useCallback(() => {
+		if (tourState.isActive && tourState.step >= 3) {
+			// Don't close panel during tour simulation
+		} else {
+			router.push("/tasks", { scroll: false }) // Clear URL param
+		}
+		setIsModalOpen(false)
+	}, [router, tourState])
+
+	// Effect to sync UI state with the tour state
+	useEffect(() => {
+		if (tourState.isActive) {
+			if (tourState.step === 3) {
+				// This is the "Create Task" button step.
+				if (isComposerOpen) {
+					// If user clicks the button, composer opens, and we advance.
+					tour.nextStep()
+				} else {
+					// Otherwise, ensure composer is closed.
+					setIsComposerOpen(false)
+				}
+			} else if (tourState.step === 4) {
+				// This is the composer step. If it's not open or doesn't have the
+				// initial data yet, set it up. This prevents re-render loops.
+				if (!isComposerOpen || !composerInitialData) {
+					setIsComposerOpen(true)
+					setComposerInitialData({
+						prompt: "Coordinate with Kabeer to set up a meeting next week."
+					})
+				}
+			}
+			// For subsequent steps, ensure composer is closed.
+			else if (tourState.step > 4 && isComposerOpen) {
+				setIsComposerOpen(false)
+			}
+		}
+	}, [
+		tourState.isActive,
+		tourState.step,
+		isComposerOpen,
+		tour,
+		setComposerInitialData,
+		setIsComposerOpen
+	])
+
 	useEffect(() => {
 		const checkMobile = () => window.innerWidth < 768
 		setIsMobile(checkMobile())
 
-		if (checkMobile()) {
-			setRightPanelContent({ type: "hidden", data: null })
-		} else {
-			const taskId = searchParams.get("taskId")
-			if (!taskId) {
-				setRightPanelContent({ type: "composer", data: null })
-			}
+		// Open modal on mobile if a task is selected
+		if (checkMobile() && selectedTaskId) {
+			setIsModalOpen(true)
 		}
 
 		const handleResize = () => {
 			const mobile = checkMobile()
 			if (mobile !== isMobile) {
 				setIsMobile(mobile)
-				// If switching to mobile, hide the panel
-				if (mobile) {
-					setRightPanelContent({ type: "hidden", data: null })
-				} else {
-					// If switching to desktop and no task is selected, show composer
-					if (
-						rightPanelContent.type === "hidden" ||
-						rightPanelContent.type === "composer"
-					) {
-						setRightPanelContent({ type: "composer", data: null })
-					}
-				}
 			}
 		}
 
 		window.addEventListener("resize", handleResize)
 		return () => window.removeEventListener("resize", handleResize)
-	}, []) // Run only once on mount
+	}, [isMobile, selectedTaskId])
 
-	// --- NEW: Sync panel with URL ---
 	useEffect(() => {
 		const taskId = searchParams.get("taskId")
-		if (taskId) {
-			const task = allTasks.find((t) => t.task_id === taskId)
-			if (task) {
-				setRightPanelContent({ type: "details", data: task })
-				if (isMobile) setIsModalOpen(true)
+
+		if (isMobile) {
+			// Tour logic: Modal is open ONLY during step 5 AND when the phase is 'panel'.
+			if (tourState.isActive && tourState.step === 5) {
+				setIsModalOpen(tourState.phase === "panel")
 			}
-		} else {
-			// If URL is cleared, show composer on desktop, hide on mobile
-			if (!isMobile) {
-				setRightPanelContent({ type: "composer", data: null })
-			} else {
-				// Don't automatically open the composer modal on mobile when URL clears
+			// Regular logic: Open modal if a task is selected via URL and it exists.
+			else if (taskId && selectedTask) {
+				setIsModalOpen(true)
+			}
+			// Cleanup: If no task is selected (or tour ended), close the modal.
+			else {
 				setIsModalOpen(false)
 			}
+		} else {
+			// On desktop, the modal is never used.
+			setIsModalOpen(false)
 		}
-	}, [searchParams, allTasks, isMobile])
+	}, [searchParams, isMobile, tourState, selectedTask, handleClosePanel])
+
+	const tasksWithDemo = useMemo(() => {
+		// Filter(Boolean) removes null/undefined demo tasks
+		return [demoTask, demoWorkflow, ...allTasks].filter(Boolean)
+	}, [allTasks, demoTask, demoWorkflow])
+
+	const selectedTaskOrDemo = useMemo(() => {
+		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
+		if (tourState.isActive && tourState.step >= 5) {
+			return demoTask
+		}
+		// Otherwise, use the task selected via the URL parameter for regular use.
+		return selectedTask
+	}, [tourState, demoTask, selectedTask])
 
 	const fetchTasks = useCallback(async () => {
 		setIsLoading(true)
@@ -336,12 +354,12 @@ function TasksPageContent() {
 			if (!integrationsRes.ok)
 				throw new Error("Failed to fetch integrations")
 			const integrationsData = await integrationsRes.json()
+			setIntegrations(integrationsData.integrations || [])
 			const tools = integrationsData.integrations.map((i) => ({
 				name: i.name,
 				display_name: i.display_name
 			}))
 			setAllTools(tools)
-			setIntegrations(integrationsData.integrations || [])
 		} catch (error) {
 			toast.error(`Error fetching data: ${error.message}`)
 		} finally {
@@ -355,13 +373,18 @@ function TasksPageContent() {
 
 	useEffect(() => {
 		const handleBackendUpdate = () => {
-			console.log("Received task_list_updated event, fetching tasks...")
+			console.log(
+				"Received tasksUpdatedFromBackend event, fetching tasks..."
+			)
 			toast.success("Task list updated from backend.")
 			fetchTasks()
 		}
-		window.addEventListener("task_list_updated", handleBackendUpdate)
+		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
 		return () => {
-			window.removeEventListener("task_list_updated", handleBackendUpdate)
+			window.removeEventListener(
+				"tasksUpdatedFromBackend",
+				handleBackendUpdate
+			)
 		}
 	}, [fetchTasks])
 
@@ -412,9 +435,10 @@ function TasksPageContent() {
 		)
 	}
 
-	// --- REVISED: handleAddTask is now handleCreateTask and takes a payload ---
 	const handleCreateTask = async (payload) => {
-		const toastId = toast.loading("Creating task...")
+		const toastId = toast.loading(
+			view === "workflows" ? "Creating workflow..." : "Creating task..."
+		)
 		try {
 			const response = await fetch("/api/tasks/add", {
 				method: "POST",
@@ -429,11 +453,16 @@ function TasksPageContent() {
 			}
 			const data = await response.json()
 
-			toast.success(data.message || "Task created!", { id: toastId })
-			if (isMobile)
-				setIsModalOpen(false) // Close modal on success
-			else setRightPanelContent({ type: "composer", data: null }) // Reset composer
-			await fetchTasks() // Refresh tasks list
+			toast.success(
+				data.message ||
+					(view === "workflows"
+						? "Workflow created!"
+						: "Task created!"),
+				{ id: toastId }
+			)
+			await fetchTasks()
+			// The view is already correct, so no need to set it again.
+			// This fixes the issue of being switched to 'tasks' after creating a workflow.
 		} catch (error) {
 			if (error.status === 429) {
 				toast.error(
@@ -446,7 +475,6 @@ function TasksPageContent() {
 			}
 		}
 	}
-	// --- END REVISED ---
 
 	const handleResumeTask = async (taskId) => {
 		await handleAction(
@@ -475,243 +503,95 @@ function TasksPageContent() {
 		)
 	}
 
-	// --- REVISED: handleSelectItem now updates URL and panel state ---
 	const handleSelectItem = (item) => {
 		const taskId = item.task_id
 		router.push(`/tasks?taskId=${taskId}`, { scroll: false })
-		setRightPanelContent({ type: "details", data: item })
 		if (isMobile) {
 			setIsModalOpen(true)
 		}
 	}
-	// --- END REVISED ---
 
-	const handleShowMoreClick = (date) => {
-		const tasksForDay = filteredCalendarTasks.filter(
-			(task) => isSameDay(task.scheduled_date, date) // prettier-ignore
-		)
-		setRightPanelContent({
-			type: "day",
-			data: { date, tasks: tasksForDay }
-		})
-		if (isMobile) setIsModalOpen(true)
-	}
-
-	// --- REVISED: handleCloseRightPanel now handles both mobile and desktop ---
-	const handleClosePanel = () => {
-		router.push("/tasks", { scroll: false }) // Clear URL param
-		if (isMobile) {
-			setIsModalOpen(false)
+	const handleExampleClick = (example) => {
+		if (example.type === "workflow") {
+			setView("workflows")
 		} else {
-			setRightPanelContent({ type: "composer", data: null })
+			setView("tasks")
 		}
-	}
-	// --- END REVISED ---
-
-	const handleCreateTaskFromEvent = async (event) => {
-		const prompt = `Help me prepare for this event from my calendar:
-
-Title: ${event.summary}
-Time: ${event.start} to ${event.end}
-Attendees: ${(event.attendees || []).join(", ")}
-Description: ${event.description || "No description."}`
-
-		await handleAction(
-			() =>
-				fetch("/api/tasks/add", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ prompt, assignee: "ai" })
-				}),
-			"Task created from calendar event!"
-		)
-		handleClosePanel() // Close the panel after creating the task
+		setComposerInitialData(example)
+		setIsComposerOpen(true)
 	}
 
-	const handleAddTaskForDay = (date) => {
-		// Set the panel to show the composer with the default date
-		setRightPanelContent({
-			type: "composer",
-			data: { defaultDate: date }
-		})
-		// If on mobile, open the modal
-		if (isMobile) {
-			setIsModalOpen(true)
-		}
-	}
-
-	const filteredOneTimeTasks = useMemo(() => {
-		if (!searchQuery.trim()) {
-			return oneTimeTasks
-		}
-		return oneTimeTasks.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [oneTimeTasks, searchQuery])
-
-	const filteredActiveWorkflows = useMemo(() => {
-		const allWorkflows = [
-			...swarmTasks,
-			...recurringTasks,
-			...triggeredTasks
-		]
-		if (!searchQuery.trim()) {
-			return allWorkflows
-		}
-		return allWorkflows.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [swarmTasks, recurringTasks, triggeredTasks, searchQuery])
-
-	const filteredLongFormTasks = useMemo(() => {
-		if (!searchQuery.trim()) {
-			return longFormTasks
-		}
-		return longFormTasks.filter(
-			(task) =>
-				task.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(task.description &&
-					task.description
-						.toLowerCase()
-						.includes(searchQuery.toLowerCase()))
-		)
-	}, [longFormTasks, searchQuery])
-	const filteredCalendarTasks = useMemo(() => {
-		const allCalendarTasks = [...oneTimeTasks, ...recurringInstances]
-		if (!searchQuery.trim()) {
-			return allCalendarTasks
-		}
-		return allCalendarTasks.filter((task) =>
-			(task.name || task.summary)
-				?.toLowerCase()
-				.includes(searchQuery.toLowerCase())
-		)
-	}, [oneTimeTasks, recurringInstances, searchQuery])
-
-	// --- NEW: Render logic for panel/modal ---
-	const renderPanelContent = () => {
-		switch (rightPanelContent.type) {
-			case "composer":
-				return (
-					<TaskComposer
-						onTaskCreated={handleCreateTask}
-						isPro={isPro}
-						composerData={rightPanelContent.data}
-						onUpgradeClick={() => setUpgradeModalOpen(true)}
-						onClose={isMobile ? () => setIsModalOpen(false) : null}
-					/>
+	const renderTaskDetails = (task) => (
+		<TaskDetailsPanel
+			task={task}
+			allTools={allTools}
+			integrations={integrations}
+			onClose={handleClosePanel}
+			onSave={handleUpdateTask}
+			onAnswerClarifications={handleAnswerClarifications}
+			onAnswerLongFormClarification={handleAnswerLongFormClarification}
+			onResumeTask={handleResumeTask}
+			onSelectTask={handleSelectItem}
+			onDelete={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/delete`, {
+							method: "POST",
+							body: JSON.stringify({ taskId }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task deleted."
 				)
-			case "details":
-				return (
-					<TaskDetailsPanel
-						task={rightPanelContent.data}
-						allTools={allTools}
-						integrations={integrations}
-						onClose={handleClosePanel}
-						onSave={handleUpdateTask}
-						onAnswerClarifications={handleAnswerClarifications}
-						onAnswerLongFormClarification={
-							handleAnswerLongFormClarification
-						}
-						onResumeTask={handleResumeTask}
-						onSelectTask={handleSelectItem}
-						onDelete={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/delete`, {
-										method: "POST",
-										body: JSON.stringify({ taskId }),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task deleted."
-							)
-						}
-						onApprove={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/approve`, {
-										method: "POST",
-										body: JSON.stringify({ taskId }),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task approved."
-							)
-						}
-						onRerun={(taskId) =>
-							handleAction(
-								() =>
-									fetch("/api/tasks/rerun", {
-										method: "POST",
-										headers: {
-											"Content-Type": "application/json"
-										},
-										body: JSON.stringify({ taskId })
-									}),
-								"Task re-run initiated."
-							)
-						}
-						onArchiveTask={(taskId) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/update`, {
-										method: "POST",
-										body: JSON.stringify({
-											taskId,
-											status: "archived"
-										}),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Task archived."
-							)
-						}
-						onSendChatMessage={(taskId, message) =>
-							handleAction(
-								() =>
-									fetch(`/api/tasks/chat`, {
-										method: "POST",
-										body: JSON.stringify({
-											taskId,
-											message
-										}),
-										headers: {
-											"Content-Type": "application/json"
-										}
-									}),
-								"Message sent."
-							)
-						}
-					/>
+			}
+			onApprove={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/approve`, {
+							method: "POST",
+							body: JSON.stringify({ taskId }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task approved."
 				)
-			case "day":
-				return (
-					<DayDetailView
-						date={rightPanelContent.data.date}
-						tasks={rightPanelContent.data.tasks}
-						onSelectTask={handleSelectItem}
-						onClose={handleClosePanel}
-					/>
+			}
+			onRerun={(taskId) =>
+				handleAction(
+					() =>
+						fetch("/api/tasks/rerun", {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ taskId })
+						}),
+					"Task re-run initiated."
 				)
-			default:
-				return null
-		}
-	}
-	// --- END NEW ---
+			}
+			onArchiveTask={(taskId) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/update`, {
+							method: "POST",
+							body: JSON.stringify({
+								taskId,
+								status: "archived"
+							}),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Task archived."
+				)
+			}
+			onSendChatMessage={(taskId, message) =>
+				handleAction(
+					() =>
+						fetch(`/api/tasks/chat`, {
+							method: "POST",
+							body: JSON.stringify({ taskId, message }),
+							headers: { "Content-Type": "application/json" }
+						}),
+					"Message sent."
+				)
+			}
+		/>
+	)
 
 	return (
 		<div className="flex-1 flex h-full text-white overflow-hidden">
@@ -729,32 +609,23 @@ Description: ${event.description || "No description."}`
 					<InteractiveNetworkBackground />
 				</div>
 				{/* Main Content Panel */}
-				<main className="flex-1 flex flex-col overflow-hidden relative">
+				<main className="flex-1 flex flex-col overflow-hidden relative md:pl-6 min-w-0">
 					<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 					<header className="p-6 pt-20 md:pt-6 flex-shrink-0 flex items-center justify-between bg-transparent">
 						<h1 className="text-3xl font-bold text-white">Tasks</h1>
-						<div className="absolute top-6 left-1/2 -translate-x-1/2">
+						<div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
 							<TaskViewSwitcher view={view} setView={setView} />
-						</div>
-						{/* --- NEW: Desktop "+" button --- */}
-						<div className="hidden md:block">
-							<button
-								onClick={() => {
-									router.push("/tasks", { scroll: false })
-									setRightPanelContent({
-										type: "composer",
-										data: null
-									})
-								}}
-								className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
-							>
-								<IconPlus size={20} />
-							</button>
 						</div>
 					</header>
 
-					<div className="flex-1 overflow-y-auto custom-scrollbar">
-						{isLoading ? (
+					<div
+						className="flex-1 overflow-y-auto custom-scrollbar px-2 md:px-6 pb-24"
+						style={{
+							display: isMobile && isModalOpen ? "none" : "block"
+						}}
+						key="list-view-container"
+					>
+						{isLoading && !demoTask ? (
 							<div className="flex justify-center items-center h-full">
 								<IconLoader className="w-8 h-8 animate-spin text-sentient-blue" />
 							</div>
@@ -766,82 +637,124 @@ Description: ${event.description || "No description."}`
 									animate={{ opacity: 1 }}
 									exit={{ opacity: 0 }}
 									transition={{ duration: 0.3 }}
-									className="h-full"
+									className="h-full max-w-7xl mx-auto"
 								>
-									{view === "list" ? (
-										<ListView
-											oneTimeTasks={filteredOneTimeTasks}
-											activeWorkflows={
-												filteredActiveWorkflows
-											}
-											longFormTasks={
-												filteredLongFormTasks
-											}
-											onSelectTask={handleSelectItem}
-											searchQuery={searchQuery}
-											onSearchChange={setSearchQuery}
-										/>
-									) : (
-										<CalendarView
-											tasks={filteredCalendarTasks}
-											onSelectTask={handleSelectItem}
-											onAddTaskForDay={
-												handleAddTaskForDay
-											}
-											onShowMoreClick={
-												handleShowMoreClick
-											}
-											onMonthChange={
-												setCurrentCalendarDate
-											}
-										/>
-									)}
+									<ListView
+										tasks={tasksWithDemo}
+										view={view}
+										onSelectTask={handleSelectItem}
+										searchQuery={searchQuery}
+										onSearchChange={setSearchQuery}
+										onExampleClick={handleExampleClick}
+									/>
 								</motion.div>
 							</AnimatePresence>
 						)}
 					</div>
 
-					{/* --- REMOVED CreateTaskInput --- */}
+					{/* Floating Task Composer */}
+					<AnimatePresence>
+						{isComposerOpen && (
+							<TaskComposer
+								view={view}
+								onTaskCreated={(payload) => {
+									if (
+										tourState.isActive &&
+										tourState.step === 4
+									) {
+										setIsComposerOpen(false)
+										setComposerInitialData(null)
+										tour.nextStep() // Advance the tour
+										return
+									}
+									// Otherwise, proceed with normal task creation.
+									handleCreateTask(payload)
+									setIsComposerOpen(false)
+									setComposerInitialData(null)
+								}}
+								isPro={isPro}
+								onUpgradeClick={() => setUpgradeModalOpen(true)}
+								onClose={() => {
+									if (
+										tourState.isActive &&
+										tourState.step === 4
+									) {
+										// If user closes manually, also advance the tour.
+										tour.nextStep()
+									}
+									setIsComposerOpen(false)
+									setComposerInitialData(null)
+								}}
+								initialData={composerInitialData}
+							/>
+						)}
+					</AnimatePresence>
+
+					{/* Floating Action Button */}
+					<AnimatePresence>
+						{!isComposerOpen && (
+							<motion.div
+								initial={{ opacity: 0, y: 50, scale: 0.8 }}
+								animate={{ opacity: 1, y: 0, scale: 1 }}
+								exit={{ opacity: 0, y: 50, scale: 0.8 }}
+								transition={{
+									duration: 0.3,
+									ease: "easeInOut"
+								}}
+								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
+							>
+								<button
+									onClick={() => setIsComposerOpen(true)}
+									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
+									aria-label={
+										view === "workflows"
+											? "Create new workflow"
+											: "Create new task"
+									}
+									data-tour-id="create-task-button"
+								>
+									<IconPlus size={20} />
+									<span>
+										{view === "workflows"
+											? "Create Workflow"
+											: "Create Task"}
+									</span>
+								</button>
+							</motion.div>
+						)}
+					</AnimatePresence>
 				</main>
 
-				{/* --- NEW: Right Panel for Desktop --- */}
-				<aside className="hidden md:flex w-[500px] lg:w-[550px] bg-brand-black/50 backdrop-blur-sm border-l border-brand-gray flex-shrink-0 flex-col">
-					<AnimatePresence mode="wait">
+				<AnimatePresence>
+					{!isMobile && selectedTaskOrDemo && (
 						<motion.div
-							key={rightPanelContent.type}
-							initial={{ opacity: 0, x: 50 }}
-							animate={{ opacity: 1, x: 0 }}
-							exit={{ opacity: 0, x: -50 }}
-							transition={{ duration: 0.3 }}
-							className="h-full"
+							initial={{ width: 0 }}
+							animate={{ width: 550 }}
+							exit={{ width: 0 }}
+							transition={{
+								type: "spring",
+								stiffness: 300,
+								damping: 30
+							}}
+							className="h-full flex-shrink-0 bg-neutral-900/80 backdrop-blur-lg overflow-hidden"
 						>
-							{renderPanelContent()}
+							{renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
-					</AnimatePresence>
-				</aside>
-				{/* --- END NEW --- */}
+					)}
+				</AnimatePresence>
 			</div>
 
-			{/* --- NEW: Floating Action Button for Mobile --- */}
-			<button
-				onClick={() => {
-					setRightPanelContent({ type: "composer", data: null })
-					setIsModalOpen(true)
-				}}
-				className="md:hidden fixed bottom-6 right-6 z-40 p-4 bg-brand-orange text-black rounded-full shadow-lg hover:bg-brand-orange/90 transition-transform hover:scale-105"
-			>
-				<IconPlus size={24} strokeWidth={2.5} />
-			</button>
-			{/* --- END NEW --- */}
-
-			{/* --- NEW: Modal for Mobile --- */}
 			<AnimatePresence>
-				{isMobile && isModalOpen && (
+				{isMobile && isModalOpen && selectedTaskOrDemo && (
 					<motion.div
 						initial={{ opacity: 0 }}
 						animate={{ opacity: 1 }}
 						exit={{ opacity: 0 }}
-						className="fixed inset-0 bg-black/70 z-[70] md:hidden"
+						className={cn(
+							"fixed inset-0 z-[70] md:hidden",
+							// Let the tour component control the overlay during the tour
+							!tourState.isActive && "bg-black/70"
+						)}
 					>
 						<motion.div
 							initial={{ y: "100%" }}
@@ -854,12 +767,11 @@ Description: ${event.description || "No description."}`
 							}}
 							className="absolute inset-0"
 						>
-							{renderPanelContent()}
+							{renderTaskDetails(selectedTaskOrDemo)}
 						</motion.div>
 					</motion.div>
 				)}
 			</AnimatePresence>
-			{/* --- END NEW --- */}
 		</div>
 	)
 }

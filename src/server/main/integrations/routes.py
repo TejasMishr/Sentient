@@ -109,6 +109,7 @@ async def connect_manual_integration(
         update_payload = {
             f"userData.integrations.{service_name}.credentials": encrypted_creds,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "manual"
         }
         success = await mongo_manager.update_user_profile(user_id, update_payload)
@@ -241,6 +242,7 @@ async def connect_oauth_integration(
         update_payload = {
             f"userData.integrations.{service_name}.credentials": encrypted_creds,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "oauth"
         }
         success = await mongo_manager.update_user_profile(user_id, update_payload)
@@ -379,6 +381,7 @@ async def finalize_composio_connection(
         update_payload = {
             f"userData.integrations.{service_name}.connection_id": connected_account.id,
             f"userData.integrations.{service_name}.connected": True,
+            f"userData.integrations.{service_name}.connected_at": datetime.datetime.now(datetime.timezone.utc),
             f"userData.integrations.{service_name}.auth_type": "composio"
         }
         if trigger_id:

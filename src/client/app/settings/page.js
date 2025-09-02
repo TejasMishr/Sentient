@@ -16,7 +16,8 @@ import {
 	IconFlask,
 	IconMapPin,
 	IconBrandWhatsapp,
-	IconRefresh
+	IconRefresh,
+	IconUsers
 } from "@tabler/icons-react"
 import { useState, useEffect, useCallback } from "react"
 import { Tooltip } from "react-tooltip"
@@ -94,23 +95,69 @@ const questions = [
 		type: "select",
 		required: true,
 		options: [
-			{ value: "", label: "Select your timezone...", disabled: true },
-			{ value: "America/New_York", label: "Eastern Time (US & Canada)" },
-			{ value: "America/Chicago", label: "Central Time (US & Canada)" },
-			{ value: "America/Denver", label: "Mountain Time (US & Canada)" },
+			{ value: "", label: "Select your timezone..." },
+			{ value: "UTC", label: "(GMT+00:00) Coordinated Universal Time" },
+			{
+				value: "America/New_York",
+				label: "(GMT-04:00) Eastern Time (US & Canada)"
+			},
+			{
+				value: "America/Chicago",
+				label: "(GMT-05:00) Central Time (US & Canada)"
+			},
+			{
+				value: "America/Denver",
+				label: "(GMT-06:00) Mountain Time (US & Canada)"
+			},
 			{
 				value: "America/Los_Angeles",
-				label: "Pacific Time (US & Canada)"
+				label: "(GMT-07:00) Pacific Time (US & Canada)"
+			},
+			{ value: "America/Anchorage", label: "(GMT-08:00) Alaska" },
+			{ value: "America/Phoenix", label: "(GMT-07:00) Arizona" },
+			{ value: "Pacific/Honolulu", label: "(GMT-10:00) Hawaii" },
+			{ value: "America/Sao_Paulo", label: "(GMT-03:00) Brasilia" },
+			{
+				value: "America/Buenos_Aires",
+				label: "(GMT-03:00) Buenos Aires"
 			},
 			{
-				value: "America/St_Johns",
-				label: "Newfoundland (NDT)"
+				value: "Europe/London",
+				label: "(GMT+01:00) London, Dublin, Lisbon"
 			},
-			{ value: "Europe/London", label: "London, Dublin (GMT/BST)" },
-			{ value: "Europe/Berlin", label: "Berlin, Paris (CET)" },
-			{ value: "Asia/Kolkata", label: "India (IST)" },
-			{ value: "Asia/Singapore", label: "Singapore (SGT)" },
-			{ value: "UTC", label: "Coordinated Universal Time (UTC)" }
+			{
+				value: "Europe/Berlin",
+				label: "(GMT+02:00) Amsterdam, Berlin, Paris, Rome"
+			},
+			{
+				value: "Europe/Helsinki",
+				label: "(GMT+03:00) Helsinki, Kyiv, Riga, Sofia"
+			},
+			{
+				value: "Europe/Moscow",
+				label: "(GMT+03:00) Moscow, St. Petersburg"
+			},
+			{ value: "Africa/Cairo", label: "(GMT+02:00) Cairo" },
+			{ value: "Africa/Johannesburg", label: "(GMT+02:00) Johannesburg" },
+			{ value: "Asia/Dubai", label: "(GMT+04:00) Abu Dhabi, Muscat" },
+			{ value: "Asia/Kolkata", label: "(GMT+05:30) India Standard Time" },
+			{
+				value: "Asia/Shanghai",
+				label: "(GMT+08:00) Beijing, Hong Kong, Shanghai"
+			},
+			{ value: "Asia/Singapore", label: "(GMT+08:00) Singapore" },
+			{ value: "Asia/Tokyo", label: "(GMT+09:00) Tokyo, Seoul" },
+			{
+				value: "Australia/Sydney",
+				label: "(GMT+10:00) Sydney, Melbourne"
+			},
+			{ value: "Australia/Brisbane", label: "(GMT+10:00) Brisbane" },
+			{ value: "Australia/Adelaide", label: "(GMT+09:30) Adelaide" },
+			{ value: "Australia/Perth", label: "(GMT+08:00) Perth" },
+			{
+				value: "Pacific/Auckland",
+				label: "(GMT+12:00) Auckland, Wellington"
+			}
 		],
 		section: "essentials",
 		icon: <IconClock />
@@ -124,19 +171,34 @@ const questions = [
 	},
 	{
 		id: "professional-context",
-		question: "What's your professional world like?",
+		question: "Tell me about your professional background",
 		type: "textarea",
-		placeholder:
-			"e.g., I'm a software developer at a startup, aiming to become a team lead...",
+		placeholder: "e.g., I'm a software developer at a startup...",
 		section: "context",
 		icon: <IconBriefcase />
 	},
 	{
+		id: "working-hours",
+		question: "What are your usual working hours?",
+		type: "text-input",
+		placeholder: "e.g., Mon-Fri, 9 AM to 6 PM",
+		section: "context",
+		icon: <IconClock />
+	},
+	{
+		id: "key-people",
+		question: "Who are the key people in your life I should remember?",
+		type: "textarea",
+		placeholder: "e.g., Jane Doe - spouse, John Smith - assistant",
+		section: "context",
+		icon: <IconUsers />
+	},
+	{
 		id: "personal-context",
-		question: "What about your personal life and hobbies?",
+		question: "Any personal details you'd like me to remember?",
 		type: "textarea",
 		placeholder:
-			"e.g., I enjoy hiking on weekends, I'm learning to play the guitar...",
+			"e.g., My anniversary is on June 5th. I love Italian food.",
 		section: "context",
 		icon: <IconHeart />
 	}
@@ -858,7 +920,7 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 				</button>
 			</div>
 
-			<div className="space-y-10 bg-neutral-900/50 p-6 rounded-2xl border border-neutral-800">
+			<div className="space-y-10 bg-neutral-900/50 p-3 rounded-2xl border border-neutral-800">
 				{Object.entries(questionSections).map(
 					([key, { title, icon }]) => (
 						<CollapsibleSection
@@ -870,7 +932,7 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 							}
 							defaultOpen={true}
 						>
-							<div className="space-y-6 mt-4 pl-4 md:pl-8 border-l-2 border-neutral-800">
+							<div className="space-y-6 mt-4">
 								{questions
 									.filter((q) => q.section === key)
 									.map((q) => (
@@ -929,7 +991,39 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																}
 															/>
 														)
-													case "select":
+													case "select": {
+														let options = q.options
+														if (
+															q.id === "timezone"
+														) {
+															const savedTimezone =
+																formData[q.id]
+															const isTimezoneInOptions =
+																q.options.some(
+																	(opt) =>
+																		opt.value ===
+																		savedTimezone
+																)
+															if (
+																savedTimezone &&
+																!isTimezoneInOptions
+															) {
+																// Clone to avoid mutating the original questions array
+																options = [
+																	...q.options
+																]
+																options.unshift(
+																	{
+																		value: savedTimezone,
+																		label: savedTimezone.replace(
+																			/_/g,
+																			" "
+																		)
+																	}
+																)
+															}
+														}
+
 														return (
 															// eslint-disable-line
 															<select
@@ -947,7 +1041,7 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																}
 																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
 															>
-																{q.options.map(
+																{options.map(
 																	(opt) => (
 																		<option
 																			key={
@@ -965,6 +1059,7 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 																)}
 															</select>
 														)
+													}
 													case "location": // Simplified for now
 														const locationValue =
 															formData[q.id]
@@ -1119,26 +1214,24 @@ export default function SettingsPage() {
 				</div>
 				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
 
-				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent border-b border-neutral-800 shrink-0">
+				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent shrink-0">
 					<div>
 						<h1 className="text-3xl lg:text-4xl font-bold text-white">
 							Settings
 						</h1>
-						<p className="text-neutral-400 mt-1">
-							Manage your profile, notifications, and developer
-							tools.
-						</p>
 					</div>
 				</header>
 
 				<main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pb-4 sm:pb-6 md:pb-10 custom-scrollbar">
-					<div className="w-full max-w-4xl mx-auto space-y-12 pt-8">
+					<div className="w-full max-w-4xl mx-auto space-y-12">
 						<ProfileSettings
 							initialData={profileData?.onboardingAnswers}
 							onSave={handleSaveProfile}
 							isSaving={isSavingProfile}
 						/>
-						<WhatsAppSettings />
+						<div data-tour-id="notifications-section">
+							<WhatsAppSettings />
+						</div>
 						<ShortcutsSettings />
 						{process.env.NEXT_PUBLIC_ENVIRONMENT !== "prod" &&
 							process.env.NEXT_PUBLIC_ENVIRONMENT !== "stag" && (

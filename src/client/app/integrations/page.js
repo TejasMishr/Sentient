@@ -35,12 +35,14 @@ import {
 	IconCalendarEvent,
 	IconWorldSearch,
 	IconSearch,
+	IconBolt,
 	IconSparkles,
 	IconAlertTriangle,
 	IconEye,
 	IconPlug,
 	IconArrowUpCircle,
-	IconCheck
+	IconCheck,
+	IconListCheck
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import { usePostHog } from "posthog-js/react"
@@ -69,6 +71,7 @@ const integrationColorIcons = {
 	internet_search: IconWorldSearch,
 	gdrive: IconBrandGoogleDrive,
 	gdocs: IconFileText,
+	gtasks: IconListCheck,
 	gslides: IconPresentation,
 	gsheets: IconTable,
 	gmaps: IconMapPin,
@@ -100,9 +103,8 @@ const PRO_ONLY_INTEGRATIONS = [
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
 	{ name: "Voice Chat", limit: "10 minutes per day" },
-	{ name: "One-Time Tasks", limit: "20 async tasks per day" },
-	{ name: "Recurring Tasks", limit: "10 active recurring workflows" },
-	{ name: "Triggered Tasks", limit: "10 triggered workflows" },
+	{ name: "Async Tasks", limit: "100 tasks per month" },
+	{ name: "Active Workflows", limit: "25 recurring & triggered" },
 	{
 		name: "Parallel Agents",
 		limit: "5 complex tasks per day with 50 sub agents"
@@ -146,8 +148,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock powerful features to conquer your day.
@@ -179,7 +181,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -645,12 +647,12 @@ const InfoPanel = ({ onClose, title, children }) => (
 const IntegrationHeader = ({
 	searchQuery,
 	onSearchChange,
-	categories,
+	categoriesToShow,
 	activeCategory,
 	onCategoryChange
 }) => {
 	return (
-		<div className="mb-8 md:sticky md:top-0 bg-dark-surface/80 backdrop-blur-sm py-4 z-10">
+		<div className="xs:mb-4 md:mb-8 mt-1 md:sticky md:top-0 bg-dark-surface/80 backdrop-blur-sm md:py-4 z-10">
 			{/* Redesigned Search Bar */}
 			<div className="relative">
 				<IconSearch
@@ -668,7 +670,7 @@ const IntegrationHeader = ({
 
 			{/* Filter Pills */}
 			<div className="mt-4 flex flex-wrap gap-2">
-				{categories.map((category) => (
+				{categoriesToShow.map((category) => (
 					<button
 						key={category}
 						onClick={() => onCategoryChange(category)}
@@ -756,14 +758,14 @@ const IntegrationCard = ({
 				<div className="flex flex-col items-end gap-1">
 					{tagType && <IntegrationTag type={tagType} />}
 					{isProFeature && (
-						<span
+						<div
 							className={cn(
-								"px-2 py-0.5 rounded-full text-xs font-semibold",
+								"p-1.5 rounded-full text-xs font-semibold",
 								"bg-yellow-500/20 text-yellow-300"
 							)}
 						>
-							Pro
-						</span>
+							<IconBolt size={12} />
+						</div>
 					)}
 				</div>
 			</div>
@@ -803,7 +805,7 @@ const IntegrationsPage = () => {
 	const [loading, setLoading] = useState(true)
 	const [processingIntegration, setProcessingIntegration] = useState(null)
 	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Most Popular")
+	const [activeCategory, setActiveCategory] = useState("Core")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
@@ -1200,11 +1202,6 @@ const IntegrationsPage = () => {
 		}
 	}, [fetchIntegrations, posthog, router])
 
-	const MOST_POPULAR_INTEGRATION_NAMES = useMemo(
-		() => ["gmail", "gcalendar", "gdrive", "gpeople", "gdocs", "notion"],
-		[]
-	)
-
 	const renderIntegrationGrid = (integrations) => (
 		<motion.div
 			className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
@@ -1262,6 +1259,12 @@ const IntegrationsPage = () => {
 								key={integration.name}
 								variants={cardVariants}
 								className="h-full"
+								data-tour-id={
+									// Add tour ID for Gmail card
+									integration.name === "gmail"
+										? "gmail-card"
+										: undefined
+								}
 							>
 								<MorphingDialog
 									transition={{
@@ -1308,11 +1311,7 @@ const IntegrationsPage = () => {
 		() => [...userIntegrations, ...defaultTools],
 		[userIntegrations, defaultTools]
 	)
-
-	const categories = useMemo(() => {
-		const allCats = allIntegrations.map((i) => i.category).filter(Boolean)
-		return ["Most Popular", ...[...new Set(allCats)].sort()]
-	}, [allIntegrations])
+	const categoriesToShow = ["Core", "Inbuilt", "Advanced"]
 
 	const displayedIntegrations = useMemo(() => {
 		// This filter function is used when a search query is active.
@@ -1332,28 +1331,32 @@ const IntegrationsPage = () => {
 			return allIntegrations.filter(searchFilter)
 		}
 
-		// Otherwise, if the search is empty, apply the active category filter.
-		if (activeCategory === "Most Popular") {
-			const filteredList = allIntegrations.filter((integration) =>
-				MOST_POPULAR_INTEGRATION_NAMES.includes(integration.name)
-			)
-			filteredList.sort(
-				(a, b) =>
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(a.name) -
-					MOST_POPULAR_INTEGRATION_NAMES.indexOf(b.name)
-			)
-			return filteredList
-		} else {
+		const coreServices = new Set([
+			"gmail",
+			"gcalendar",
+			"gdocs",
+			"gsheets",
+			"gdrive",
+			"gtasks",
+			"notion",
+			"whatsapp"
+		])
+
+		if (activeCategory === "Core") {
+			return allIntegrations.filter((i) => coreServices.has(i.name))
+		}
+		if (activeCategory === "Inbuilt") {
+			return allIntegrations.filter((i) => i.auth_type === "builtin")
+		}
+		if (activeCategory === "Advanced") {
 			return allIntegrations.filter(
-				(integration) => integration.category === activeCategory
+				(i) => !coreServices.has(i.name) && i.auth_type !== "builtin"
 			)
 		}
-	}, [
-		activeCategory,
-		allIntegrations,
-		searchQuery,
-		MOST_POPULAR_INTEGRATION_NAMES
-	])
+
+		// Fallback for default category before state update or if category is unknown
+		return allIntegrations.filter((i) => coreServices.has(i.name))
+	}, [activeCategory, allIntegrations, searchQuery])
 
 	const renderIntegrationDialogContent = useCallback(
 		(integration) => {
@@ -1499,68 +1502,6 @@ const IntegrationsPage = () => {
 				onClose={() => setUpgradeModalOpen(false)}
 			/>
 			<AnimatePresence>
-				{isInfoPanelOpen && (
-					<InfoPanel
-						onClose={() => setIsInfoPanelOpen(false)}
-						title={
-							<div className="flex items-center gap-2">
-								<IconSparkles /> About Integrations
-							</div>
-						}
-					>
-						<p className="text-neutral-300">
-							Integrations are the bridge between me and your
-							favorite apps. By connecting your tools, you grant
-							me the ability to access information and perform
-							actions on your behalf.
-						</p>
-						<div className="space-y-4">
-							<div className="flex items-start gap-4">
-								<IconPlug
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										How It Works
-									</h3>
-									<p className="text-neutral-400 text-sm mt-1">
-										When you make a request in the chat, I
-										automatically select the right tool for
-										the job. For example, if you ask me to
-										'summarize my unread emails', I'll use
-										the connected Gmail tool to fetch the
-										data and complete the task.
-									</p>
-								</div>
-							</div>
-							<div className="flex items-start gap-4">
-								<IconEye
-									size={20}
-									className="text-brand-orange flex-shrink-0 mt-1"
-								/>
-								<div>
-									<h3 className="font-semibold text-white">
-										Autopilot Mode
-									</h3>
-									<p className="text-neutral-400 text-sm mt-1">
-										For some integrations like Gmail and
-										Google Calendar, I can proactively
-										monitor for important events. When I
-										find something I think you'd want to act
-										on—like an urgent email or a meeting
-										request—I'll create a suggestion and
-										send you a notification. You can then
-										approve it to have me take care of it,
-										or dismiss it.
-									</p>
-								</div>
-							</div>
-						</div>
-					</InfoPanel>
-				)}
-			</AnimatePresence>
-			<AnimatePresence>
 				{disconnectingIntegration && (
 					// The `isolate` class creates a new stacking context, and `z-[70]`
 					// ensures this context is rendered above the MorphingDialog
@@ -1587,32 +1528,20 @@ const IntegrationsPage = () => {
 				)}
 			</AnimatePresence>
 			<SparkleEffect trigger={sparkleTrigger} />
-			<div className="fixed bottom-6 left-6 z-40">
-				<button
-					onClick={() => setIsInfoPanelOpen(true)}
-					className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-[var(--color-primary-surface)] pulse-glow-animation"
-				>
-					<IconHelpCircle size={22} />
-				</button>
-			</div>
 			<div className="flex-1 flex flex-col overflow-hidden relative w-full pt-16 md:pt-0">
 				<div className="absolute inset-0 z-[-1] network-grid-background">
 					<InteractiveNetworkBackground />
 				</div>
 				<div className="absolute -top-[250px] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-brand-orange/10 rounded-full blur-3xl -z-10" />
-				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent border-b border-[var(--color-primary-surface)] shrink-0">
+				<header className="flex items-center justify-between p-4 sm:p-6 md:px-8 md:py-6 bg-transparent shrink-0">
 					<div>
 						<h1 className="text-3xl lg:text-4xl font-bold text-white flex items-center gap-3">
 							<IconPlugConnected />
 							Integrations
 						</h1>
-						<p className="text-neutral-400 mt-1">
-							Connect your digital life to unlock Sentient's full
-							potential.
-						</p>
 					</div>
 				</header>
-				<main className="flex-1 overflow-y-auto p-4 sm:p-6 md:px-8 custom-scrollbar">
+				<main className="flex-1 overflow-y-auto px-4 pb-4 sm:p-6 md:px-8 custom-scrollbar">
 					{loading ? (
 						<div className="flex justify-center items-center h-full">
 							<IconLoader className="w-12 h-12 animate-spin text-brand-orange" />
@@ -1622,7 +1551,7 @@ const IntegrationsPage = () => {
 							<IntegrationHeader
 								searchQuery={searchQuery}
 								onSearchChange={setSearchQuery}
-								categories={categories}
+								categoriesToShow={categoriesToShow}
 								activeCategory={activeCategory}
 								onCategoryChange={setActiveCategory}
 							/>

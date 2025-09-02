@@ -11,9 +11,11 @@ import {
 	IconArchive,
 	IconCircleCheck,
 	IconPlayerPlay,
+	IconPlayerPause,
 	IconClock,
 	IconClipboardList,
-	IconUsersGroup
+	IconUsersGroup,
+	IconProgress
 } from "@tabler/icons-react"
 import { getDisplayName } from "@utils/taskUtils"
 import RecurringTaskDetails from "./RecurringTaskDetails"
@@ -37,24 +39,32 @@ const TaskDetailsPanel = ({
 	onAnswerClarifications,
 	onAnswerLongFormClarification,
 	onSelectTask,
-	onResumeTask
+	onResumeTask,
+	onPauseTask
 }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editableTask, setEditableTask] = useState(task)
 	const scheduleType = task?.schedule?.type
+	const [userTimezone, setUserTimezone] = useState(null)
 
 	const missingTools = useMemo(() => {
 		if (!task || !integrations) {
 			return []
 		}
 
-		// The plan is in the latest run. Fallback to top-level for legacy tasks.
-		const plan =
-			task.runs && task.runs.length > 0
-				? task.runs[task.runs.length - 1].plan
-				: task.plan
+		let plan
+		// For tasks pending approval, the top-level plan is the one that matters.
+		if (task.status === "approval_pending" && task.plan) {
+			plan = task.plan
+		} else {
+			// For other states, look at the latest run's plan for historical context.
+			plan =
+				task.runs && task.runs.length > 0
+					? task.runs[task.runs.length - 1].plan
+					: task.plan
+		}
 
-		if (!plan || plan.length === 0) {
+		if (!plan || !Array.isArray(plan) || plan.length === 0) {
 			return []
 		}
 
@@ -90,13 +100,39 @@ const TaskDetailsPanel = ({
 		}
 	}, [task])
 
+	useEffect(() => {
+		const fetchUserTimezone = async () => {
+			try {
+				const response = await fetch("/api/user/data", {
+					method: "POST"
+				})
+				if (!response.ok) throw new Error("Failed to fetch user data")
+				const result = await response.json()
+				const timezone = result?.data?.personalInfo?.timezone
+				setUserTimezone(
+					timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+				) // Fallback to browser timezone
+			} catch (err) {
+				console.error("Failed to fetch user timezone", err)
+				setUserTimezone(
+					Intl.DateTimeFormat().resolvedOptions().timeZone
+				) // Fallback on error
+			}
+		}
+		fetchUserTimezone()
+	}, [])
+
 	const handleStartEditing = () => {
-		// When editing, we need to make sure we're editing the plan from the latest run.
+		// Prioritize the current, top-level plan, especially for tasks pending approval.
+		// Fall back to the latest run's plan only if the top-level one is empty.
 		const latestRun =
 			task.runs && task.runs.length > 0
 				? task.runs[task.runs.length - 1]
-				: {}
-		const planForEditing = latestRun.plan || task.plan || [] // Fallback for different structures
+				: null
+		const planForEditing =
+			task.plan && task.plan.length > 0
+				? task.plan
+				: latestRun?.plan || []
 
 		setEditableTask({ ...task, plan: planForEditing })
 		setIsEditing(true)
@@ -154,6 +190,7 @@ const TaskDetailsPanel = ({
 				"w-full h-full bg-brand-black backdrop-blur-xl shadow-2xl md:border-l border-neutral-700/80 flex flex-col flex-shrink-0",
 				className
 			)}
+			data-tour-id="task-details-panel"
 		>
 			{!task ? (
 				<div className="flex flex-col items-center justify-center h-full text-center text-neutral-500 p-8">
@@ -198,6 +235,35 @@ const TaskDetailsPanel = ({
 									{getDisplayName(task)}
 								</h2>
 							)}
+							{task.task_type === "swarm" && !isEditing && (
+								<div className="mt-2">
+									<div className="flex justify-between items-center text-xs text-neutral-400 mb-1">
+										<span>
+											<IconProgress
+												size={14}
+												className="inline mr-1"
+											/>
+											Swarm Progress
+										</span>
+										<span>
+											{task.swarm_details
+												?.completed_agents || 0}
+											/
+											{task.swarm_details?.total_agents ||
+												0}{" "}
+											Agents
+										</span>
+									</div>
+									<div className="w-full bg-neutral-700 rounded-full h-1.5">
+										<div
+											className="bg-brand-orange h-1.5 rounded-full"
+											style={{
+												width: `${((task.swarm_details?.completed_agents || 0) / (task.swarm_details?.total_agents || 1)) * 100}%`
+											}}
+										></div>
+									</div>
+								</div>
+							)}
 						</div>
 						<button
 							onClick={onClose}
@@ -221,14 +287,19 @@ const TaskDetailsPanel = ({
 								handleStepChange={handleStepChange}
 								allTools={allTools}
 								integrations={integrations}
+								userTimezone={userTimezone}
 							/>
 						) : scheduleType === "recurring" ? (
 							<RecurringTaskDetails
 								task={task}
 								onAnswerClarifications={onAnswerClarifications}
+								userTimezone={userTimezone}
 							/>
 						) : scheduleType === "triggered" ? (
-							<TriggeredTaskDetails task={task} />
+							<TriggeredTaskDetails
+								task={task}
+								userTimezone={userTimezone}
+							/>
 						) : (
 							<TaskDetailsContent
 								task={task}
@@ -237,6 +308,8 @@ const TaskDetailsPanel = ({
 								onAnswerLongFormClarification={
 									onAnswerLongFormClarification
 								}
+								userTimezone={userTimezone}
+								onResumeTask={onResumeTask}
 								onSelectTask={onSelectTask}
 							/>
 						)}
@@ -298,7 +371,7 @@ const TaskDetailsPanel = ({
 										</ActionButton>
 									</div>
 									{missingTools.length > 0 && (
-										<div className="text-xs text-red-400 flex flex-col items-end gap-1 text-right">
+										<div className="text-xs text-red-400 flex flex-col items-end gap-1 text-right flex-shrink min-w-0">
 											<span>
 												Connect tools to approve:
 											</span>
@@ -331,18 +404,37 @@ const TaskDetailsPanel = ({
 										</ActionButton>
 									)}
 									{task.task_type === "long_form" &&
-										task.orchestrator_state?.current_state ===
-											"WAITING" && (
+										task.orchestrator_state
+											?.current_state === "WAITING" && (
 											<ActionButton
 												onClick={() =>
 													onResumeTask(task.task_id)
 												}
-												icon={<IconPlayerPlay size={16} />}
+												icon={
+													<IconPlayerPlay size={16} />
+												}
 												className="bg-blue-600 text-white hover:bg-blue-500 w-full sm:w-auto flex-grow justify-center"
 											>
 												Resume Now
 											</ActionButton>
-									)}
+										)}
+									{task.task_type === "long_form" &&
+										task.orchestrator_state
+											?.current_state === "ACTIVE" && (
+											<ActionButton
+												onClick={() =>
+													onPauseTask(task.task_id)
+												}
+												icon={
+													<IconPlayerPause
+														size={16}
+													/>
+												}
+												className="bg-yellow-600 text-white hover:bg-yellow-500 w-full sm:w-auto flex-grow justify-center"
+											>
+												Pause
+											</ActionButton>
+										)}
 									<ActionButton
 										onClick={() =>
 											onArchiveTask(task.task_id)

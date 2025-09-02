@@ -3,19 +3,22 @@ import uuid
 import json
 import traceback
 import secrets
-import asyncio
+import asyncio, datetime
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, Request, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 import logging
 
 from main.models import OnboardingRequest
+from main.memories.db import get_db_pool as get_memories_pg_pool
+from mcp_hub.memory.utils import _get_normalized_embedding
+from pgvector.asyncpg import register_vector
 from main.auth.utils import PermissionChecker, AuthHelper
 from main.config import AUTH0_AUDIENCE
-from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager
+from main.dependencies import mongo_manager, auth_helper, websocket_manager as main_websocket_manager # noqa: E501
 from pydantic import BaseModel
 from workers.tasks import cud_memory_task
-from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, check_if_contact_is_missing
+from main.settings.google_sheets_utils import update_onboarding_data_in_sheet, update_plan_in_sheet, get_user_properties_from_sheet
 from main.notifications.whatsapp_client import check_phone_number_exists, send_whatsapp_message
 
 # Google API libraries for validation
@@ -163,7 +166,9 @@ async def save_onboarding_data_endpoint(
                 "location": "The user's location is at latitude {latitude}, longitude {longitude}.",
                 "timezone": "The user's timezone is {}",
                 "professional-context": "Professionally, the user has shared: {}",
-                "personal-context": "Personally, the user is interested in: {}",
+                "working-hours": "The user's usual working hours are: {}",
+                "key-people": "The user has mentioned these key people to remember: {}",
+                "personal-context": "The user has shared these personal details to keep track of: {}",
             }
             onboarding_facts = []
             for key, value in onboarding_data.items():
@@ -216,12 +221,6 @@ async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded
 
     # Check if profile exists and if plan is up-to-date
     profile_exists = profile_doc is not None
-    onboarding_complete = profile_doc.get("userData", {}).get("onboardingComplete", False) if profile_exists else False
-    needs_data_completion = False
-
-    # If onboarding is complete, check if we need to ask for the new questions
-    if onboarding_complete and user_email:
-        needs_data_completion = await check_if_contact_is_missing(user_email)
 
     stored_plan = profile_doc.get("userData", {}).get("plan") if profile_exists else None
 
@@ -241,12 +240,11 @@ async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded
 
     if profile_doc and "userData" in profile_doc:
         response_data = profile_doc["userData"]
-        response_data["needsDataCompletion"] = needs_data_completion
         return JSONResponse(content={"data": response_data, "status": 200})
 
     # Fallback in case re-fetch fails or returns an empty doc
     logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")
-    return JSONResponse(content={"data": {"needsDataCompletion": needs_data_completion}, "status": 200})
+    return JSONResponse(content={"data": {}, "status": 200})
 
 @router.websocket("/ws/notifications")
 async def notifications_websocket_endpoint(websocket: WebSocket):
@@ -310,3 +308,104 @@ async def update_privacy_filters_endpoint(
         raise HTTPException(status_code=500, detail="Failed to update privacy filters.")
         
     return JSONResponse(content={"message": "Privacy filters updated successfully."})
+
+@router.get("/user/properties", summary="Get user properties for analytics from GSheet")
+async def get_user_properties(
+    payload: dict = Depends(auth_helper.get_decoded_payload_with_claims)
+):
+    user_email = payload.get("email")
+    if not user_email:
+        raise HTTPException(status_code=400, detail="User email not found in token.")
+
+    properties = await get_user_properties_from_sheet(user_email)
+
+    return JSONResponse(content=properties)
+
+@router.get("/search/interactive", summary="Interactive search for tasks, chats, and memories")
+async def interactive_search(
+    query: str = Query(..., min_length=3),
+    user_id: str = Depends(auth_helper.get_current_user_id)
+):
+    query_lower = query.lower()
+    results = []
+
+    # --- Search Tasks ---
+    # Note: We fetch all tasks and filter in-memory because the 'name' and 'description' fields
+    # may be encrypted in the database. A direct DB text search would be on ciphertext.
+    # The `get_all_tasks_for_user` method handles decryption automatically.
+    # This is acceptable for a single user's data but would not scale to large datasets.
+    all_tasks = await mongo_manager.get_all_tasks_for_user(user_id)
+    tasks = []
+    for task in all_tasks:
+        # The get_all_tasks_for_user already decrypts, so we can search the content.
+        name = task.get("name", "") or ""
+        desc = task.get("description", "") or ""
+        if query_lower in name.lower() or query_lower in desc.lower():
+            tasks.append(task)
+        if len(tasks) >= 5: # Limit results
+            break
+
+    # --- Search Messages ---
+    # Similar to tasks, we fetch recent messages and then filter decrypted content.
+    # The `get_message_history` method handles decryption automatically.
+    all_messages = await mongo_manager.get_message_history(user_id, limit=200) # Search last 200 messages
+    messages = []
+    for msg in all_messages:
+        content = msg.get("content", "") or ""
+        if query_lower in content.lower():
+            messages.append(msg)
+        if len(messages) >= 5: # Limit results
+            break
+
+    # --- Search Memories (Postgres with pgvector) ---
+    memories = []
+    try:
+        pool = await get_memories_pg_pool()
+        async with pool.acquire() as conn:
+            await register_vector(conn)
+            query_embedding = _get_normalized_embedding(query, task_type="RETRIEVAL_QUERY")
+
+            # MODIFIED: Add a keyword search (ILIKE) and a similarity threshold to the WHERE clause.
+            memories_records = await conn.fetch(
+                """
+                SELECT id, content, created_at, 1 - (embedding <=> $2) AS similarity
+                FROM facts
+                WHERE user_id = $1 AND content ILIKE $3
+                ORDER BY similarity DESC
+                LIMIT 5;
+                """,
+                user_id, query_embedding, f'%{query}%'
+            )
+        memories = [dict(record) for record in memories_records]
+        print(memories)
+    except Exception as e:
+        logger.error(f"Error during memory search for user {user_id}: {e}", exc_info=True)
+        # Don't fail the whole search if memory search fails
+
+    # --- Combine and Format Results ---
+    for task in tasks:
+        results.append({"type": "task", "task_id": task["task_id"], "name": task.get("name"), "timestamp": task["created_at"]})
+    for msg in messages:
+        # msg['timestamp'] is an ISO string from get_message_history, convert it back to an offset-aware datetime for sorting
+        ts = datetime.datetime.fromisoformat(msg["timestamp"].replace("Z", "+00:00"))
+        results.append({"type": "chat", "message_id": msg["message_id"], "content": msg["content"], "timestamp": ts})
+    for mem in memories:
+        results.append({"type": "memory", "id": mem["id"], "content": mem["content"], "timestamp": mem["created_at"]})
+
+    # --- NORMALIZE TIMESTAMPS ---
+    # Ensure all datetime objects are offset-aware before sorting to prevent comparison errors.
+    for r in results:
+        ts = r.get("timestamp")
+        if isinstance(ts, datetime.datetime) and ts.tzinfo is None:
+            # If a datetime object is naive, assume it's UTC.
+            r["timestamp"] = ts.replace(tzinfo=datetime.timezone.utc)
+
+    # Sort all combined results by timestamp
+    results.sort(key=lambda x: x["timestamp"], reverse=True)
+
+    # Ensure all timestamps are ISO strings for the final JSON response
+    for r in results:
+        if isinstance(r['timestamp'], datetime.datetime):
+            r['timestamp'] = r['timestamp'].isoformat()
+
+    return {"results": results[:15]} # Limit total results

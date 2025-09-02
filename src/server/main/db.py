@@ -25,9 +25,12 @@ def _decrypt_docs(docs: List[Dict], fields: List[str]):
 USER_PROFILES_COLLECTION = "user_profiles"
 NOTIFICATIONS_COLLECTION = "notifications"
 DAILY_USAGE_COLLECTION = "daily_usage"
+MONTHLY_USAGE_COLLECTION = "monthly_usage"
 PROCESSED_ITEMS_COLLECTION = "processed_items_log"
-TASK_COLLECTION = "tasks"
+tasks_collection = "tasks"
 MESSAGES_COLLECTION = "messages"
+
+SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +42,9 @@ class MongoManager:
         self.user_profiles_collection = self.db[USER_PROFILES_COLLECTION]
         self.notifications_collection = self.db[NOTIFICATIONS_COLLECTION]
         self.daily_usage_collection = self.db[DAILY_USAGE_COLLECTION]
+        self.monthly_usage_collection = self.db[MONTHLY_USAGE_COLLECTION]
         self.processed_items_collection = self.db[PROCESSED_ITEMS_COLLECTION]
-        self.task_collection = self.db[TASK_COLLECTION]
+        self.tasks_collection = self.db[tasks_collection]
         self.messages_collection = self.db[MESSAGES_COLLECTION]
 
         print(f"[{datetime.datetime.now()}] [MainServer_MongoManager] Initialized. Database: {MONGO_DB_NAME}")
@@ -64,11 +68,14 @@ class MongoManager:
                 IndexModel([("user_id", ASCENDING), ("date", DESCENDING)], unique=True, name="usage_user_date_unique_idx"),
                 IndexModel([("date", DESCENDING)], name="usage_date_idx", expireAfterSeconds=2 * 24 * 60 * 60) # Expire docs after 2 days
             ],
+            self.monthly_usage_collection: [
+                IndexModel([("user_id", ASCENDING), ("month", DESCENDING)], unique=True, name="usage_user_month_unique_idx"),
+            ],
             self.processed_items_collection: [
                 IndexModel([("user_id", ASCENDING), ("service_name", ASCENDING), ("item_id", ASCENDING)], unique=True, name="processed_item_unique_idx_main"),
                 IndexModel([("processing_timestamp", DESCENDING)], name="processed_timestamp_idx_main", expireAfterSeconds=2592000) # 30 days
             ],
-            self.task_collection: [
+            self.tasks_collection: [
                 IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="task_user_created_idx"),
                 IndexModel([("user_id", ASCENDING), ("status", ASCENDING), ("priority", ASCENDING)], name="task_user_status_priority_idx"),
                 IndexModel([("status", ASCENDING), ("agent_id", ASCENDING)], name="task_status_agent_idx", sparse=True),
@@ -164,6 +171,29 @@ class MongoManager:
         )
         return result.matched_count > 0 or result.upserted_id is not None
 
+    async def get_completed_task_count_for_period(self, user_id: str, start_date: datetime.datetime, end_date: datetime.datetime) -> int:
+        """Counts completed tasks for a user within a specific date range."""
+        query = {
+            "user_id": user_id,
+            "status": "completed",
+            "updated_at": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        }
+        count = await self.tasks_collection.count_documents(query)
+        return count
+
+    async def has_notification_type(self, user_id: str, notification_type: str) -> bool:
+        """Checks if a user has ever received a notification of a specific type."""
+        if not user_id or not notification_type:
+            return False
+        # Use find_one for better performance, as we only need to know if at least one exists.
+        notification_doc = await self.notifications_collection.find_one(
+            {"user_id": user_id, "notifications.type": notification_type}
+        )
+        return notification_doc is not None
+
     # --- Usage Tracking Methods ---
     async def get_or_create_daily_usage(self, user_id: str) -> Dict[str, Any]:
         today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
@@ -179,6 +209,24 @@ class MongoManager:
         today_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d")
         await self.daily_usage_collection.update_one(
             {"user_id": user_id, "date": today_str},
+            {"$inc": {feature: amount}},
+            upsert=True
+        )
+
+    async def get_or_create_monthly_usage(self, user_id: str) -> Dict[str, Any]:
+        current_month_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")
+        usage_doc = await self.monthly_usage_collection.find_one_and_update(
+            {"user_id": user_id, "month": current_month_str},
+            {"$setOnInsert": {"user_id": user_id, "month": current_month_str}},
+            upsert=True,
+            return_document=ReturnDocument.AFTER
+        )
+        return usage_doc
+
+    async def increment_monthly_usage(self, user_id: str, feature: str, amount: int = 1):
+        current_month_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m")
+        await self.monthly_usage_collection.update_one(
+            {"user_id": user_id, "month": current_month_str},
             {"$inc": {feature: amount}},
             upsert=True
         )
@@ -252,6 +300,21 @@ class MongoManager:
             {"$set": {"notifications": []}}
         )
 
+    async def get_recent_completed_tasks_for_period(self, user_id: str, start_date: datetime.datetime, end_date: datetime.datetime, limit: int = 2) -> List[Dict]:
+        """Fetches a few recent completed tasks for a user within a specific date range."""
+        query = {
+            "user_id": user_id,
+            "status": "completed",
+            "updated_at": {
+                "$gte": start_date,
+                "$lt": end_date
+            }
+        }
+        cursor = self.tasks_collection.find(query, {"name": 1}).sort("updated_at", DESCENDING).limit(limit)
+        tasks = await cursor.to_list(length=limit)
+        decrypt_doc({"tasks": tasks}, ["tasks"]) # Decrypt the name field
+        return tasks
+
     # --- Task Methods ---
     async def add_task(self, user_id: str, task_data: dict) -> str:
         """Creates a new task document and returns its ID."""
@@ -290,43 +353,49 @@ class MongoManager:
         # Add type-specific fields based on the new schema
         task_type = task_doc["task_type"]
         if task_type == "swarm":
-            task_doc["swarm_details"] = task_data.get("swarm_details")
+            task_doc["swarm_details"] = task_data.get("swarm_details", {})
         elif task_type == "long_form":
             task_doc["orchestrator_state"] = task_data.get("orchestrator_state")
-            task_doc["dynamic_plan"] = task_data.get("dynamic_plan")
-            task_doc["clarification_requests"] = task_data.get("clarification_requests")
-            task_doc["execution_log"] = task_data.get("execution_log")
+            task_doc["dynamic_plan"] = task_data.get("dynamic_plan", [])
+            task_doc["clarification_requests"] = task_data.get("clarification_requests", [])
+            task_doc["execution_log"] = task_data.get("execution_log", [])
             task_doc["auto_approve_subtasks"] = task_data.get("auto_approve_subtasks", False)
 
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
 
-        await self.task_collection.insert_one(task_doc) # noqa: E501
+        await self.tasks_collection.insert_one(task_doc) # noqa: E501
         logger.info(f"Created new task {task_id} (type: {task_doc['task_type']}) for user {user_id} with status 'planning'.")
         return task_id
 
     async def get_task(self, task_id: str, user_id: str) -> Optional[Dict]:
         """Fetches a single task by its ID, ensuring it belongs to the user."""
-        doc = await self.task_collection.find_one({"task_id": task_id, "user_id": user_id})
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
+        doc = await self.tasks_collection.find_one({"task_id": task_id, "user_id": user_id})
         decrypt_doc(doc, SENSITIVE_TASK_FIELDS)
         return doc
 
+    async def count_active_workflows(self, user_id: str) -> int:
+        """Counts active recurring and triggered tasks for a user."""
+        query = {
+            "user_id": user_id,
+            "status": "active",
+            "task_type": {"$in": ["recurring", "triggered"]}
+        }
+        count = await self.tasks_collection.count_documents(query)
+        return count
+
     async def get_all_tasks_for_user(self, user_id: str) -> List[Dict]:
         """Fetches all tasks for a given user."""
-        cursor = self.task_collection.find({"user_id": user_id}).sort("created_at", -1) # noqa: E501
+        cursor = self.tasks_collection.find({"user_id": user_id}).sort("created_at", -1) # noqa: E501
         docs = await cursor.to_list(length=None)
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         _decrypt_docs(docs, SENSITIVE_TASK_FIELDS)
         return docs
 
-    async def update_task(self, task_id: str, updates: Dict) -> bool:
+    async def update_task(self, task_id: str, user_id: str, updates: Dict) -> bool:
         """Updates an existing task document."""
         updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
-        SENSITIVE_TASK_FIELDS = ["name", "description", "plan", "runs", "original_context", "chat_history", "error", "clarifying_questions", "result", "swarm_details", "orchestrator_state", "dynamic_plan", "clarification_requests", "execution_log"]
         encrypt_doc(updates, SENSITIVE_TASK_FIELDS)
-        result = await self.task_collection.update_one(
-            {"task_id": task_id},
+        result = await self.tasks_collection.update_one(
+            {"task_id": task_id, "user_id": user_id},
             {"$set": updates}
         )
         return result.modified_count > 0
@@ -353,16 +422,41 @@ class MongoManager:
             if q_id in answer_map:
                 question["answer"] = answer_map[q_id]
         # Always write back to the top-level field for consistency
-        return await self.update_task(task_id, {"clarifying_questions": current_questions})
+        return await self.update_task(task_id, user_id, {"clarifying_questions": current_questions})
 
-    async def delete_task(self, task_id: str, user_id: str) -> str:
-        """Deletes a task."""
-        result = await self.task_collection.delete_one({"task_id": task_id, "user_id": user_id})
-        return "Task deleted successfully." if result.deleted_count > 0 else None
+    async def delete_task(self, task_id: str, user_id: str) -> Tuple[bool, List[str]]:
+        """
+        Deletes a parent task and all its sub-tasks.
+        Returns a tuple: (success_flag, list_of_all_deleted_task_ids).
+        """
+        # 1. Find all sub-tasks to get their IDs for notification cleanup
+        sub_task_query = {
+            "user_id": user_id,
+            "original_context.parent_task_id": task_id
+        }
+        sub_tasks_to_delete = await self.tasks_collection.find(sub_task_query, {"task_id": 1}).to_list(length=None)
+        sub_task_ids = [st["task_id"] for st in sub_tasks_to_delete]
+
+        # 2. Delete sub-tasks if any exist
+        if sub_task_ids:
+            delete_subtasks_result = await self.tasks_collection.delete_many(sub_task_query)
+            logger.info(f"Deleted {delete_subtasks_result.deleted_count} sub-tasks for parent task {task_id}.")
+
+        # 3. Delete the parent task
+        delete_parent_result = await self.tasks_collection.delete_one({"task_id": task_id, "user_id": user_id})
+        parent_deleted = delete_parent_result.deleted_count > 0
+
+        if not parent_deleted and not sub_task_ids:
+            return False, []
+
+        all_deleted_ids = [task_id] if parent_deleted else []
+        all_deleted_ids.extend(sub_task_ids)
+
+        return True, all_deleted_ids
 
     async def decline_task(self, task_id: str, user_id: str) -> str:
         """Declines a task by setting its status to 'declined'."""
-        success = await self.update_task(task_id, {"status": "declined"})
+        success = await self.update_task(task_id, user_id, {"status": "declined"})
         return "Task declined." if success else None
 
     async def delete_tasks_by_tool(self, user_id: str, tool_name: str) -> int:
@@ -373,21 +467,27 @@ class MongoManager:
         if not user_id or not tool_name:
             return 0
         query = {"user_id": user_id, "runs.plan.tool": tool_name}
-        result = await self.task_collection.delete_many(query)
+        result = await self.tasks_collection.delete_many(query)
         logger.info(f"Deleted {result.deleted_count} tasks for user {user_id} using tool '{tool_name}'.")
         return result.deleted_count
 
-    async def cancel_latest_run(self, task_id: str) -> bool:
+    async def cancel_latest_run(self, task_id: str, user_id: str) -> bool:
         """Pops the last run from the array and reverts the task status to completed."""
+        task = await self.get_task(task_id, user_id)
+        if not task or not task.get("runs"):
+            return False
+
+        runs = task.get("runs", [])
+        if not isinstance(runs, list) or not runs:
+            return False
+
+        runs.pop() # Remove the last run
+
         update_payload = {
-            "$set": {
-                "status": "completed",
-                "updated_at": datetime.datetime.now(datetime.timezone.utc)
-            },
-            "$pop": {"runs": 1}  # Removes the last element from the 'runs' array
+            "status": "completed",
+            "runs": runs
         }
-        result = await self.task_collection.update_one({"task_id": task_id}, update_payload) # noqa: E501
-        return result.modified_count > 0
+        return await self.update_task(task_id, user_id, update_payload)
 
     async def delete_notifications_for_task(self, user_id: str, task_id: str):
         """Deletes all notifications associated with a specific task_id for a user."""
@@ -419,8 +519,87 @@ class MongoManager:
         new_task_doc["last_execution_at"] = None
         new_task_doc["next_execution_at"] = None
 
-        await self.task_collection.insert_one(new_task_doc)
+        encrypt_doc(new_task_doc, SENSITIVE_TASK_FIELDS)
+        await self.tasks_collection.insert_one(new_task_doc)
         return new_task_id
+
+    async def create_initial_task(self, user_id: str, name: str, description: str, action_items: list, topics: list, original_context: dict, source_event_id: str) -> Dict:
+        """Creates an initial task document when an action item is first processed."""
+        task_id = str(uuid.uuid4())
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+        task_doc = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "name": name,
+            "description": description,
+            "status": "planning",
+            "assignee": "ai",
+            "priority": 1,
+            "plan": [],
+            "runs": [],
+            "original_context": original_context,
+            "source_event_id": source_event_id,
+            "created_at": now_utc,
+            "updated_at": now_utc,
+            "chat_history": [],
+        }
+
+        encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
+
+        await self.tasks_collection.insert_one(task_doc)
+        logger.info(f"Created initial task {task_id} for user {user_id}")
+        return task_doc
+
+    async def update_task_with_plan(self, task_id: str, user_id: str, plan_data: dict, is_change_request: bool = False, chat_history: Optional[List[Dict]] = None):
+        """Updates a task with a generated plan and sets it to pending approval."""
+        plan_steps = plan_data.get("plan", [])
+
+        update_doc = {
+            "status": "approval_pending",
+            "plan": plan_steps,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc)
+        }
+
+        if chat_history is not None:
+            update_doc["chat_history"] = chat_history
+
+        if not is_change_request:
+            name = plan_data.get("name", "Proactively generated plan")
+            update_doc["name"] = name
+            update_doc["description"] = plan_data.get("description", "")
+
+        encrypt_doc(update_doc, SENSITIVE_TASK_FIELDS)
+
+        result = await self.tasks_collection.update_one(
+            {"task_id": task_id, "user_id": user_id},
+            {"$set": update_doc}
+        )
+        logger.info(f"Updated task {task_id} with a generated plan. Matched: {result.matched_count}")
+
+    async def save_plan_as_task(self, user_id: str, name: str, description: str, plan: list, original_context: dict, source_event_id: str) -> str:
+        """Saves a generated plan to the tasks collection for user approval."""
+        task_id = str(uuid.uuid4())
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        task_doc = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "name": name,
+            "description": description,
+            "status": "approval_pending",
+            "priority": 1,
+            "plan": plan,
+            "runs": [],
+            "original_context": original_context,
+            "source_event_id": source_event_id,
+            "created_at": now_utc,
+            "updated_at": now_utc,
+            "agent_id": "planner_agent"
+        }
+        encrypt_doc(task_doc, SENSITIVE_TASK_FIELDS)
+        await self.tasks_collection.insert_one(task_doc)
+        logger.info(f"Saved new plan with task_id: {task_id} for user: {user_id}")
+        return task_id
 
     # --- Message Methods ---
     async def add_message(self, user_id: str, role: str, content: str, message_id: Optional[str] = None, turn_steps: Optional[List[Dict]] = None) -> Dict:

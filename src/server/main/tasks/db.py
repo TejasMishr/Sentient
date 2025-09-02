@@ -12,16 +12,16 @@ class TaskDatabase:
     def __init__(self, mongo_uri: str, db_name: str = "task_manager_db"):
         self.client = motor.motor_asyncio.AsyncIOMotorClient(mongo_uri)
         self.db = self.client[db_name]
-        self.task_collection = self.db["tasks"]
+        self.tasks_collection = self.db["tasks"]
         self.user_collection = self.db["users"] # Assuming a user collection might exist or be needed
 
     async def _ensure_indexes(self):
         """Ensures that necessary indexes are created for efficient querying."""
         try:
-            await self.task_collection.create_index("task_id", unique=True)
-            await self.task_collection.create_index("user_id")
-            await self.task_collection.create_index("status")
-            await self.task_collection.create_index("next_execution_at")
+            await self.tasks_collection.create_index("task_id", unique=True)
+            await self.tasks_collection.create_index("user_id")
+            await self.tasks_collection.create_index("status")
+            await self.tasks_collection.create_index("next_execution_at")
             logger.info("Task indexes ensured.")
         except Exception as e:
             logger.error(f"Error ensuring task indexes: {e}")
@@ -58,7 +58,7 @@ class TaskDatabase:
             "long_form_details": task_data.get("long_form_details")
         }
         
-        await self.task_collection.insert_one(task_doc)
+        await self.tasks_collection.insert_one(task_doc)
         logger.info(f"Created new manual task {task_id} for user {user_id} with status 'planning'.")
         return task_doc
 
@@ -67,7 +67,7 @@ class TaskDatabase:
         query = {"task_id": task_id}
         if user_id:
             query["user_id"] = user_id
-        return await self.task_collection.find_one(query)
+        return await self.tasks_collection.find_one(query)
 
     async def get_tasks_for_user(self, user_id: str, status: Optional[str] = None) -> List[Dict]:
         """Fetches all tasks for a given user, optionally filtered by status."""
@@ -75,7 +75,7 @@ class TaskDatabase:
         if status:
             query["status"] = status
         
-        cursor = self.task_collection.find(query).sort("created_at", -1)
+        cursor = self.tasks_collection.find(query).sort("created_at", -1)
         return await cursor.to_list(length=None)
 
     async def update_task(self, task_id: str, updates: Dict) -> bool:
@@ -83,7 +83,7 @@ class TaskDatabase:
         # Ensure updated_at is always set
         updates["updated_at"] = datetime.datetime.now(datetime.timezone.utc)
         
-        result = await self.task_collection.update_one(
+        result = await self.tasks_collection.update_one(
             {"task_id": task_id},
             {"$set": updates}
         )

@@ -6,7 +6,7 @@ import uuid
 import wave
 import os
 import time
-from datetime import datetime # Added import
+from datetime import datetime
 from typing import AsyncGenerator, Dict, Any, Tuple
 import re
 import numpy as np
@@ -84,16 +84,16 @@ class MyVoiceChatHandler(ReplyOnPause):
         super().__init__(
             fn=self.process_audio_chunk,
             model_options=SileroVadOptions(
-                threshold=0.6,  # Higher threshold for more aggressive VAD
-                min_speech_duration_ms=250,
-                min_silence_duration_ms=7000,   # wait 7s of silence
-                speech_pad_ms=600,              # give extra buffer before and after speech
-                max_speech_duration_s=15,
+                threshold=0.5,                  # Standard speech probability threshold.
+                min_speech_duration_ms=400,     # Filters out short noises like clicks.
+                min_silence_duration_ms=2000,   # Wait for 1.2 seconds of silence. Accommodates thinking pauses.
+                speech_pad_ms=400,              # Add a 400ms buffer to the start/end of speech.
+                max_speech_duration_s=25,       # Allow for longer, more complex commands.
             ),
             algo_options=AlgoOptions(
-                audio_chunk_duration=0.5,
+                audio_chunk_duration=0.7,       # Analyze audio in 700ms chunks.
                 started_talking_threshold=0.2,
-                speech_threshold=0.1,          # consider only more solid chunks as pause
+                speech_threshold=0.1,           # A chunk must be >90% silent to be considered a pause.
             ),
             can_interrupt=False, # Set to False to prevent user interruption while bot is speaking,
             output_sample_rate=16000

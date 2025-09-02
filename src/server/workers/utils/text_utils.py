@@ -1,5 +1,6 @@
 import re
 from typing import List, Dict, Any
+from json_extractor import JsonExtractor
 
 def clean_llm_output(text: str) -> str:
     """
@@ -7,8 +8,10 @@ def clean_llm_output(text: str) -> str:
     """
     if not isinstance(text, str):
         return ""
+    # Use re.DOTALL to make '.' match newlines, and '?' for non-greedy matching.
     cleaned_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     return cleaned_text.strip()
+
 def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Parses conversation history and stores reasoning, tool calls, and tool results
@@ -21,17 +24,18 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         role = msg.get("role", "")
         content = msg.get("content", "")
 
-        # ✅ Thoughts from <think> tags
-        if role == "assistant" and content and "<think>" in content:
-            think_matches = re.findall(r"<think>([\s\S]*?)</think>", content, re.DOTALL)
-            for match in think_matches:
-                turn_steps.append({
-                    "type": "thought",
-                    "content": match.strip()
-                })
+        # ✅ Thoughts from assistant content that is NOT a tool call
+        if role == "assistant" and content and "function_call" not in msg:
+            # The agent's reasoning/thought process is the content of assistant messages before the final answer.
+            # We can capture all non-final assistant messages as thoughts.
+            # We will determine the "final_content" at the end.
+            turn_steps.append({
+                "type": "thought",
+                "content": content.strip()
+            })
 
         # ✅ Tool calls
-        if role == "assistant" and "function_call" in msg:
+        if role == "assistant" and "function_call" in msg and msg["function_call"]:
             tool_call = msg["function_call"]
             turn_steps.append({
                 "type": "tool_call",
@@ -49,19 +53,14 @@ def parse_assistant_response(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     # ✅ Extract final user-facing message (last assistant message without function_call)
     for msg in reversed(messages):
-        if msg.get("role") == "assistant" and "function_call" not in msg:
+        if msg.get("role") == "assistant" and "function_call" not in msg and msg.get("content"):
             text = msg.get("content", "").strip()
-            if not text:
-                continue
-
-            # Priority 1: Check for an explicit <answer> tag.
-            answer_match = re.search(r'<answer>([\s\S]*?)</answer>', text, re.DOTALL)
-            if answer_match:
-                final_content = answer_match.group(1).strip()
-            else:
-                # Fallback: Use content outside of <think> tags.
-                final_content = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.DOTALL).strip()
-            break # Stop after finding the first valid final content
+            if text:
+                final_content = text
+                # Since we found the final content, remove the last "thought" we added for it.
+                if turn_steps and turn_steps[-1]["type"] == "thought" and turn_steps[-1]["content"] == text:
+                    turn_steps.pop()
+                break
 
     return {
         "final_content": final_content,

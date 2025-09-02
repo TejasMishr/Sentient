@@ -10,9 +10,12 @@ import {
 	IconBrandSlack,
 	IconBrandNotion,
 	IconBrandGithub,
-	IconBrandGoogleDrive,
+	IconBrandWhatsapp,
 	IconWorldSearch,
-	IconUsers
+	IconClock,
+	IconUsersGroup,
+	IconBrandGoogleDrive,
+	IconClipboardList
 } from "@tabler/icons-react"
 
 const toolIcons = {
@@ -20,7 +23,10 @@ const toolIcons = {
 	gcalendar: IconCalendar,
 	gdocs: IconFileText,
 	gdrive: IconBrandGoogleDrive,
-	gpeople: IconUsers,
+	whatsapp: IconBrandWhatsapp,
+	tasks: IconClipboardList,
+	long_form: IconClock,
+	swarm: IconUsersGroup,
 	slack: IconBrandSlack,
 	notion: IconBrandNotion,
 	github: IconBrandGithub,
@@ -28,52 +34,95 @@ const toolIcons = {
 }
 
 const exampleWorkflows = [
+	// --- Examples for TASKS view ---
 	{
+		view: "tasks",
+		type: "task",
+		title: "Plan a Trip",
+		description:
+			"A multi-step task to find flights and hotels, demonstrating the orchestrator's long-form capabilities.",
+		prompt: "Book a flight from New York to London for next month, find the best deal, and then book a hotel near the airport for 3 nights.",
+		tools: ["internet_search", "long_form"]
+	},
+	{
+		view: "tasks",
+		type: "task",
+		title: "Set a Reminder",
+		description:
+			"A simple scheduled task that will run once at a specific time in the future.",
+		prompt: "Remind me to call the doctor's office tomorrow at 10 AM to confirm my appointment.",
+		tools: ["tasks", "gcalendar"]
+	},
+	{
+		view: "tasks",
+		type: "task",
+		title: "Parallel Research (Swarm)",
+		description:
+			"A swarm task that processes multiple items in parallel to speed up research.",
+		prompt: "Research the following topics and create a brief summary for each: The history of AI, the impact of quantum computing, and the future of renewable energy.",
+		tools: ["internet_search", "swarm"]
+	},
+	// --- Examples for WORKFLOWS view ---
+	{
+		view: "workflows",
+		type: "workflow",
 		title: "Daily Briefing",
 		description:
-			"Get a summary of your unread emails and today's calendar events.",
-		prompt: "Every morning at 8 AM, send me a summary of unread emails and my upcoming calendar events for the day on WhatsApp.",
-		tools: ["gmail", "gcalendar"]
+			"A recurring workflow that runs every morning to summarize your day.",
+		prompt: "Every morning at 8 AM, send me a summary of my unread emails and upcoming calendar events for the day on WhatsApp.",
+		tools: ["gmail", "gcalendar", "whatsapp"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "daily",
+			recurringTime: "08:00"
+		}
 	},
 	{
-		title: "Meeting Prep",
+		view: "workflows",
+		type: "workflow",
+		title: "VIP Email Alert",
 		description:
-			"Find all relevant documents and emails about an upcoming meeting.",
-		prompt: "Help me prepare for my meeting with Acme Corp tomorrow. Find all recent emails and documents related to them.",
-		tools: ["gcalendar", "gmail", "gdrive"]
+			"A triggered workflow that creates a task whenever you get an email from a specific person.",
+		prompt: "Whenever I receive a new email from 'boss@example.com', create a high-priority task for me to review it.",
+		tools: ["gmail", "tasks", "bolt"],
+		params: { workflowTab: "triggered" }
 	},
 	{
-		title: "Schedule a Follow-up",
-		description: "Find a time and schedule a meeting with a contact.",
-		prompt: "Find a free slot on my Google Calendar for next week and schedule a follow-up call with jane.doe@example.com now.",
-		tools: ["gcalendar", "gpeople"]
-	},
-	{
-		title: "Weekly Lead Nurturing",
+		view: "workflows",
+		type: "workflow",
+		title: "Weekly Content Curation",
 		description:
-			"Draft personalized follow-up emails for new leads from Google Contacts.",
-		prompt: "Every Monday morning, find all contacts in my Google Contacts with the label 'Q3-Leads'. For each contact, search my gmail to see if we have discussed anything before. If not, draft a friendly, personalized outreach email asking if they would be open to collaborating and suggest a brief call.",
-		tools: ["gpeople", "gmail"]
-	},
-	{
-		title: "Content Idea Generation",
-		description:
-			"Research trends and populate your Notion database with new content ideas.",
-		prompt: "Every Friday, find the top 5 news articles from the past week in the 'technology' category. Also, perform an internet search for 'latest trends in AI productivity tools'. Summarize the key findings and add them as new ideas to the 'Content Ideas for The Week' Page under the Getting Started page in Notion.",
-		tools: ["internet_search", "notion"]
-	},
-	{
-		title: "Automated Meeting Agenda",
-		description:
-			"Generate a meeting agenda by summarizing recent activity from GitHub and Slack.",
-		prompt: "We have a project sync meeting every Friday at 5PM. Every Friday at 4 PM, summarize all closed issues in the 'Project-Sentient' GitHub repo from the last 7 days. Check the Trello board for Project-Sentient and see what the remaining cards on the 'To-Do' board are. Create a new Google Doc with this summary and outline what we can discuss in the meeting. Share this document with the team on Slack. Add a Google Calendar event for the meeting with the agenda attached.",
-		tools: ["gcalendar", "github", "slack", "gdocs"]
+			"A recurring workflow to research topics and save them to Notion automatically.",
+		prompt: "Every Friday afternoon, find the top 5 news articles in 'technology', summarize them, and add them to my 'Weekly Reading' page in Notion.",
+		tools: ["internet_search", "notion"],
+		params: {
+			workflowTab: "recurring",
+			recurringFrequency: "weekly",
+			recurringTime: "16:00",
+			recurringDays: ["Friday"]
+		}
 	}
 ]
 
-const WelcomePanel = ({ onExampleClick, onClose }) => {
+const content = {
+	tasks: {
+		title: "Welcome to Tasks",
+		description:
+			"This is your command center for getting things done. Create one-time tasks, complex multi-step projects, or actions scheduled for a specific time. Describe what you need, and I'll handle the rest."
+	},
+	workflows: {
+		title: "Welcome to Workflows",
+		description:
+			"Automate your routines with powerful workflows. Create recurring tasks that run on a schedule or set up triggers that react to events in your connected apps, like new emails or calendar invites."
+	}
+}
+
+const WelcomePanel = ({ view, onExampleClick, onClose }) => {
+	const currentContent = content[view] || content.tasks
+	const examples = exampleWorkflows.filter((ex) => ex.view === view)
+
 	return (
-		<div className="p-4 md:p-6 h-full flex flex-col">
+		<div className="md:p-6 h-full flex flex-col">
 			<header className="flex items-start justify-between text-center mb-6 md:mb-8 flex-shrink-0">
 				<div className="flex-1 flex flex-col items-center">
 					<IconSparkles
@@ -81,34 +130,24 @@ const WelcomePanel = ({ onExampleClick, onClose }) => {
 						className="text-brand-orange mb-3"
 					/>
 					<h2 className="text-xl md:text-2xl font-bold text-white">
-						Welcome to Tasks
+						{currentContent.title}
 					</h2>
 					<p className="text-neutral-400 mt-1 text-sm md:text-base max-w-lg">
-						This is your command center for getting things done.
-						Simply describe what you need in the input box below.
-						You can create one-time tasks, scheduled actions, or
-						recurring workflows using natural language.
+						{currentContent.description}
 					</p>
 				</div>
-				{/* Mobile-only close button */}
-				<button
-					onClick={onClose}
-					className="p-2 text-neutral-400 hover:text-white md:hidden -mr-2 -mt-2"
-				>
-					<IconX size={20} />
-				</button>
 			</header>
-			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1">
+			<div className="space-y-4 overflow-y-auto custom-scrollbar flex-1 px-2 md:px-4">
 				<h3 className="font-semibold text-neutral-300 px-2">
-					Example Workflows
+					Examples
 				</h3>
-				{exampleWorkflows.map((workflow, index) => (
+				{examples.map((workflow, index) => (
 					<motion.div
 						key={workflow.title}
 						initial={{ opacity: 0, y: 20 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ delay: index * 0.1 }}
-						onClick={() => onExampleClick(workflow.prompt)}
+						onClick={() => onExampleClick(workflow)}
 						className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700 hover:border-brand-orange cursor-pointer transition-colors flex flex-col justify-between"
 					>
 						<div>

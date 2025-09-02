@@ -1,11 +1,12 @@
 import logging
 import datetime
+from typing import Dict, Any, Optional
 from workers.celery_app import celery_app
 from . import state_manager
 
 logger = logging.getLogger(__name__)
 
-async def set_waiting_state(task_id: str, user_id: str, waiting_for: str, timeout_minutes: int, max_retries: int):
+async def set_waiting_state(task_id: str, user_id: str, waiting_for: str, timeout_minutes: int, max_retries: int, context: Optional[Dict[str, Any]] = None):
     """
     Sets the task state to WAITING and schedules a timeout handler.
     """
@@ -17,7 +18,8 @@ async def set_waiting_state(task_id: str, user_id: str, waiting_for: str, timeou
         "timeout_at": timeout_at,
         "started_at": now,
         "max_retries": max_retries,
-        "current_retries": 0
+        "current_retries": 0,
+        "context": context or {}
     }
 
     await state_manager.update_orchestrator_state(task_id, user_id, {

@@ -229,13 +229,35 @@ async def patch_calendar(ctx: Context, calendar_id: str, summary: str, descripti
 @mcp.tool()
 async def patch_event(ctx: Context, calendar_id: str, event_id: str, attendees: Optional[List[Dict]] = None, conference_data_version: Optional[int] = None, description: Optional[str] = None, end_time: Optional[str] = None, location: Optional[str] = None, max_attendees: Optional[int] = None, rsvp_response: Optional[str] = None, send_updates: Optional[str] = None, start_time: Optional[str] = None, summary: Optional[str] = None, supports_attachments: Optional[bool] = None, timezone: Optional[str] = None) -> Dict:
     """Updates specified fields of an existing event in a google calendar using patch semantics."""
-    params = {"calendar_id": calendar_id, "event_id": event_id, "attendees": attendees, "conference_data_version": conference_data_version, "description": description, "end_time": end_time, "location": location, "max_attendees": max_attendees, "rsvp_response": rsvp_response, "send_updates": send_updates, "start_time": start_time, "summary": summary, "supports_attachments": supports_attachments, "timezone": timezone}
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
+
+    params = {"calendar_id": calendar_id, "event_id": event_id, "attendees": attendees_to_send, "conference_data_version": conference_data_version, "description": description, "end_time": end_time, "location": location, "max_attendees": max_attendees, "rsvp_response": rsvp_response, "send_updates": send_updates, "start_time": start_time, "summary": summary, "supports_attachments": supports_attachments, "timezone": timezone}
     return await _execute_tool(ctx, "GOOGLECALENDAR_PATCH_EVENT", **params)
 
 @mcp.tool()
 async def update_event(ctx: Context, event_id: str, start_datetime: str, attendees: Optional[List[Dict]] = None, calendar_id: str = "primary", create_meeting_room: Optional[bool] = None, description: Optional[str] = None, eventType: str = "default", event_duration_hour: Optional[int] = None, event_duration_minutes: int = 30, guestsCanInviteOthers: Optional[bool] = None, guestsCanSeeOtherGuests: Optional[bool] = None, guests_can_modify: Optional[bool] = None, location: Optional[str] = None, recurrence: Optional[List[str]] = None, send_updates: Optional[bool] = None, summary: Optional[str] = None, timezone: Optional[str] = None, transparency: str = "opaque", visibility: str = "default") -> Dict:
     """Updates an existing event by `event id` in a google calendar."""
-    params = {"event_id": event_id, "start_datetime": start_datetime, "attendees": attendees, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "summary": summary, "timezone": timezone, "transparency": transparency, "visibility": visibility}
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
+
+    params = {"event_id": event_id, "start_datetime": start_datetime, "attendees": attendees_to_send, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "summary": summary, "timezone": timezone, "transparency": transparency, "visibility": visibility}
     return await _execute_tool(ctx, "GOOGLECALENDAR_UPDATE_EVENT", **params)
 
 @mcp.tool()

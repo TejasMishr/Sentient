@@ -11,7 +11,7 @@ import {
 	IconSearch,
 	IconLayoutSidebarLeftCollapse,
 	IconLayoutSidebarLeftExpand,
-	IconArrowUpCircle,
+	IconBolt,
 	IconDots,
 	IconAdjustments,
 	IconLogout,
@@ -37,6 +37,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
+import { useTour } from "@components/LayoutWrapper"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -85,8 +86,8 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 					>
 						<header className="text-center mb-4">
 							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconSparkles className="text-brand-orange" />
-								Upgrade to Pro
+								<IconBolt className="text-yellow-400" />
+								Unlock Pro Features
 							</h2>
 							<p className="text-neutral-400 mt-2">
 								Unlock powerful features to conquer your day.
@@ -118,7 +119,7 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 								onClick={handleUpgrade}
 								className="w-full py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
 							>
-								Upgrade to Pro - $9/month
+								Upgrade Now - $9/month
 							</button>
 							<button
 								onClick={onClose}
@@ -288,12 +289,13 @@ const UserProfileSection = ({ isCollapsed, user }) => {
 							</p>
 							<span
 								className={cn(
-									"text-xs",
+									"text-xs flex items-center gap-1",
 									isPro
 										? "text-brand-orange"
 										: "text-neutral-400"
 								)}
 							>
+								{isPro && <IconBolt size={12} />}
 								{planName}
 							</span>
 						</motion.div>
@@ -472,7 +474,6 @@ const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 
 const SidebarContent = ({
 	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
@@ -480,7 +481,8 @@ const SidebarContent = ({
 	onMobileClose = () => {},
 	installPrompt,
 	handleInstallClick,
-	user
+	user,
+	isTourActive
 }) => {
 	const pathname = usePathname()
 	const [isHelpMenuOpen, setHelpMenuOpen] = useState(false)
@@ -488,6 +490,7 @@ const SidebarContent = ({
 	const [isComingSoonModalOpen, setComingSoonModalOpen] = useState(false)
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const router = useRouter()
+	const tour = useTour()
 
 	const fadeInUp = {
 		hidden: { opacity: 0, y: 10 },
@@ -497,9 +500,9 @@ const SidebarContent = ({
 	// CHANGED: Use the environment variable for the namespace
 	const { isPro } = usePlan()
 
-	const handleShowDemo = () => {
+	const handleStartDemo = () => {
 		setHelpMenuOpen(false)
-		router.push("/chat?show_demo=true")
+		tour.startTour()
 	}
 
 	const handleShowVideo = () => {
@@ -509,12 +512,22 @@ const SidebarContent = ({
 
 	const navLinks = [
 		{ title: "Chat", href: "/chat", icon: <IconMessage size={20} /> },
-		{ title: "Tasks", href: "/tasks", icon: <IconChecklist size={20} /> },
-		{ title: "Memories", href: "/memories", icon: <IconBrain size={20} /> },
+		{
+			title: "Tasks",
+			href: "/tasks",
+			icon: <IconChecklist size={20} />,
+			tourId: "sidebar-tasks-icon"
+		},
+		{
+			title: "Memories",
+			href: "/memories",
+			icon: <IconBrain size={20} />,
+		},
 		{
 			title: "Integrations",
 			href: "/integrations",
-			icon: <IconPlugConnected size={20} />
+			icon: <IconPlugConnected size={20} />,
+			tourId: "sidebar-integrations-icon",
 		},
 		{
 			title: "Settings",
@@ -554,7 +567,7 @@ const SidebarContent = ({
 				{isHelpMenuOpen && (
 					<HelpMenuModal
 						onClose={() => setHelpMenuOpen(false)}
-						onShowDemo={handleShowDemo}
+						onShowDemo={handleStartDemo}
 						onShowVideo={handleShowVideo}
 					/>
 				)}
@@ -640,7 +653,7 @@ const SidebarContent = ({
 				>
 					<div className="flex items-center gap-3">
 						<div className="bg-neutral-700/80 p-1 rounded-full text-brand-orange">
-							<IconArrowUpCircle size={18} />
+							<IconBolt size={18} />
 						</div>
 						<AnimatePresence>
 							{!isCollapsed && (
@@ -651,7 +664,7 @@ const SidebarContent = ({
 									className="overflow-hidden whitespace-nowrap"
 								>
 									<p className="font-semibold text-sm text-white">
-										Upgrade to Pro
+										Unlock Pro
 									</p>
 									<p className="text-xs text-neutral-400">
 										Unlock all features
@@ -670,7 +683,10 @@ const SidebarContent = ({
 						<Link
 							href={link.href}
 							key={link.title}
-							onClick={isMobile ? onMobileClose : undefined}
+							data-tour-id={link.tourId}
+							onClick={
+								isMobile && !isTourActive ? onMobileClose : undefined
+							}
 							className={cn(
 								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
 								isActive
@@ -728,7 +744,7 @@ const SidebarContent = ({
 						</button>
 					)}
 
-					{isMobile ? (
+					{isMobile && (
 						<button
 							onClick={onMobileClose}
 							className="flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm text-neutral-400 hover:text-white hover:bg-neutral-800/50"
@@ -737,26 +753,6 @@ const SidebarContent = ({
 							<span className="font-medium whitespace-nowrap">
 								Collapse
 							</span>
-						</button>
-					) : (
-						<button
-							onClick={onToggle}
-							className={cn(
-								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
-								"text-neutral-400 hover:text-white hover:bg-neutral-800/50",
-								isCollapsed && "justify-center"
-							)}
-						>
-							{isCollapsed ? (
-								<IconLayoutSidebarLeftExpand size={20} />
-							) : (
-								<IconLayoutSidebarLeftCollapse size={20} />
-							)}
-							{!isCollapsed && (
-								<span className="font-medium whitespace-nowrap">
-									Collapse
-								</span>
-							)}
 						</button>
 					)}
 					<button
@@ -817,14 +813,13 @@ const SidebarContent = ({
 }
 
 const Sidebar = ({
-	isCollapsed,
-	onToggle,
 	onNotificationsOpen,
 	onSearchOpen,
 	unreadCount,
 	isMobileOpen,
 	onMobileClose,
-	user
+	user,
+	isTourActive
 }) => {
 	const [installPrompt, setInstallPrompt] = useState(null)
 
@@ -887,6 +882,7 @@ const Sidebar = ({
 								isMobile={true}
 								installPrompt={installPrompt}
 								handleInstallClick={handleInstallClick}
+								isTourActive={isTourActive}
 								user={user}
 							/>
 						</motion.div>
@@ -895,22 +891,21 @@ const Sidebar = ({
 			</AnimatePresence>
 
 			{/* Desktop Sidebar */}
-			<motion.div
-				animate={{ width: isCollapsed ? 80 : 260 }}
-				transition={{ type: "spring", stiffness: 300, damping: 30 }}
+			<div
+				style={{ width: 260 }}
 				className="hidden md:flex fixed top-0 left-0 h-screen bg-black flex-col p-3 text-neutral-200 border-r border-neutral-800/50 z-40"
 			>
 				<SidebarContent
-					isCollapsed={isCollapsed}
-					onToggle={onToggle}
+					isCollapsed={false}
 					onNotificationsOpen={onNotificationsOpen}
 					onSearchOpen={onSearchOpen}
 					unreadCount={unreadCount}
 					installPrompt={installPrompt}
 					handleInstallClick={handleInstallClick}
+					isTourActive={isTourActive}
 					user={user}
 				/>
-			</motion.div>
+			</div>
 		</>
 	)
 }

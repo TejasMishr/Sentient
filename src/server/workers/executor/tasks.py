@@ -653,7 +653,7 @@ def run_single_item_worker(self, sub_task_id: str, parent_task_id: str, user_id:
     """
     worker_id = self.request.id
     logger.info(f"Running single item worker {worker_id} for sub_task {sub_task_id} on item: {str(item)[:100]}")
-    return run_async(async_run_single_item_worker(sub_task_id, parent_task_id, user_id, item, worker_prompt, worker_tools, worker_id))
+    return run_async(async_run_single_item_worker(sub_task_id, parent_task_id, user_id, item, worker_prompt, worker_tools, worker_id)) # noqa
 
 async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, user_id: str, item: Any, worker_prompt: str, worker_tools: List[str], worker_id: str):
     """
@@ -729,9 +729,9 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
         }
         await update_sub_task_safely(sub_task_id, {"status": "processing", "runs": [run_doc]})
         
-        # 2. Get user context
+        # 2. Get user context and integrations
         user_profile = await db.user_profiles.find_one({"user_id": user_id})
-        user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {}
+        user_integrations = user_profile.get("userData", {}).get("integrations", {}) if user_profile else {} # noqa
 
         # 3. Configure tools for the sub-agent
         active_mcp_servers = {}
@@ -764,9 +764,9 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
         item_context = json.dumps(item, indent=2, default=str)
         full_worker_prompt = f"**Task:**\n{worker_prompt}\n\n**Input Data for this Task:**\n```json\n{item_context}\n```"
 
-        messages = [{'role': 'user', 'content': full_worker_prompt}]
+        messages = [{'role': 'user', 'content': full_worker_prompt}] # noqa
 
-        await add_sub_task_run_update_safely("info", f"Starting work on item: {str(item)[:100]}")
+        await add_sub_task_run_update_safely(sub_task_id, "info", f"Starting work on item: {str(item)[:100]}")
 
         # 5. Run the agent
         llm_cfg = {
@@ -805,12 +805,21 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
             "runs": [{"status": "completed", "result": final_result}] # Overwrite run with final result
         })
 
-        await db.tasks.update_one(
-            {"task_id": parent_task_id},
-            {"$inc": {"swarm_details.completed_agents": 1}}
-        )
+        # Safely increment the completed agents count
+        parent_task = await db.tasks.find_one({"task_id": parent_task_id})
+        if parent_task:
+            decrypt_doc(parent_task, ["swarm_details"])
+            swarm_details = parent_task.get("swarm_details", {})
+            if not isinstance(swarm_details, dict): swarm_details = {}
+            swarm_details["completed_agents"] = swarm_details.get("completed_agents", 0) + 1
+            update_payload = {"swarm_details": swarm_details}
+            encrypt_doc(update_payload, ["swarm_details"])
+            await db.tasks.update_one({"task_id": parent_task_id}, {"$set": update_payload})
+        else:
+            logger.error(f"Could not find parent task {parent_task_id} to increment completed_agents count.")
+
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update_safely("info", f"Finished work. Result: {str(final_result)[:100]}")
+        await add_sub_task_run_update_safely(sub_task_id, "info", f"Finished work. Result: {str(final_result)[:100]}")
 
         return final_result
 
@@ -821,9 +830,19 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
             "status": "error", "error": error_str, 
             "runs": [{"status": "error", "error": error_str}]
         })
-        await db.tasks.update_one({"task_id": parent_task_id}, {"$inc": {"swarm_details.completed_agents": 1}})
+        # Safely increment the completed agents count even on failure
+        parent_task = await db.tasks.find_one({"task_id": parent_task_id})
+        if parent_task:
+            decrypt_doc(parent_task, ["swarm_details"])
+            swarm_details = parent_task.get("swarm_details", {})
+            if not isinstance(swarm_details, dict): swarm_details = {}
+            swarm_details["completed_agents"] = swarm_details.get("completed_agents", 0) + 1
+            update_payload = {"swarm_details": swarm_details}
+            encrypt_doc(update_payload, ["swarm_details"])
+            await db.tasks.update_one({"task_id": parent_task_id}, {"$set": update_payload})
+
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update_safely("error", error_str)
+        await add_sub_task_run_update_safely(sub_task_id, "error", error_str)
         return {"error": error_str, "item": item}
     except Exception as e:
         error_str = str(e)
@@ -832,12 +851,19 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
             "status": "error", "error": error_str, 
             "runs": [{"status": "error", "error": error_str}]
         })
-        await db.tasks.update_one(
-            {"task_id": parent_task_id},
-            {"$inc": {"swarm_details.completed_agents": 1}} # Still increment, as it's "completed" in a failed state
-        )
+        # Safely increment the completed agents count even on failure
+        parent_task = await db.tasks.find_one({"task_id": parent_task_id})
+        if parent_task:
+            decrypt_doc(parent_task, ["swarm_details"])
+            swarm_details = parent_task.get("swarm_details", {})
+            if not isinstance(swarm_details, dict): swarm_details = {}
+            swarm_details["completed_agents"] = swarm_details.get("completed_agents", 0) + 1
+            update_payload = {"swarm_details": swarm_details}
+            encrypt_doc(update_payload, ["swarm_details"])
+            await db.tasks.update_one({"task_id": parent_task_id}, {"$set": update_payload})
+
         await push_task_list_update(user_id, parent_task_id, "swarm_progress")
-        await add_sub_task_run_update_safely("error", f"An error occurred: {error_str}")
+        await add_sub_task_run_update_safely(sub_task_id, "error", f"An error occurred: {error_str}")
         return {"error": error_str, "item": item}
 
 @celery_app.task(name="aggregate_results_callback")

@@ -130,7 +130,18 @@ async def insert_calendar_into_list(ctx: Context, id: str, background_color: Opt
 @mcp.tool()
 async def create_event(ctx: Context, start_datetime: str, summary: Optional[str] = None, attendees: Optional[List[Dict]] = None, calendar_id: str = "primary", create_meeting_room: Optional[bool] = None, description: Optional[str] = None, eventType: str = "default", event_duration_hour: Optional[int] = None, event_duration_minutes: int = 30, guestsCanInviteOthers: Optional[bool] = None, guestsCanSeeOtherGuests: Optional[bool] = None, guests_can_modify: Optional[bool] = None, location: Optional[str] = None, recurrence: Optional[List[str]] = None, send_updates: Optional[bool] = None, timezone: Optional[str] = None, transparency: str = "opaque", visibility: str = "default") -> Dict:
     """Creates an event on a google calendar."""
-    params = {"start_datetime": start_datetime, "summary": summary, "attendees": attendees, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "timezone": timezone, "transparency": transparency, "visibility": visibility}
+    # WORKAROUND for Composio inconsistency: convert attendees to list of strings
+    attendees_to_send = attendees
+    if attendees and isinstance(attendees, list):
+        processed_attendees = []
+        for attendee in attendees:
+            if isinstance(attendee, dict) and 'email' in attendee:
+                processed_attendees.append(attendee['email'])
+            elif isinstance(attendee, str):
+                processed_attendees.append(attendee)
+        attendees_to_send = processed_attendees
+
+    params = {"start_datetime": start_datetime, "summary": summary, "attendees": attendees_to_send, "calendar_id": calendar_id, "create_meeting_room": create_meeting_room, "description": description, "eventType": eventType, "event_duration_hour": event_duration_hour, "event_duration_minutes": event_duration_minutes, "guestsCanInviteOthers": guestsCanInviteOthers, "guestsCanSeeOtherGuests": guestsCanSeeOtherGuests, "guests_can_modify": guests_can_modify, "location": location, "recurrence": recurrence, "send_updates": send_updates, "timezone": timezone, "transparency": transparency, "visibility": visibility}
     return await _execute_tool(ctx, "GOOGLECALENDAR_CREATE_EVENT", **params)
 
 @mcp.tool()

@@ -211,6 +211,7 @@ const RecurringTaskDetails = ({
 						{task.runs
 							.slice()
 							.reverse()
+							.slice(0, 5)
 							.map((run, index) => {
 								const runNumber = task.runs.length - index
 								const runStatusInfo =

@@ -94,7 +94,13 @@ async def update_task_run_status(db, task_id: str, run_id: str, status: str, use
     task_type = task.get('task_type')
     is_workflow = schedule_type in ['recurring', 'triggered'] or task_type in ['recurring', 'triggered']
 
-    if status in ["completed", "error"] and not is_workflow:
+    # NEW: Check if the task is a sub-task from a swarm or long-form task
+    original_context = task.get("original_context", {})
+    source = original_context.get("source", "")
+    is_sub_task = source in ["swarm_subtask", "long_form_subtask"]
+
+    # Only send notifications for top-level, non-workflow tasks
+    if status in ["completed", "error"] and not is_workflow and not is_sub_task:
         task_description = task.get("name", "Unnamed Task")
         notification_message = f"Task '{task_description}' has finished with status: {status}."
         notification_type = "taskCompleted" if status == "completed" else "taskFailed"

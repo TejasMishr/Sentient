@@ -15,7 +15,8 @@ import {
 	IconClock,
 	IconClipboardList,
 	IconUsersGroup,
-	IconProgress
+	IconProgress,
+	IconLoader
 } from "@tabler/icons-react"
 import { getDisplayName } from "@utils/taskUtils"
 import RecurringTaskDetails from "./RecurringTaskDetails"
@@ -275,7 +276,11 @@ const TaskDetailsPanel = ({
 
 					{/* --- CONTENT --- */}
 					<main className="flex-1 overflow-y-auto custom-scrollbar p-6">
-						{isEditing ? (
+						{!userTimezone && !isEditing ? (
+							<div className="flex items-center justify-center h-full">
+								<IconLoader className="w-6 h-6 animate-spin text-neutral-500" />
+							</div>
+						) : isEditing ? (
 							<TaskDetailsContent // Use the one-time editor for all types for now
 								task={task}
 								isEditing={isEditing}

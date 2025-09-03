@@ -306,11 +306,11 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     original_context_str = json.dumps(original_context_data, indent=2, default=str) if original_context_data else "No original context provided."
 
     full_plan_prompt = (
-        f"You are Sentient, a resourceful and autonomous executor agent. Your goal is to complete the user's request by intelligently following the provided plan.\n\n"
+        f"You are Sentient, a resourceful and autonomous executor agent. Your goal is to complete the user's request by intelligently following the provided plan.\n\n" # noqa: E501
         f"**User Context:**\n- **User's Name:** {user_name}\n- **User's Location:** {user_location}\n- **Current Date & Time:** {current_user_time}\n\n"
         f"{trigger_event_prompt_section}"
         f"Your task ID is '{task_id}' and the current run ID is '{run_id}'.\n\n"
-        f"The original context that triggered this plan is:\n---BEGIN CONTEXT---\n{original_context_str}\n---END CONTEXT---\n\n"
+        f"**CRITICAL CONTEXT:**\nThis section contains vital information for your task. If you are a sub-task, it includes the full execution history of previous steps. You MUST use this context (e.g., document IDs, thread IDs, research findings) to inform your actions.\n---BEGIN CONTEXT---\n{original_context_str}\n---END CONTEXT---\n\n" # noqa: E501
         f"**Primary Objective:** '{plan_description}'\n\n"
         f"**The Plan to Execute:**\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(plan_to_execute)]) + "\n\n"
         "**EXECUTION STRATEGY:**\n"
@@ -384,6 +384,9 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
 
         assistant_turn_start_index = next((i + 1 for i in range(len(final_history) - 1, -1, -1) if final_history[i].get('role') == 'user'), 0)
         assistant_messages = final_history[assistant_turn_start_index:]
+
+        # Save the full internal history of the agent's turn to the run
+        current_run["internal_history"] = assistant_messages
 
         # Save the full internal history of the agent's turn to the run
         current_run["internal_history"] = assistant_messages
@@ -600,14 +603,21 @@ async def async_generate_task_result(task_id: str, run_id: str, user_id: str, ag
                     structured_result["sub_task_execution_details"] = {
                         "runs": full_subtask_doc.get("runs", [])
                     }
+                # --- NEW: Enrich result with execution details ---
+                full_subtask_doc = await db.tasks.find_one({"task_id": task_id, "user_id": user_id})
+                if full_subtask_doc:
+                    decrypt_doc(full_subtask_doc, SENSITIVE_TASK_FIELDS)
+                    structured_result["sub_task_execution_details"] = {
+                        "runs": full_subtask_doc.get("runs", [])
+                    }
                 logger.info(f"Subtask {task_id} for step {parent_step_id} completed. Updating parent task {parent_task_id}.")
 
                 from workers.long_form_tasks import execute_orchestrator_cycle
                 from mcp_hub.orchestrator.state_manager import mark_step_as_complete, add_execution_log, update_orchestrator_state
 
                 await mark_step_as_complete(parent_task_id, user_id, parent_step_id, structured_result)
-                await add_execution_log(
-                    parent_task_id,
+                await add_execution_log( # noqa: E501
+                    parent_task_id, # noqa: E501
                     user_id,
                     "subtask_completed",
                     {"sub_task_id": task_id, "step_id": parent_step_id},

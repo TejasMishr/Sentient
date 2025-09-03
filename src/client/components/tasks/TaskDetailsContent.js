@@ -29,19 +29,97 @@ import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
-const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
+const WaitingNodeDetails = ({
+	waitingConfig,
+	onResumeTask,
+	taskId,
+	userTimezone
+}) => {
 	if (!waitingConfig || !waitingConfig.timeout_at) return null
 
-	const [timeLeft, setTimeLeft] = useState("")
+	const [timeLeft, setTimeLeft] = useState("Calculating...")
+	const timeoutDate = useMemo(() => {
+		const timeoutVal = waitingConfig.timeout_at
+		let dateString = timeoutVal
+
+		// Case 1: It's already a valid Date object
+		if (timeoutVal instanceof Date && !isNaN(timeoutVal)) {
+			return timeoutVal
+		}
+
+		// Case 2: It's the MongoDB extended JSON object
+		if (
+			typeof timeoutVal === "object" &&
+			timeoutVal !== null &&
+			"$date" in timeoutVal
+		) {
+			dateString = timeoutVal.$date
+		}
+
+		// Case 3: It's a string. Parse it robustly to avoid timezone ambiguity.
+		if (typeof dateString === "string") {
+			const match = dateString.match(
+				/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/
+			)
+
+			if (match) {
+				const year = parseInt(match[1], 10)
+				const month = parseInt(match[2], 10) // Note: 1-12
+				const day = parseInt(match[3], 10)
+				const hours = parseInt(match[4], 10)
+				const minutes = parseInt(match[5], 10)
+				const seconds = parseInt(match[6], 10)
+				const ms = match[7] ? parseInt(match[7].padEnd(3, "0"), 10) : 0
+
+				// Date.UTC() requires month to be 0-indexed (0-11)
+				const utcTimestamp = Date.UTC(
+					year,
+					month - 1,
+					day,
+					hours,
+					minutes,
+					seconds,
+					ms
+				)
+				return new Date(utcTimestamp)
+			}
+		}
+
+		console.error(
+			"Invalid or unparsable date format for timeout:",
+			timeoutVal
+		)
+		return null
+	}, [waitingConfig.timeout_at])
+
+	if (!timeoutDate) return null
+
+	const formattedTimeout = useMemo(() => {
+		if (!timeoutDate) return "Invalid date"
+		return new Intl.DateTimeFormat(undefined, {
+			year: "numeric",
+			month: "long",
+			day: "numeric",
+			hour: "numeric",
+			minute: "2-digit",
+			timeZoneName: "short",
+			timeZone: userTimezone
+		}).format(timeoutDate)
+	}, [timeoutDate, userTimezone])
 
 	useEffect(() => {
+		if (!timeoutDate) {
+			setTimeLeft("Invalid timeout date.")
+			return
+		}
 		const intervalId = setInterval(() => {
-			const timeoutDate = new Date(waitingConfig.timeout_at)
 			const now = new Date()
 			const diff = timeoutDate.getTime() - now.getTime()
 
 			if (diff <= 0) {
-				setTimeLeft("Timeout reached. Awaiting next cycle.")
+				setTimeLeft(
+					"Timeout reached. The orchestrator will check for updates on its next cycle."
+				)
 				clearInterval(intervalId)
 				return
 			}
@@ -59,7 +137,7 @@ const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
 		}, 1000)
 
 		return () => clearInterval(intervalId)
-	}, [waitingConfig.timeout_at])
+	}, [timeoutDate])
 
 	return (
 		<div className="space-y-2">
@@ -68,6 +146,9 @@ const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
 				<span className="font-semibold">
 					{waitingConfig.waiting_for}
 				</span>
+			</p>
+			<p className="text-xs text-neutral-400 italic">
+				(Resumes after {formattedTimeout})
 			</p>
 			<p>
 				Time remaining:{" "}
@@ -85,7 +166,12 @@ const WaitingNodeDetails = ({ waitingConfig, onResumeTask, taskId }) => {
 }
 
 // --- NEW COMPONENT: TaskFlowchartNode ---
-const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
+const TaskFlowchartNode = ({
+	node,
+	onSelectTask,
+	onResumeTask,
+	userTimezone
+}) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 
 	const nodeIcons = {
@@ -176,6 +262,7 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 									waitingConfig={node.data.waiting_config}
 									onResumeTask={onResumeTask}
 									taskId={node.data.task_id}
+									userTimezone={userTimezone}
 								/>
 							)}
 							{node.type === "SUBTASK" && node.data.result && (
@@ -201,7 +288,7 @@ const TaskFlowchartNode = ({ node, onSelectTask, onResumeTask }) => {
 }
 
 // --- NEW COMPONENT: TaskFlowchart ---
-const TaskFlowchart = ({ task, onSelectTask, onResumeTask }) => {
+const TaskFlowchart = ({ task, onSelectTask, onResumeTask, userTimezone }) => {
 	const { dynamic_plan = [], orchestrator_state = {}, status } = task
 	const { current_state, waiting_config } = orchestrator_state
 
@@ -275,6 +362,7 @@ const TaskFlowchart = ({ task, onSelectTask, onResumeTask }) => {
 						}}
 						onSelectTask={onSelectTask}
 						onResumeTask={onResumeTask}
+						userTimezone={userTimezone}
 					/>
 				))}
 			</div>
@@ -920,6 +1008,7 @@ const TaskDetailsContent = ({
 					task={displayTask}
 					onSelectTask={onSelectTask}
 					onResumeTask={onResumeTask}
+					userTimezone={userTimezone}
 				/>
 			)}
 			{displayTask.task_type === "long_form" &&

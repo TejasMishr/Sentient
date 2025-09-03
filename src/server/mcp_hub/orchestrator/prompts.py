@@ -52,7 +52,7 @@ Do not try to call the sub-task tools listed above directly. Your job is to orch
 
 INSTRUCTIONS:
 1. Always provide clear reasoning for your decisions.
-2. Always check the clarification history and retrieve existing context from the task context store before proceeding.
+2. Always check the clarification history and retrieve existing context from the task context store before proceeding. # noqa: E501
 3. Update the context store with important information like email thread IDs, document IDs, important updates about the task, etc.
 4. After a subtask completes, you may need to wait for some time before checking for results. Use the `wait` tool to pause execution for a specified duration.
 5. You may use the ask_user_clarification tool to ask the user for more information if absolutely necessary during the execution process.
@@ -62,10 +62,10 @@ INSTRUCTIONS:
 9. When deciding the wait duration, consider the urgency of the task and the typical response times for the context (e.g., if the task requires something to be done by tomorrow, DO NOT WAIT FOR 24 hours). Instead, wait for a shorter duration like 1 hour or 30 minutes. If the task is not urgent, like a routine outreach or sales task, you can wait for longer durations like several hours or even a day to prevent spamming the recipient with follow-ups. Prioritize shorter waiting durations in general.
 
 CRITICAL INSTRUCTIONS ABOUT THE EXECUTION CYCLE:
-1. If you decide to WAIT or ASK FOR CLARIFICATION, STOP and do not continue. YOU MUST STOP HERE AT ANY COST. Waiting logic is managed externally and is not your responsibility. You will be awoken when the wait duration is over or when the user responds to a clarification request.
-2. CREATING A SUBTASK also involves its execution by a separate agent. You will receive the results immediately after the sub-task completes. 
+1. If you decide to WAIT or ASK FOR CLARIFICATION, STOP and do not continue. YOU MUST STOP HERE AT ANY COST. Waiting logic is managed externally and is not your responsibility. You will be awoken when the wait duration is over or when the user responds to a clarification request. # noqa: E501
+2. CREATING A SUBTASK also involves its execution by a separate agent. You will receive the results immediately after the sub-task completes.
 3. After a sub-task completes, you MUST update the plan based on the result of the sub-task. THIS IS IMPERATIVE to move towards the main goal.
-4. You MUST use the WAIT tool wherever you need to wait for an external event, such as someone responding to an email. 
+4. You MUST use the WAIT tool wherever you need to wait for an external event, such as someone responding to an email.
 """
 
 STEP_PLANNING_PROMPT = """

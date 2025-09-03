@@ -1,7 +1,6 @@
 import datetime
 import uuid
 import json
-import traceback
 import secrets
 import asyncio, datetime
 from typing import Optional, Dict, Any, List
@@ -34,6 +33,15 @@ class UpdatePrivacyFiltersRequest(BaseModel):
 
 logger = logging.getLogger(__name__)
 
+def _serialize_datetimes(data: Any) -> Any:
+    """Recursively converts datetime objects in a dictionary or list to ISO 8601 strings."""
+    if isinstance(data, dict):
+        return {k: _serialize_datetimes(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_serialize_datetimes(i) for i in data]
+    if isinstance(data, datetime.datetime):
+        return data.isoformat()
+    return data
 router = APIRouter(
     prefix="/api",
     tags=["Miscellaneous API"]
@@ -240,7 +248,8 @@ async def get_user_data_endpoint(payload: dict = Depends(auth_helper.get_decoded
 
     if profile_doc and "userData" in profile_doc:
         response_data = profile_doc["userData"]
-        return JSONResponse(content={"data": response_data, "status": 200})
+        serializable_data = _serialize_datetimes(response_data)
+        return JSONResponse(content={"data": serializable_data, "status": 200})
 
     # Fallback in case re-fetch fails or returns an empty doc
     logger.warning(f"Could not retrieve or create userData for user {user_id}. Returning empty data.")

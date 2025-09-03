@@ -62,7 +62,7 @@ async def create_subtask(ctx: Context, step_id: str, subtask_description: str, c
     If the sub-task can be auto-approved, it runs to completion synchronously and you will receive the final result.
     If it requires manual user approval, the parent task will be suspended, and you will be notified to stop execution.
     """
-    subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT try to contact or notify the user directly—your output goes back to an orchestrator agent. NEVER USE PLACEHOLDERS for information about the user. Always retrieve personal details from the user's memory store and if no information is available, perform a generalized action. DO NOT USE placeholders in square brackets like [Your Name]."
+    subtask_description += "\n\nIMPORTANT: Return your final result as simple text or JSON. DO NOT try to contact or notify the user directly—your output goes back to an orchestrator agent. NEVER USE PLACEHOLDERS for information about the user. Always retrieve personal details from the user's memory store and if no information is available, perform a generalized action. DO NOT USE placeholders in square brackets like [Your Name]. DO NOT ADD FAKE PERSONAL OR CONTACT DETAILS WHEN REACHING OUT. SIGN OFF EMAILS WITH A NEUTRAL SIGNATURE."
     logger.info(f"Executing tool: create_subtask with step_id='{step_id}', subtask_description='{subtask_description}', context='{json.dumps(context, default=str)}', reasoning='{reasoning}'")
     user_id = auth.get_user_id_from_context(ctx)
     task_id = auth.get_task_id_from_context(ctx)

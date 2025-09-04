@@ -175,22 +175,10 @@ INTEGRATIONS_CONFIG = {
             "url": os.getenv("GTASKS_MCP_SERVER_URL", "http://localhost:9028/sse")
         }
     },
-    "gtasks": {
-        "display_name": "Google Tasks",
-        "description": "Connect to manage your to-do lists and tasks. The agent can create, list, update, and delete tasks and task lists on your behalf.",
-        "auth_type": "composio",
-        "icon": "IconListCheck",
-        "auth_config_env_var": "GTASKS_AUTH_CONFIG_ID",
-        "category": "Advanced",
-        "mcp_server_config": {
-            "name": "gtasks_server",
-            "url": os.getenv("GTASKS_MCP_SERVER_URL", "http://localhost:9028/sse")
-        }
-    },
     "gslides": {
         "display_name": "Google Slides",
         "description": "Create and manage presentations in Google Slides. The agent can build new slide decks with titles, content, images, and charts based on a structured outline you provide.",
-        "auth_type": "composio",
+        "auth_type": "oauth",
         "icon": "IconPresentation",
         "category": "Information",
         "mcp_server_config": {

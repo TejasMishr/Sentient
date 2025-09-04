@@ -97,7 +97,7 @@ INTEGRATIONS_CONFIG = {
     "gslides": {
         "display_name": "Google Slides",
         "description": "Create and manage presentations in Google Slides. The agent can build new slide decks with titles, content, images, and charts based on a structured outline you provide.",
-        "auth_type": "composio",
+        "auth_type": "oauth",
         "icon": "IconPresentation",
         "category": "Productivity",
         "mcp_server_config": {

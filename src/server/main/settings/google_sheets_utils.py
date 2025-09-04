@@ -12,7 +12,7 @@ GOOGLE_CLIENT_EMAIL = os.getenv("GOOGLE_CLIENT_EMAIL")
 GOOGLE_PRIVATE_KEY = os.getenv("GOOGLE_PRIVATE_KEY", "").replace('\\n', '\n')
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-SHEET_NAME = "Sheet1" # Assuming the sheet name is static
+SHEET_NAME = "Sheet2" # Assuming the sheet name is static
 
 def _get_sheets_service():
     """Authenticates and returns a Google Sheets service object."""
@@ -49,7 +49,8 @@ async def update_onboarding_data_in_sheet(user_email: str, onboarding_data: dict
         rows = result.get('values', [])
 
         row_index = -1
-        for i, row in enumerate(rows):
+        # Start from row 1 to skip header
+        for i, row in enumerate(rows[1:], start=1):
             if row and row[0] == user_email:
                 row_index = i
                 break
@@ -59,7 +60,7 @@ async def update_onboarding_data_in_sheet(user_email: str, onboarding_data: dict
             return
 
         # 2. Prepare data for batch update
-        row_number = row_index + 1
+        row_number = row_index + 1 # +1 because we skipped header
 
         # Handle location which can be a string or a dict
         location = onboarding_data.get('location', '')
@@ -71,27 +72,45 @@ async def update_onboarding_data_in_sheet(user_email: str, onboarding_data: dict
             else:
                 location = str(location)
 
-        # Prepare a list of values to update. None will skip the cell.
-        # Columns: B (Contact), D (Location), E (Profession), F (Hobbies), H (Plan)
-        values_to_update = [
-            [
-                onboarding_data.get('whatsapp_notifications_number', ''), # B
-                None, # C - Email (skip)
-                location, # D
-                onboarding_data.get('professional-context', ''), # E
-                onboarding_data.get('personal-context', ''), # F
-                None, # G - Insider (skip)
-                plan.capitalize() # H
-            ]
+        # Prepare a list of update requests for different columns
+        # New columns: A:Name, B:Contact, C:Email, D:Location, E:Profession, F:Working Hours, G:Key People, H:Personal Context, I:Insider, J:Plan
+        data_to_update = [
+            # A: Name
+            {
+                'range': f"{SHEET_NAME}!A{row_number}",
+                'values': [[onboarding_data.get('user-name', '')]]
+            },
+            # B: Contact
+            {
+                'range': f"{SHEET_NAME}!B{row_number}",
+                'values': [[onboarding_data.get('whatsapp_notifications_number', '')]]
+            },
+            # D: Location, E: Profession, F: Working Hours, G: Key People, H: Personal Context
+            {
+                'range': f"{SHEET_NAME}!D{row_number}:H{row_number}",
+                'values': [[
+                    location,
+                    onboarding_data.get('professional-context', ''),
+                    onboarding_data.get('working-hours', ''),
+                    onboarding_data.get('key-people', ''),
+                    onboarding_data.get('personal-context', '')
+                ]]
+            },
+            # J: Plan
+            {
+                'range': f"{SHEET_NAME}!J{row_number}",
+                'values': [[plan.capitalize()]]
+            }
         ]
 
-        # 3. Update the sheet row from column B to H
-        range_to_update = f"{SHEET_NAME}!B{row_number}:H{row_number}"
-        service.spreadsheets().values().update(
+        # 3. Update the sheet using batchUpdate to avoid overwriting unrelated columns
+        body = {
+            'valueInputOption': 'USER_ENTERED',
+            'data': data_to_update
+        }
+        service.spreadsheets().values().batchUpdate(
             spreadsheetId=GOOGLE_SHEET_ID,
-            range=range_to_update,
-            valueInputOption='USER_ENTERED',
-            body={'values': values_to_update}
+            body=body
         ).execute()
         logger.info(f"Successfully updated onboarding data for {user_email} in Google Sheet.")
 
@@ -139,9 +158,9 @@ async def get_user_properties_from_sheet(user_email: str) -> dict:
         }
 
     try:
-        # Read columns C (Email), G (Insider), H (Plan)
-        # Reading C:H is safer to avoid index out of bounds if rows have fewer columns
-        range_to_read = f"{SHEET_NAME}!C:H"
+        # Read columns C (Email), I (Insider), J (Plan)
+        # Reading C:J is safer to avoid index out of bounds if rows have fewer columns
+        range_to_read = f"{SHEET_NAME}!C:J"
         result = service.spreadsheets().values().get(spreadsheetId=GOOGLE_SHEET_ID, range=range_to_read).execute()
         rows = result.get('values', [])
 
@@ -150,9 +169,9 @@ async def get_user_properties_from_sheet(user_email: str) -> dict:
             "plan_type": "free" # Default to free
         }
 
-        # Column C is index 0 in our `rows` array. G is index 4, H is index 5.
-        relative_insider_index = 4
-        relative_plan_index = 5
+        # Column C is index 0 in our `rows` array. I is index 6, J is index 7.
+        relative_insider_index = 6
+        relative_plan_index = 7
 
         for row in rows[1:]: # Skip header row
             if not row or len(row) == 0:

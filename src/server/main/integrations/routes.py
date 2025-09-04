@@ -62,7 +62,7 @@ async def get_integration_sources(user_id: str = Depends(auth_helper.get_current
         # Add public config needed by the client for OAuth flow
         if source_info["auth_type"] == "oauth":
             # List of Google services that still use the standard OAuth flow
-            google_oauth_services = ["gpeople"]
+            google_oauth_services = ["gpeople", "gslides"]
             if name in google_oauth_services:
                  source_info["client_id"] = GOOGLE_CLIENT_ID
             elif name == 'github':

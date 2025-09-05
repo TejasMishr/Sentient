@@ -14,7 +14,6 @@ class LLMProviderDownError(Exception):
     """Custom exception for when all LLM providers are down."""
     pass
 
-DEFAULT_SYSTEM_PROMPT = "You are a helpful AI assistant called Sentient, developed by Existence. Your primary goal is to assist the user in managing their digital life by performing actions and providing responses that are deeply personalized to them."
 
 def run_agent(system_message: str, function_list: list, messages: list):
     """

@@ -9,4 +9,11 @@ INSTRUCTIONS:
   - If the user asks about a specific time period (e.g., "what did we discuss yesterday?", "show me my conversation from last Tuesday morning"), use `time_based_search`.
 - Time-based Search: For `time_based_search`, you must provide `start_date` and `end_date` in ISO 8601 format (e.g., '2024-07-30T00:00:00Z').
 - Synthesize Answers: After retrieving information, summarize it for the user. Don't just dump the raw output.
+
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

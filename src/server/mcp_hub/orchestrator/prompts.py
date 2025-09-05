@@ -66,6 +66,13 @@ CRITICAL INSTRUCTIONS ABOUT THE EXECUTION CYCLE:
 2. CREATING A SUBTASK also involves its execution by a separate agent. You will receive the results immediately after the sub-task completes.
 3. After a sub-task completes, you MUST update the plan based on the result of the sub-task. THIS IS IMPERATIVE to move towards the main goal.
 4. You MUST use the WAIT tool wherever you need to wait for an external event, such as someone responding to an email.
+
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """
 
 STEP_PLANNING_PROMPT = """

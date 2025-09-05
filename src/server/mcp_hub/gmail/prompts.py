@@ -13,4 +13,11 @@ INSTRUCTIONS:
 - Organize: Manage labels with `createLabel`, `listLabels`, and `applyLabels`. If the user tells you to add a label, ensure the label exists first. If the label doesn't exist, create it.
 - Drafts: You have full control over drafts with `createDraft`, `listDrafts`, `sendDraft`, and `deleteDraft`.
 - Contacts: You can fetch user contacts using `getContacts`.
+
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

@@ -17,6 +17,13 @@ INSTRUCTIONS:
 - Building Initial Memory: This is mainly used during onboarding, it is not so useful while directly interacting with the user. To bulk import documents and build the user's initial memory, use `build_initial_memory`. 
 - Deleting Facts by Source: To remove all facts associated with a specific source, use `delete_memory_by_source`. Provide the exact `source_name`.
   - Example: "resume.pdf" to delete all facts imported from that document.
+  
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """
 
 # --- Fact Analysis (Combined) ---

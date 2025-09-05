@@ -262,7 +262,7 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
     trigger_event_prompt_section = ""
     if current_run.get("trigger_event_data"):
         trigger_event_data_str = json.dumps(current_run["trigger_event_data"], indent=2, default=str)
-        trigger_event_prompt_section = f"**Triggering Event Data (Your primary context for this run):**\n---BEGIN TRIGGER DATA---\n{trigger_event_data_str}\n---END TRIGGER DATA---\n\n"
+        trigger_event_prompt_section = f"Triggering Event Data (Your primary context for this run):\n---BEGIN TRIGGER DATA---\n{trigger_event_data_str}\n---END TRIGGER DATA---\n\n"
 
     logger.info(f"Executor started processing task {task_id} (block_id: {block_id}) for user {user_id}.")
     await update_task_run_status(db, task_id, run_id, "processing", user_id, block_id=block_id)
@@ -306,24 +306,28 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
 
     full_plan_prompt = (
         f"You are Sentient, a resourceful and autonomous executor agent. Your goal is to complete the user's request by intelligently following the provided plan.\n\n" # noqa: E501
-        f"**User Context:**\n- **User's Name:** {user_name}\n- **User's Location:** {user_location}\n- **Current Date & Time:** {current_user_time}\n\n"
+        f"User Context:\n- User's Name: {user_name}\n- User's Location: {user_location}\n- Current Date & Time: {current_user_time}\n\n"
         f"{trigger_event_prompt_section}"
         f"Your task ID is '{task_id}' and the current run ID is '{run_id}'.\n\n"
-        f"**CRITICAL CONTEXT:**\nThis section contains vital information for your task. If you are a sub-task, it includes the full execution history of previous steps. You MUST use this context (e.g., document IDs, thread IDs, research findings) to inform your actions.\n---BEGIN CONTEXT---\n{original_context_str}\n---END CONTEXT---\n\n" # noqa: E501
-        f"**Primary Objective:** '{plan_description}'\n\n"
-        f"**The Plan to Execute:**\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(plan_to_execute)]) + "\n\n"
-        "**EXECUTION STRATEGY:**\n"
-        "1.  **Think Step-by-Step:** Before each action, you MUST explain your reasoning and what you are about to do. This is your internal monologue and will be logged.\n"
-        "2.  **Execution Flow:** You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
-        "3.  **Map Plan to Tools:** The plan provides a high-level tool name (e.g., 'gmail', 'gdrive'). You must map this to the specific functions available to you (e.g., `gmail_server-sendEmail`, `gdrive_server-gdrive_search`).\n"
-        "4.  **Special Tool 'general_instruction':** When a step's tool is `general_instruction`, you do not need to call an external tool. Instead, use your own reasoning and knowledge to fulfill the instruction in the step's `description`. This is for tasks like summarizing text from a previous step, analyzing data you already have, or drafting content.\n"
-        "5.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action for that step MUST be to use the `memory-search_memory` tool to find the missing information. Do not proceed with incomplete information.\n"
-        "6.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
-        "7.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
-        "8.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This should be your final message, not a tool call. For example: 'I have successfully scheduled the meeting and sent an invitation to John Doe.'.\n"
-        "9.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
-        "10. **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
-        "11. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing.\n"
+        f"CRITICAL CONTEXT:\nThis section contains vital information for your task. If you are a sub-task, it includes the full execution history of previous steps. You MUST use this context (e.g., document IDs, thread IDs, research findings) to inform your actions.\n---BEGIN CONTEXT---\n{original_context_str}\n---END CONTEXT---\n\n" # noqa: E501
+        f"Primary Objective: '{plan_description}'\n\n"
+        f"The Plan to Execute:\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(plan_to_execute)]) + "\n\n"
+        "EXECUTION STRATEGY:\n"
+        "1.  Execution Flow: You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
+        "2.  Map Plan to Tools: The plan provides a high-level tool name (e.g., 'gmail', 'gdrive'). You must map this to the specific functions available to you (e.g., `gmail_server-sendEmail`, `gdrive_server-gdrive_search`).\n"
+        "3.  Special Tool 'general_instruction': When a step's tool is `general_instruction`, you do not need to call an external tool. Instead, use your own reasoning and knowledge to fulfill the instruction in the step's `description`. This is for tasks like summarizing text from a previous step, analyzing data you already have, or drafting content.\n"
+        "4.  Be Resourceful & Fill Gaps: The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action must be to use the relevant connected tools to find that information. (For contacts, you may use gpeople, for documents you may use gdrive, etc.)\n"
+        "5.  Remember New Information: If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
+        "6.  Handle Failures: If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
+        "7.  Provide a Final, Detailed Answer: ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This should be your final message, not a tool call. For example: 'I have successfully scheduled the meeting and sent an invitation to John Doe.'.\n"
+        "8.  Fill Placeholders Dynamically: If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
+        "9. Contact Information: To find contact details like phone numbers or emails, use the `gpeople` tool if it is connected before attempting to send an email or make a call.\n"
+        "10. Handle Missing Information: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing.\n"
+        """CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+        <tool_call>
+        {{"name": <function-name>, "arguments": <args-json-object>}}
+        </tool_call>
+        DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY."""
         "\nNow, begin your work. Think step-by-step and start executing the plan."
     )
 
@@ -790,7 +794,7 @@ async def async_run_single_item_worker(sub_task_id: str, parent_task_id: str, us
         )
         
         item_context = json.dumps(item, indent=2, default=str)
-        full_worker_prompt = f"**Task:**\n{worker_prompt}\n\n**Input Data for this Task:**\n```json\n{item_context}\n```"
+        full_worker_prompt = f"Task:\n{worker_prompt}\n\nInput Data for this Task:\n```json\n{item_context}\n```"
 
         messages = [{'role': 'user', 'content': full_worker_prompt}] # noqa
 

@@ -3,11 +3,9 @@ from typing import Dict, Any
 from fastmcp.exceptions import ToolError
 import asyncio
 import textract
-import platform
 
 from dotenv import load_dotenv
 from fastmcp import FastMCP, Context
-from fastmcp.prompts.prompt import Message
 from pathlib import Path
 from fastmcp.utilities.logging import configure_logging, get_logger
 

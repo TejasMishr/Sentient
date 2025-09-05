@@ -12,7 +12,6 @@ if ENVIRONMENT == 'dev-local':
         load_dotenv(dotenv_path=dotenv_path)
 from fastmcp import FastMCP, Context
 from fastmcp.exceptions import ToolError
-from fastmcp.prompts.prompt import Message
 from fastmcp.utilities.logging import configure_logging, get_logger
 
 from . import auth, prompts, utils

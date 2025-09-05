@@ -9,4 +9,11 @@ INSTRUCTIONS:
 - Step 3: Create the Card: Use `create_card` with the `list_id` to create a new card.
 
 TRY TO PROACTIVELY FIND THE IDs you need by calling the appropriate tools. Do not ask the user for IDs directly.
+
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

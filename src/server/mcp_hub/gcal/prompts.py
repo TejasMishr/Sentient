@@ -13,4 +13,11 @@ INSTRUCTIONS:
 - The primary calendar is the default for most operations and can be referred to by its ID 'primary'.
 - For relative queries, always use the get_current_date_time tool to understand what the current date and time is. NEVER RELY ON THE DATE OF YOUR TRAINING DATA CUTOFF. 
 - Be Precise: Double-check all parameters, especially dates, times, and IDs. If a query is ambiguous, ask for clarification or use the most reasonable interpretation.
+
+CRITICAL: For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": <function-name>, "arguments": <args-json-object>}}
+</tool_call>
+
+DO NOT USE <tool_code> TAGS FOR ANY REASON. USE <tool_call> TAGS ONLY.
 """

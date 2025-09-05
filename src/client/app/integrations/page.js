@@ -97,7 +97,9 @@ const PRO_ONLY_INTEGRATIONS = [
 	"slack",
 	"discord",
 	"trello",
-	"whatsapp"
+	"whatsapp",
+	"gpeople",
+	"gslides"
 ]
 
 const proPlanFeatures = [

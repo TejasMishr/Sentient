@@ -313,17 +313,19 @@ async def async_execute_task_plan(task_id: str, user_id: str, run_id: str):
         f"**Primary Objective:** '{plan_description}'\n\n"
         f"**The Plan to Execute:**\n" + "\n".join([f"- Step {i+1}: Use the '{step['tool']}' tool to '{step['description']}'" for i, step in enumerate(plan_to_execute)]) + "\n\n"
         "**EXECUTION STRATEGY:**\n"
-        "1.  **Think Step-by-Step:** Before each action, you MUST explain your reasoning and what you are about to do. This is your internal monologue and will be logged.\n"
+        "1.  **Think Step-by-Step:** Before each action, you MUST explain your reasoning and what you are about to do. This is your internal monologue and will be logged.\n" # noqa: E501
         "2.  **Execution Flow:** You MUST start by executing the first step of the plan. Do not summarize the plan or provide a final answer until you have executed all steps. Follow the plan sequentially. SEARCH FOR ANY RELEVANT CONTEXT THAT YOU NEED TO COMPLETE THE EXECUTION. If you are resuming a task after the user answered a clarifying question, the answered questions will be in the `clarifying_questions` field of the task context. Use this new information to proceed.\n"
         "3.  **Map Plan to Tools:** The plan provides a high-level tool name (e.g., 'gmail', 'gdrive'). You must map this to the specific functions available to you (e.g., `gmail_server-sendEmail`, `gdrive_server-gdrive_search`).\n"
         "4.  **Special Tool 'general_instruction':** When a step's tool is `general_instruction`, you do not need to call an external tool. Instead, use your own reasoning and knowledge to fulfill the instruction in the step's `description`. This is for tasks like summarizing text from a previous step, analyzing data you already have, or drafting content.\n"
-        "5.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information (e.g., an email address for a manager, a document name), your first action for that step MUST be to use the `memory-search_memory` tool to find the missing information. Do not proceed with incomplete information.\n"
+        "5.  **Be Resourceful & Fill Gaps:** The plan is a guideline. If a step is missing information, you MUST find it before proceeding.\n"
+        "    - If you need a **contact's email or phone number**, your first action for that step MUST be to use the `gpeople-search_contacts` tool.\n"
+        "    - If you need a **personal fact about the user** (e.g., their manager's name, a preference), your first action for that step MUST be to use the `memory-search_memory` tool.\n"
+        "    - Do not proceed with incomplete information. If you cannot find the required information after searching, you MUST fail the task and clearly state what information is missing.\n"
         "6.  **Remember New Information:** If you discover a new, permanent fact about the user during your execution (e.g., you find their manager's email is 'boss@example.com'), you MUST use `memory-cud_memory` to save it. This is critical for personalization.\n"
         "7.  **Handle Failures:** If a tool fails, analyze the error, think about an alternative approach, and try again. Do not give up easily. Your thought process and the error will be logged automatically.\n"
         "8.  **Provide a Final, Detailed Answer:** ONLY after all steps are successfully completed, you MUST provide a final, comprehensive answer to the user. This should be your final message, not a tool call. For example: 'I have successfully scheduled the meeting and sent an invitation to John Doe.'.\n"
         "9.  **Fill Placeholders Dynamically:** If a step involves drafting content (e.g., emails), ALWAYS fill in placeholders like [name] or [description] using data from memory (first call `memory-search_memory` if needed) or context. NEVER leave brackets [] in final outputs.\n"
-        "10. **Contact Information:** To find contact details like phone numbers or emails, use the `gpeople` tool before attempting to send an email or make a call.\n"
-        "11. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing.\n"
+        "10. **Handle Missing Information**: If you have exhausted all tool options (including memory and search) and still lack critical information to proceed, you MUST fail. Your final answer should clearly state what information is missing.\n"
         "\nNow, begin your work. Think step-by-step and start executing the plan."
     )
 

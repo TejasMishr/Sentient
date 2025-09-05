@@ -8,10 +8,29 @@ importScripts(
 // This is the core Workbox logic that next-pwa was doing for you.
 // ---------------------------------------------------------------- //
 
-// This will be populated by next-pwa with the list of all your app's files.
-// Even though we removed next-pwa, this placeholder is useful if you ever add it back
-// or use another build tool. For now, we'll handle offline manually.
-// workbox.precaching.precacheAndRoute(self.__WB_MANIFEST || []);
+// --- FIX: Enable Pre-caching for Offline Functionality ---
+// We are manually defining the list of files that make up the "app shell".
+// These files will be downloaded and cached when the service worker is installed,
+// allowing the app to load even when the user is offline.
+// NOTE: The filenames in _next/static/ will change with every build.
+// You will need to update these paths after you run `npm run build`.
+workbox.precaching.precacheAndRoute([
+	// --- Core Pages ---
+	{ url: "/chat", revision: null },
+	{ url: "/tasks", revision: null },
+	{ url: "/memories", revision: null },
+	{ url: "/integrations", revision: null },
+	{ url: "/settings", revision: null },
+	{ url: "/", revision: null },
+
+	// --- PWA & Manifest ---
+	{ url: "/manifest.js", revision: null },
+
+	// --- Static Assets (Icons, etc.) ---
+	// Add any other critical images or fonts here.
+	{ url: "/images/half-logo-dark.svg", revision: null },
+	{ url: "/android-chrome-192x192.png", revision: null }
+])
 
 // --- Caching Strategies ---
 

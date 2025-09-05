@@ -6,10 +6,10 @@ from fastmcp import FastMCP, Context
 from json_extractor import JsonExtractor
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
+from main.llm import run_agent as run_main_agent
 from . import auth, prompts
 from main.dependencies import mongo_manager # This is the main server's mongo manager
-from main.llm import run_agent, LLMProviderDownError
+from main.llm import LLMProviderDownError
 from workers.long_form_tasks import start_long_form_task
 from workers.tasks import generate_plan_from_context
 from workers.utils.text_utils import clean_llm_output

@@ -325,7 +325,7 @@ async def async_refine_and_plan_ai_task(task_id: str, user_id: str):
         original_schedule = task.get("schedule")
 
         user_id = task["user_id"]
-        user_profile = await db_manager.user_profiles_collection.find_one({"user_id": user_id})
+        user_profile = await db_manager.get_user_profile(user_id)
         personal_info = user_profile.get("userData", {}).get("personalInfo", {}) if user_profile else {}
         user_name = personal_info.get("name", "User")
         user_timezone_str = personal_info.get("timezone", "UTC")

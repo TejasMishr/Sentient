@@ -559,23 +559,19 @@ export default function ChatPage() {
 						setDisplayedMessages((prev) =>
 							prev.map((msg) => {
 								if (msg.id === assistantMessageId) {
-									// --- CHANGED --- Handle the final 'done' event with parsed data
+									// Only update the message when the stream is done
 									if (parsed.done) {
 										return {
 											...msg,
-											content:
-												parsed.final_content ||
-												msg.content, // Replace content with clean version
-											turn_steps:
-												parsed.turn_steps ||
-												msg.turn_steps // Populate turn_steps
+											content: parsed.final_content || "", // Replace content with clean final version
+											turn_steps: parsed.turn_steps || [], // Populate turn_steps
+											tools: parsed.tools || [] // Update tools on final event
 										}
 									}
-									// For intermediate chunks, just append the token
+									// For intermediate chunks, we don't update the content to prevent streaming.
+									// We can still update tools if they arrive early.
 									return {
 										...msg,
-										content:
-											msg.content + (parsed.token || ""),
 										tools: parsed.tools || msg.tools
 									}
 								}

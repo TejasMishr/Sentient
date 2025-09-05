@@ -71,7 +71,7 @@ const SubTaskItem = ({ task, onSelectTask }) => {
 			}}
 			className="flex items-center justify-between p-2 md:mx-2 rounded-md hover:bg-neutral-800 cursor-pointer transition-colors group"
 		>
-			<div className="flex flex-1 items-center gap-2 min-w-0">
+			<div className="flex flex-1 items-center gap-2 min-w-0 overflow-hidden">
 				<IconSubtask
 					size={14}
 					className="text-neutral-500 group-hover:text-neutral-300 flex-shrink-0"
@@ -201,26 +201,26 @@ const TaskCardList = ({ task, onSelectTask }) => {
 						</button>
 					)}
 				</div>
+				<AnimatePresence>
+					{isExpanded && hasSubTasks && (
+						<motion.div
+							initial={{ opacity: 0, height: 0 }}
+							animate={{ opacity: 1, height: "auto" }}
+							exit={{ opacity: 0, height: 0 }}
+							transition={{ duration: 0.2 }}
+							className="pb-2"
+						>
+							{subTasks.map((subTask) => (
+								<SubTaskItem
+									key={subTask.task_id}
+									task={subTask}
+									onSelectTask={onSelectTask}
+								/>
+							))}
+						</motion.div>
+					)}
+				</AnimatePresence>
 			</div>
-			<AnimatePresence>
-				{isExpanded && hasSubTasks && (
-					<motion.div
-						initial={{ opacity: 0, height: 0 }}
-						animate={{ opacity: 1, height: "auto" }}
-						exit={{ opacity: 0, height: 0 }}
-						transition={{ duration: 0.2 }}
-						className="pb-2"
-					>
-						{subTasks.map((subTask) => (
-							<SubTaskItem
-								key={subTask.task_id}
-								task={subTask}
-								onSelectTask={onSelectTask}
-							/>
-						))}
-					</motion.div>
-				)}
-			</AnimatePresence>
 		</motion.div>
 	)
 }

@@ -87,7 +87,7 @@ const GuidedTour = ({
 
 		const { innerWidth, innerHeight } = window
 		const margin = 10
-		const tooltipWidth = 320 // from maxWidth
+		const tooltipMaxWidth = 320
 
 		// NEW: Special positioning for full-screen mobile modals
 		const isFullScreenModal =
@@ -99,8 +99,8 @@ const GuidedTour = ({
 					bottom: "120px", // Position above the panel's footer buttons
 					left: "50%",
 					transform: "translateX(-50%)",
-					maxWidth: `calc(100vw - ${margin * 2}px)`,
-					width: tooltipWidth
+					width: `calc(100vw - ${margin * 2}px)`,
+					maxWidth: tooltipMaxWidth
 				},
 				isPositionedBelow: false,
 				hideArrow: true // The arrow is confusing on a full-screen overlay
@@ -117,18 +117,25 @@ const GuidedTour = ({
 		const bottom = positionBelow
 			? "auto"
 			: innerHeight - targetRect.top + margin
-		let left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2
-		if (left < margin) left = margin
-		if (left + tooltipWidth > innerWidth - margin)
-			left = innerWidth - tooltipWidth - margin
+
+		const availableWidth = innerWidth - margin * 2
+		const finalTooltipWidth = Math.min(tooltipMaxWidth, availableWidth)
+
+		let left =
+			targetRect.left + targetRect.width / 2 - finalTooltipWidth / 2
+		if (left < margin) {
+			left = margin
+		}
+		if (left + finalTooltipWidth > innerWidth - margin) {
+			left = innerWidth - finalTooltipWidth - margin
+		}
 
 		return {
 			positionStyle: {
 				top,
 				bottom,
 				left,
-				maxWidth: tooltipWidth,
-				width: tooltipWidth
+				width: finalTooltipWidth
 			},
 			isPositionedBelow: positionBelow,
 			hideArrow: false
@@ -422,7 +429,7 @@ const GuidedTour = ({
 						zIndex: 1002,
 						...positionStyle
 					}}
-					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl w-full border border-neutral-700 pointer-events-auto"
+					className="bg-neutral-900/90 backdrop-blur-xl p-4 rounded-lg shadow-2xl border border-neutral-700 pointer-events-auto"
 				>
 					<div
 						className={cn(

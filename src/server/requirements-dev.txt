@@ -24,6 +24,9 @@ pgvector
 qwen-agent
 google-genai
 composio
+openai
+scikit-learn
+pywebpush
 elevenlabs 
 deepgram-sdk
 librosa
@@ -32,6 +35,7 @@ faster-whisper
 snac
 torch
 fastrtc[vad, stt, tts]
+crawl4ai
 numpy
 smallestai
 
@@ -42,6 +46,7 @@ python-dateutil # For rrule in scheduler
 # --- Google API Clients ---
 google-api-python-client
 google-auth-oauthlib
+google-auth-httplib2
 
 # --- Other 3rd Party API Clients ---
 PyGithub

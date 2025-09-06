@@ -2,11 +2,14 @@ import logging
 from typing import Optional, Dict, Any
 import datetime
 import json
+from pywebpush import webpush, WebPushException
+import json
 
 from main.dependencies import mongo_manager, websocket_manager
 from main.notifications.whatsapp_client import send_whatsapp_message # Import the new client
 from main.config import DB_ENCRYPTION_ENABLED
 from workers.utils.crypto import decrypt_field
+from main.config import VAPID_PRIVATE_KEY, VAPID_ADMIN_EMAIL
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +17,7 @@ async def create_and_push_notification(user_id: str, message: str, task_id: Opti
     """
     Saves a notification to the database, pushes it via WebSocket, and sends it via WhatsApp if configured.
     Handles different notification types.
+    NEW: Also sends a PWA Push Notification if subscriptions exist.
     """
 
     notification_data = {}
@@ -63,6 +67,43 @@ async def create_and_push_notification(user_id: str, message: str, task_id: Opti
                 await send_whatsapp_message(wa_prefs["chatId"], message)
             else:
                 logger.info(f"WhatsApp notifications disabled or not configured for user {user_id}.")
+
+        # 4. Send via PWA Push Notification
+        if VAPID_PRIVATE_KEY and VAPID_ADMIN_EMAIL:
+            if user_profile and "userData" in user_profile:
+                subscriptions = user_profile["userData"].get("pwa_subscriptions", [])
+                if subscriptions and isinstance(subscriptions, list):
+                    logger.info(f"Found {len(subscriptions)} PWA push subscriptions for user {user_id}. Attempting to send.")
+
+                    push_payload = json.dumps({
+                        "title": "Sentient Notification",
+                        "body": message,
+                        "data": {
+                            "url": f"/tasks?taskId={task_id}" if task_id else "/notifications"
+                        }
+                    })
+
+                    for sub in subscriptions:
+                        try:
+                            webpush(
+                                subscription_info=sub,
+                                data=push_payload,
+                                vapid_private_key=VAPID_PRIVATE_KEY,
+                                vapid_claims={"sub": VAPID_ADMIN_EMAIL}
+                            )
+                        except WebPushException as ex:
+                            logger.warning(f"Web push failed for user {user_id}: {ex}")
+                            # If the subscription is expired (410) or gone (404), remove it from the DB.
+                            if ex.response and ex.response.status_code in [404, 410]:
+                                logger.info(f"Subscription for user {user_id} is expired. Removing from DB.")
+                                await mongo_manager.delete_pwa_subscription(user_id, sub['endpoint'])
+                            else:
+                                # You might want to handle other errors differently, e.g., temporary server issues.
+                                pass
+                else:
+                    logger.info(f"No PWA push subscriptions found for user {user_id}.")
+        else:
+            logger.warning("VAPID keys not configured on server. Skipping PWA push notifications.")
 
     except Exception as e:
         logger.error(f"Error creating/pushing notification for user {user_id}: {e}", exc_info=True)

@@ -300,6 +300,17 @@ class MongoManager:
             {"$set": {"notifications": []}}
         )
 
+    async def delete_pwa_subscription(self, user_id: str, endpoint: str) -> bool:
+        """Deletes a specific PWA push subscription object from a user's profile."""
+        if not user_id or not endpoint:
+            return False
+        result = await self.user_profiles_collection.update_one(
+            {"user_id": user_id},
+            {"$pull": {"userData.pwa_subscriptions": {"endpoint": endpoint}}}
+        )
+        logger.info(f"Removed expired PWA subscription for endpoint: {endpoint[-10:]}...")
+        return result.modified_count > 0
+
     async def get_recent_completed_tasks_for_period(self, user_id: str, start_date: datetime.datetime, end_date: datetime.datetime, limit: int = 2) -> List[Dict]:
         """Fetches a few recent completed tasks for a user within a specific date range."""
         query = {

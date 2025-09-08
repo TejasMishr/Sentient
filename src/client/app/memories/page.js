@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react" // eslint-disable-line
+import React, { useState, useMemo, useRef, useCallback } from "react" // eslint-disable-line
 import toast from "react-hot-toast"
 import {
 	IconLoader,
@@ -21,6 +21,7 @@ import {
 	IconCheck,
 	IconSparkles
 } from "@tabler/icons-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
 import { cn } from "@utils/cn"
@@ -621,18 +622,57 @@ const memoryTabs = [
 
 export default function MemoriesPage() {
 	const [view, setView] = useState("graph")
-	const [memories, setMemories] = useState([])
-	const [graphData, setGraphData] = useState({ nodes: [], edges: [] })
-	const [isLoading, setIsLoading] = useState(true)
 	const [activeTopic, setActiveTopic] = useState("All")
 	const [selectedMemory, setSelectedMemory] = useState(null)
 	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const { isPro } = usePlan()
-	const [userDetails, setUserDetails] = useState(null)
 	const router = useRouter()
 	const searchParams = useSearchParams()
+
+	const queryClient = useQueryClient()
+
+	const { data: userDetails } = useQuery({
+		queryKey: ["userProfile"],
+		queryFn: async () => {
+			const res = await fetch("/api/user/profile")
+			if (!res.ok) {
+				throw new Error("Failed to fetch user details")
+			}
+			return res.json()
+		},
+		staleTime: Infinity // User profile is unlikely to change during a session
+	})
+
+	const { data, isLoading } = useQuery({
+		queryKey: ["memories", view],
+		queryFn: async () => {
+			const endpoint =
+				view === "list" ? "/api/memories" : "/api/memories/graph"
+			const response = await fetch(endpoint, { cache: "no-store" })
+			if (!response.ok) {
+				throw new Error(
+					`Failed to fetch memories data for ${view} view.`
+				)
+			}
+			return response.json()
+		}
+	})
+
+	const memories = useMemo(() => {
+		if (view === "list") {
+			return data?.memories || []
+		}
+		return data?.nodes || []
+	}, [data, view])
+
+	const graphData = useMemo(() => {
+		if (view === "graph") {
+			return data || { nodes: [], links: [] }
+		}
+		return { nodes: [], links: [] }
+	}, [data, view])
 
 	const topics = useMemo(() => {
 		const allTopics = new Set()
@@ -649,54 +689,7 @@ export default function MemoriesPage() {
 		)
 	}, [memories, activeTopic])
 
-	const fetchData = useCallback(async () => {
-		setIsLoading(true)
-		try {
-			if (view === "list") {
-				const response = await fetch("/api/memories", {
-					cache: "no-store"
-				})
-				if (!response.ok) throw new Error("Failed to fetch memories.")
-				const data = await response.json()
-				setMemories(data.memories || [])
-			} else {
-				const response = await fetch("/api/memories/graph", {
-					cache: "no-store"
-				})
-				if (!response.ok)
-					throw new Error("Failed to fetch memory graph data.")
-				const data = await response.json()
-				setGraphData(data)
-				// Also update the flat list for topic filtering consistency
-				setMemories(data.nodes || [])
-			}
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [view])
-
-	const fetchUserDetails = useCallback(async () => {
-		try {
-			const res = await fetch("/api/user/profile")
-			if (res.ok) {
-				const data = await res.json()
-				setUserDetails(data)
-			} else {
-				setUserDetails({ given_name: "User" })
-			}
-		} catch (error) {
-			console.error("Failed to fetch user details:", error)
-			setUserDetails({ given_name: "User" })
-		}
-	}, [])
-	useEffect(() => {
-		fetchData()
-		fetchUserDetails()
-	}, [fetchData, fetchUserDetails])
-
-	useEffect(() => {
+	React.useEffect(() => {
 		const memoryId = searchParams.get("memoryId")
 		if (memoryId && memories.length > 0) {
 			const memoryToSelect = memories.find(
@@ -709,79 +702,81 @@ export default function MemoriesPage() {
 		}
 	}, [searchParams, memories, router])
 
-	const handleCreateMemory = async (content) => {
-		const toastId = toast.loading("Adding memory...")
-		try {
-			const res = await fetch("/api/memories", {
+	const createMemoryMutation = useMutation({
+		mutationFn: (content) =>
+			fetch("/api/memories", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content, source: "manual_entry" })
-			})
-			if (!res.ok) {
-				const errorData = await res.json().catch(() => ({}))
-				const error = new Error(
-					errorData.error || "Failed to add memory"
-				)
-				error.status = res.status
-				throw error
-			}
-			toast.success("Memory added successfully!", { id: toastId })
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json().catch(() => ({}))
+					const error = new Error(
+						errorData.error || "Failed to add memory"
+					)
+					error.status = res.status
+					throw error
+				}
+				return res.json()
+			}),
+		onSuccess: () => {
+			toast.success("Memory added successfully!")
 			setIsCreateModalOpen(false)
-			await fetchData() // Refresh data
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
 			if (error.status === 429) {
 				toast.error(
 					error.message ||
-						"You've reached your memory limit for the free plan.",
-					{ id: toastId }
+						"You've reached your memory limit for the free plan."
 				)
 				if (!isPro) {
 					setUpgradeModalOpen(true)
-					setIsCreateModalOpen(false) // Close the create modal
+					setIsCreateModalOpen(false)
 				}
 			} else {
-				toast.error(error.message, { id: toastId })
+				toast.error(error.message)
 			}
 		}
-	}
+	})
 
-	const handleUpdateMemory = async (memoryId, newContent) => {
-		const toastId = toast.loading("Updating memory...")
-		try {
-			const res = await fetch(`/api/memories/${memoryId}`, {
+	const updateMemoryMutation = useMutation({
+		mutationFn: ({ memoryId, newContent }) =>
+			fetch(`/api/memories/${memoryId}`, {
 				method: "PUT",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ content: newContent })
-			})
-			if (!res.ok) {
-				const errorData = await res.json()
-				throw new Error(errorData.error || "Failed to update memory")
-			}
-			toast.success("Memory updated!", { id: toastId })
-			setSelectedMemory(null) // Close panel
-			await fetchData() // Refresh data
-		} catch (error) {
-			toast.error(error.message, { id: toastId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to update memory")
+				return res.json()
+			}),
+		onSuccess: () => {
+			toast.success("Memory updated!")
+			setSelectedMemory(null)
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
+			toast.error(error.message)
 		}
-	}
+	})
 
-	const handleDeleteMemory = async (memoryId) => {
-		const toastId = toast.loading("Deleting memory...")
-		try {
-			const res = await fetch(`/api/memories/${memoryId}`, {
-				method: "DELETE"
-			})
-			if (!res.ok) {
-				const errorData = await res.json()
-				throw new Error(errorData.error || "Failed to delete memory")
-			}
-			toast.success("Memory deleted.", { id: toastId })
+	const deleteMemoryMutation = useMutation({
+		mutationFn: (memoryId) =>
+			fetch(`/api/memories/${memoryId}`, { method: "DELETE" }).then(
+				(res) => {
+					if (!res.ok) throw new Error("Failed to delete memory")
+					return res.json()
+				}
+			),
+		onSuccess: () => {
+			toast.success("Memory deleted.")
 			setSelectedMemory(null) // Close panel
-			await fetchData() // Refresh data
-		} catch (error) {
-			toast.error(error.message, { id: toastId })
+			queryClient.invalidateQueries({ queryKey: ["memories"] })
+		},
+		onError: (error) => {
+			toast.error(error.message)
 		}
-	}
+	})
 
 	const ViewSwitcher = () => (
 		<div className="flex flex-wrap items-center gap-2">
@@ -967,8 +962,13 @@ export default function MemoriesPage() {
 					<MemoryDetailPanel
 						memory={selectedMemory}
 						onClose={() => setSelectedMemory(null)}
-						onUpdate={handleUpdateMemory}
-						onDelete={handleDeleteMemory}
+						onUpdate={(id, content) =>
+							updateMemoryMutation.mutate({
+								memoryId: id,
+								newContent: content
+							})
+						}
+						onDelete={(id) => deleteMemoryMutation.mutate(id)}
 					/>
 				)}
 			</AnimatePresence>
@@ -983,7 +983,9 @@ export default function MemoriesPage() {
 				{isCreateModalOpen && (
 					<CreateMemoryModal
 						onClose={() => setIsCreateModalOpen(false)}
-						onCreate={handleCreateMemory}
+						onCreate={(content) =>
+							createMemoryMutation.mutate(content)
+						}
 						userDetails={userDetails}
 					/>
 				)}

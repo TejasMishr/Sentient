@@ -1,6 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import {
+	useState,
+	useEffect,
+	useRef,
+	useCallback,
+	useMemo,
+	Fragment
+} from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import {
 	IconSend,
@@ -59,6 +66,12 @@ import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import { WebRTCClient } from "@lib/webrtc-client"
 import useClickOutside from "@hooks/useClickOutside"
 import { usePlan } from "@hooks/usePlan"
+import {
+	useQuery,
+	useInfiniteQuery,
+	useMutation,
+	useQueryClient
+} from "@tanstack/react-query"
 import { useTour } from "@components/LayoutWrapper"
 
 const toolIcons = {
@@ -188,30 +201,27 @@ function usePrevious(value) {
 }
 
 export default function ChatPage() {
-	const [displayedMessages, setDisplayedMessages] = useState([])
 	const [input, setInput] = useState("")
-	const [isLoading, setIsLoading] = useState(true)
-	const [thinking, setThinking] = useState(false)
 	const textareaRef = useRef(null)
 	const chatEndRef = useRef(null)
 	const abortControllerRef = useRef(null)
 	const scrollContainerRef = useRef(null)
 	const fileInputRef = useRef(null)
+	const queryClient = useQueryClient()
+
+	// State for tour simulation messages
+	const [tourMessages, setTourMessages] = useState([])
 
 	// State for infinite scroll
-	const [isLoadingOlder, setIsLoadingOlder] = useState(false)
-	const [hasMoreMessages, setHasMoreMessages] = useState(true)
 	const [searchingForMessageId, setSearchingForMessageId] = useState(null)
 
 	// State for UI enhancements
-	const [userDetails, setUserDetails] = useState(null)
 	const posthog = usePostHog()
 	const [isFocused, setIsFocused] = useState(false)
 	const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false)
 	const [replyingTo, setReplyingTo] = useState(null)
 	const [isOptionsOpen, setIsOptionsOpen] = useState(false)
 	const [confirmClear, setConfirmClear] = useState(false)
-	const [integrations, setIntegrations] = useState([])
 	const [isToolsMenuOpen, setIsToolsMenuOpen] = useState(false)
 	const toolsMenuRef = useRef(null)
 	const toolsButtonRef = useRef(null)
@@ -231,7 +241,6 @@ export default function ChatPage() {
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
-	const [isUploading, setIsUploading] = useState(false)
 	const [uploadedFilename, setUploadedFilename] = useState(null)
 
 	// --- Pro Feature Modal ---
@@ -268,64 +277,67 @@ export default function ChatPage() {
 		}
 	}, [])
 
-	const fetchInitialMessages = useCallback(async () => {
-		if (tourState.isActive) {
-			setIsLoading(false)
-			return
-		}
-		setIsLoading(true)
-		try {
+	// --- TanStack Query Hooks ---
+
+	const { data: userDetails } = useQuery({
+		queryKey: ["userProfile"],
+		queryFn: async () => {
+			const res = await fetch("/api/user/profile")
+			if (!res.ok) throw new Error("Failed to fetch user details")
+			return res.json()
+		},
+		staleTime: Infinity // User profile rarely changes
+	})
+
+	const {
+		data: chatHistoryData,
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+		isLoading: isHistoryLoading,
+		isError: isHistoryError
+	} = useInfiniteQuery({
+		queryKey: ["chatHistory"],
+		queryFn: async ({ pageParam }) => {
 			const res = await fetch("/api/chat/history", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ limit: 50 })
+				body: JSON.stringify({ limit: 50, before_timestamp: pageParam })
 			})
 			if (!res.ok) throw new Error("Failed to fetch messages")
-			const data = await res.json()
-			const fetchedMessages = (data.messages || []).map((m) => ({
+			const pageData = await res.json()
+			const messages = (pageData.messages || []).map((m) => ({
 				...m,
 				id: m.message_id
 			}))
-			setDisplayedMessages(fetchedMessages)
-			setHasMoreMessages((data.messages || []).length === 50)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [tourState.isActive])
-
-	const fetchUserDetails = useCallback(async () => {
-		try {
-			const res = await fetch("/api/user/profile")
-			if (res.ok) {
-				const data = await res.json()
-				setUserDetails(data)
-			} else {
-				setUserDetails({ given_name: "User" })
+			return { messages, hasMore: messages.length === 50 }
+		},
+		initialPageParam: null,
+		getNextPageParam: (lastPage) => {
+			if (lastPage.hasMore && lastPage.messages.length > 0) {
+				return lastPage.messages[0].timestamp
 			}
-		} catch (error) {
-			console.error("Failed to fetch user details:", error)
-			setUserDetails({ given_name: "User" })
-		}
-	}, [])
+			return undefined
+		},
+		enabled: !tourState.isActive
+	})
+
+	const displayedMessagesFromQuery = useMemo(
+		() => chatHistoryData?.pages.flatMap((page) => page.messages) ?? [],
+		[chatHistoryData]
+	)
+
+	// Use tour messages if the tour is active, otherwise use data from the query
+	const displayedMessages = tourState.isActive
+		? tourMessages
+		: displayedMessagesFromQuery
 
 	useEffect(() => {
 		// When tour becomes inactive, refetch original messages
 		if (!tourState.isActive && prevTourState?.isActive) {
-			fetchInitialMessages()
+			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 		}
-	}, [tourState.isActive, prevTourState?.isActive, fetchInitialMessages])
-
-	useEffect(() => {
-		fetchInitialMessages()
-		fetchUserDetails()
-		return () => {
-			if (abortControllerRef.current) {
-				abortControllerRef.current.abort()
-			}
-		}
-	}, [fetchInitialMessages, fetchUserDetails])
+	}, [tourState.isActive, prevTourState, queryClient])
 
 	useEffect(() => {
 		if (
@@ -333,6 +345,7 @@ export default function ChatPage() {
 			startTour &&
 			!tourState.isActive
 		) {
+			setTourMessages([]) // Reset tour messages on start
 			startTour()
 			router.replace("/chat", { scroll: false }) // Keep this to clean URL
 		}
@@ -362,64 +375,46 @@ export default function ChatPage() {
 
 	useEffect(() => {
 		// This effect triggers the fetching loop when a search is initiated.
-		if (searchingForMessageId) {
-			fetchOlderMessages()
+		if (searchingForMessageId && hasNextPage && !isFetchingNextPage) {
+			fetchNextPage()
 		}
-	}, [searchingForMessageId]) // Dependency on searchingForMessageId
+	}, [searchingForMessageId, hasNextPage, isFetchingNextPage, fetchNextPage]) // Dependency on searchingForMessageId
 
-	const sendMessage = async () => {
-		if ((!input.trim() && !uploadedFilename) || thinking || isUploading)
-			return
+	const sendMessageMutation = useMutation({
+		mutationFn: async ({
+			newUserMessage,
+			uploadedFilename: mutationUploadedFilename
+		}) => {
+			abortControllerRef.current = new AbortController()
 
-		setThinking(true)
-		abortControllerRef.current = new AbortController()
+			posthog?.capture("chat_message_sent", {
+				message_length: newUserMessage.content.length,
+				has_file: !!mutationUploadedFilename
+			})
 
-		posthog?.capture("chat_message_sent", {
-			message_length: input.length,
-			has_file: !!uploadedFilename
-		})
+			let finalContent = newUserMessage.content
+			if (mutationUploadedFilename) {
+				finalContent = `(Attached file for context: ${mutationUploadedFilename}) ${finalContent}. Use file-management MCP to read it`
+			}
 
-		let messageContent = input.trim()
-		if (uploadedFilename) {
-			messageContent = `(Attached file for context: ${uploadedFilename}) ${messageContent}. Use file-management MCP to read it`
-		}
-
-		const newUserMessage = {
-			id: `user-${Date.now()}`,
-			role: "user",
-			content: messageContent,
-			timestamp: new Date().toISOString(),
-			...(replyingTo && { replyToId: replyingTo.id })
-		}
-
-		setStatusText("Getting ready...")
-		const updatedMessages = [...displayedMessages, newUserMessage]
-		setDisplayedMessages(updatedMessages)
-
-		setInput("")
-		setReplyingTo(null)
-		setUploadedFilename(null) // Reset file after sending
-		setSelectedFile(null)
-		if (textareaRef.current) textareaRef.current.style.height = "auto"
-
-		try {
 			if (tourState.isActive && tourState.step === 1) {
 				// --- TOUR SIMULATION ---
 				const subStep = tourState.subStep
-				setHighlightPaused(true) // Pause highlight as soon as message is sent
-				setThinking(true)
+				setHighlightPaused(true)
+				setStatusText("Thinking...")
+				setTourMessages((prev) => [...prev, newUserMessage])
 
 				if (subStep === 0) {
 					// First message: "Hi Sentient!"
 					setTimeout(() => {
 						const fakeResponse = {
-							id: `assistant-${Date.now()}`,
+							id: `assistant-tour-0`,
 							role: "assistant",
 							content: "Hey there, I'm ready to help.",
 							timestamp: new Date().toISOString()
 						}
-						setDisplayedMessages((prev) => [...prev, fakeResponse])
-						setThinking(false)
+						setTourMessages((prev) => [...prev, fakeResponse])
+						setStatusText("")
 						setTimeout(() => {
 							setHighlightPaused(false) // Resume highlight for next instruction
 							nextSubStep()
@@ -434,15 +429,14 @@ export default function ChatPage() {
 
 					setTimeout(() => {
 						const fakeResponse = {
-							id: `assistant-${Date.now()}`,
+							id: `assistant-tour-1`,
 							role: "assistant",
 							content:
 								"Cool, I've sent that email. Is there anything else you want to do?",
 							timestamp: new Date().toISOString(),
 							tools: ["gmail"]
 						}
-						setDisplayedMessages((prev) => [...prev, fakeResponse])
-						setThinking(false)
+						setTourMessages((prev) => [...prev, fakeResponse])
 						setStatusText("")
 						setTimeout(() => {
 							setHighlightPaused(false) // Resume highlight for next instruction
@@ -457,14 +451,13 @@ export default function ChatPage() {
 					}, 1000)
 					setTimeout(() => {
 						const fakeResponse = {
-							id: `assistant-${Date.now()}`,
+							id: `assistant-tour-2`,
 							role: "assistant",
 							content: "Cool, I've created the workflow.",
 							timestamp: new Date().toISOString(),
 							tools: ["tasks"]
 						}
-						setDisplayedMessages((prev) => [...prev, fakeResponse])
-						setThinking(false)
+						setTourMessages((prev) => [...prev, fakeResponse])
 						setStatusText("")
 						// This is the last chat step, move to the next main step.
 						setTimeout(() => {
@@ -476,16 +469,22 @@ export default function ChatPage() {
 				return // End simulation here
 			}
 
-			const response = await fetch("/api/chat/message", {
+			// Destructure to remove client-specific properties like `assistantTempId`
+			const messageToSend = {
+				...newUserMessage,
+				content: finalContent
+			}
+			delete messageToSend.assistantTempId
+
+			const responsePromise = fetch("/api/chat/message", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					// The server only needs the new user message to save it, then it fetches its own history.
-					messages: [newUserMessage]
+					messages: [messageToSend]
 				}),
 				signal: abortControllerRef.current.signal
 			})
-
+			const response = await responsePromise
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({
 					detail: `Request failed with status ${response.status}`
@@ -499,19 +498,6 @@ export default function ChatPage() {
 
 			const reader = response.body.getReader()
 			const decoder = new TextDecoder()
-			let assistantMessageId = `assistant-${Date.now()}`
-
-			setDisplayedMessages((prev) => [
-				...prev,
-				{
-					id: assistantMessageId,
-					role: "assistant",
-					content: "",
-					timestamp: new Date().toISOString(),
-					tools: [],
-					turn_steps: [] // --- ADDED --- Initialize turn_steps for the new message
-				}
-			])
 
 			while (true) {
 				const { done, value } = await reader.read()
@@ -529,22 +515,6 @@ export default function ChatPage() {
 							continue
 						}
 
-						// This is the fix: Update the temporary ID to the real one from the backend
-						if (
-							parsed.messageId &&
-							assistantMessageId.startsWith("assistant-")
-						) {
-							const tempId = assistantMessageId
-							assistantMessageId = parsed.messageId // Update the reference to the real ID
-							setDisplayedMessages((prev) =>
-								prev.map((m) =>
-									m.id === tempId
-										? { ...m, id: parsed.messageId }
-										: m
-								)
-							)
-						}
-
 						// Handle status updates from the backend
 						if (parsed.type === "status") {
 							setStatusText(parsed.message)
@@ -556,51 +526,126 @@ export default function ChatPage() {
 							setStatusText("")
 						}
 
-						setDisplayedMessages((prev) =>
-							prev.map((msg) => {
-								if (msg.id === assistantMessageId) {
-									// Only update the message when the stream is done
-									if (parsed.done) {
+						queryClient.setQueryData(["chatHistory"], (oldData) => {
+							if (!oldData) return oldData
+							const newPages = oldData.pages.map(
+								(page, pageIndex) => {
+									if (
+										pageIndex ===
+										oldData.pages.length - 1
+									) {
+										const newMessages = page.messages.map(
+											(msg) => {
+												if (
+													msg.id ===
+													newUserMessage.assistantTempId
+												) {
+													let newId = msg.id
+													if (
+														parsed.messageId &&
+														msg.id.startsWith(
+															"assistant-"
+														)
+													) {
+														newId = parsed.messageId
+													}
+													if (parsed.done) {
+														return {
+															...msg,
+															id: newId,
+															content:
+																parsed.final_content ||
+																"",
+															turn_steps:
+																parsed.turn_steps ||
+																[],
+															tools:
+																parsed.tools ||
+																[]
+														}
+													}
+													return {
+														...msg,
+														id: newId,
+														tools:
+															parsed.tools ||
+															msg.tools
+													}
+												}
+												return msg
+											}
+										)
 										return {
-											...msg,
-											content: parsed.final_content || "", // Replace content with clean final version
-											turn_steps: parsed.turn_steps || [], // Populate turn_steps
-											tools: parsed.tools || [] // Update tools on final event
+											...page,
+											messages: newMessages
 										}
 									}
-									// For intermediate chunks, we don't update the content to prevent streaming.
-									// We can still update tools if they arrive early.
-									return {
-										...msg,
-										tools: parsed.tools || msg.tools
-									}
+									return page
 								}
-								return msg
-							})
-						)
+							)
+							return { ...oldData, pages: newPages }
+						})
 					} catch (parseError) {
-						setDisplayedMessages((prev) =>
-							prev.map((msg) => {
-								if (msg.id === assistantMessageId) {
-									return {
-										...msg,
-										content: msg.content + line
-									}
-								}
-								return msg
-							})
-						)
+						// This might be raw text if streaming fails to produce JSON
 					}
 				}
 			}
-		} catch (error) {
+		},
+		onMutate: async ({ newUserMessage }) => {
+			await queryClient.cancelQueries({ queryKey: ["chatHistory"] })
+			const previousHistory = queryClient.getQueryData(["chatHistory"])
+
+			queryClient.setQueryData(["chatHistory"], (oldData) => {
+				const newPage = {
+					messages: [
+						newUserMessage,
+						{
+							id: newUserMessage.assistantTempId,
+							role: "assistant",
+							content: "",
+							timestamp: new Date().toISOString(),
+							tools: [],
+							turn_steps: []
+						}
+					],
+					hasMore: oldData?.pages[oldData.pages.length - 1]?.hasMore
+				}
+
+				// Add new messages to the last page if it exists, otherwise create a new page array
+				const lastPage = oldData?.pages[oldData.pages.length - 1]
+				const newPages = oldData?.pages
+					? [
+							...oldData.pages.slice(0, -1),
+							{
+								...lastPage,
+								messages: [
+									...lastPage.messages,
+									...newPage.messages
+								]
+							}
+						]
+					: [newPage]
+
+				return {
+					...oldData,
+					pages: newPages
+				}
+			})
+
+			setInput("")
+			setReplyingTo(null)
+			setUploadedFilename(null)
+			setSelectedFile(null)
+			if (textareaRef.current) textareaRef.current.style.height = "auto"
+
+			return { previousHistory }
+		},
+		onError: (error, variables, context) => {
+			queryClient.setQueryData(["chatHistory"], context.previousHistory)
 			if (error.name === "AbortError") {
 				toast.info("Message generation stopped.")
 			} else if (error.status === 429) {
-				toast.error(
-					error.message ||
-						"You've reached a usage limit for today on the free plan."
-				)
+				toast.error(error.message || "You've reached a usage limit.")
 				if (!isPro) {
 					setUpgradeModalOpen(true)
 				}
@@ -608,13 +653,23 @@ export default function ChatPage() {
 				toast.error(`Error: ${error.message}`)
 			}
 			console.error("Fetch error:", error)
-			setDisplayedMessages((prev) =>
-				prev.filter((m) => m.id !== newUserMessage.id)
-			)
-		} finally {
-			setThinking(false)
+		},
+		onSettled: () => {
 			setStatusText("")
+			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 		}
+	})
+
+	const sendMessage = () => {
+		const newUserMessage = {
+			id: `user-${Date.now()}`,
+			assistantTempId: `assistant-${Date.now()}`,
+			role: "user",
+			content: input.trim(),
+			timestamp: new Date().toISOString(),
+			...(replyingTo && { replyToId: replyingTo.id })
+		}
+		sendMessageMutation.mutate({ newUserMessage, uploadedFilename })
 	}
 
 	// Attach chat functions to the tour context's ref
@@ -634,25 +689,17 @@ export default function ChatPage() {
 		}
 	}, [chatActionsRef, sendMessage, setInput])
 
-	const fetchIntegrations = useCallback(async () => {
-		try {
+	const { data: integrationsData } = useQuery({
+		queryKey: ["integrations"],
+		queryFn: async () => {
 			const res = await fetch("/api/settings/integrations", {
 				method: "POST"
 			})
 			if (!res.ok) throw new Error("Failed to fetch integrations")
-			const data = await res.json()
-			setIntegrations(data.integrations || [])
-		} catch (error) {
-			console.error(
-				"Failed to fetch integrations for tools menu:",
-				error.message
-			)
+			return res.json()
 		}
-	}, [])
-
-	useEffect(() => {
-		fetchIntegrations()
-	}, [fetchIntegrations])
+	})
+	const integrations = integrationsData?.integrations || []
 
 	useClickOutside(toolsMenuRef, (event) => {
 		if (
@@ -681,86 +728,16 @@ export default function ChatPage() {
 		return { connectedTools: connected, builtinTools: builtin }
 	}, [integrations])
 
-	const fetchOlderMessages = useCallback(async () => {
-		if (
-			isLoadingOlder ||
-			!hasMoreMessages ||
-			displayedMessages.length === 0
-		) {
-			return
-		}
-
-		setIsLoadingOlder(true)
-		const oldestMessageTimestamp = displayedMessages[0].timestamp
-
-		try {
-			const res = await fetch(`/api/chat/history`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					limit: 50,
-					before_timestamp: oldestMessageTimestamp
-				})
-			})
-			if (!res.ok) throw new Error("Failed to fetch older messages")
-			const data = await res.json()
-
-			if (data.messages && data.messages.length > 0) {
-				const scrollContainer = scrollContainerRef.current
-				const oldScrollHeight = scrollContainer.scrollHeight
-
-				const olderMessages = data.messages.map((m) => ({
-					...m,
-					id: m.message_id
-				}))
-
-				const isTargetInBatch = olderMessages.some(
-					(m) => m.id === searchingForMessageId
-				)
-
-				setDisplayedMessages((prev) => [...olderMessages, ...prev]) // This will trigger the other useEffect to scroll
-				setHasMoreMessages(data.messages.length === 50)
-
-				if (searchingForMessageId) {
-					// If we are searching and didn't find the target, and there are more messages, fetch again.
-					if (!isTargetInBatch && data.messages.length === 50) {
-						// We call fetchOlderMessages again, but it will use the *new* oldest timestamp
-						// from the state that was just updated. We wrap in a timeout to allow React to re-render.
-						setTimeout(() => fetchOlderMessages(), 100)
-					}
-				} else {
-					// Normal infinite scroll behavior
-					setTimeout(() => {
-						scrollContainer.scrollTop =
-							scrollContainer.scrollHeight - oldScrollHeight
-					}, 0)
-				}
-			} else {
-				setHasMoreMessages(false)
-				setSearchingForMessageId(null) // Stop searching if no more messages
-			}
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoadingOlder(false)
-		}
-	}, [
-		isLoadingOlder,
-		hasMoreMessages,
-		displayedMessages,
-		searchingForMessageId
-	])
-
 	useEffect(() => {
 		const container = scrollContainerRef.current
 		const handleScroll = () => {
-			if (container && container.scrollTop === 0) {
-				fetchOlderMessages()
+			if (container && container.scrollTop === 0 && hasNextPage) {
+				fetchNextPage()
 			}
 		}
 		container?.addEventListener("scroll", handleScroll)
 		return () => container?.removeEventListener("scroll", handleScroll)
-	}, [fetchOlderMessages])
+	}, [fetchNextPage, hasNextPage])
 
 	const handleInputChange = (e) => {
 		const value = e.target.value
@@ -779,7 +756,35 @@ export default function ChatPage() {
 		textareaRef.current?.focus()
 	}
 
-	const handleFileChange = async (event) => {
+	const uploadFileMutation = useMutation({
+		mutationFn: async (file) => {
+			const formData = new FormData()
+			formData.append("file", file)
+
+			const response = await fetch("/api/files/upload", {
+				method: "POST",
+				body: formData
+			})
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}))
+				const error = new Error(errorData.error || "File upload failed")
+				error.status = response.status
+				throw error
+			}
+			return response.json()
+		},
+		onSuccess: (result) => {
+			setUploadedFilename(result.filename)
+			toast.success(`${result.filename} uploaded successfully.`)
+		},
+		onError: (error) => {
+			toast.error(`Error: ${error.message}`)
+			setSelectedFile(null)
+		}
+	})
+
+	const handleFileChange = (event) => {
 		const file = event.target.files?.[0]
 		if (!file) return
 
@@ -830,87 +835,77 @@ export default function ChatPage() {
 		}
 
 		setSelectedFile(file)
-		setIsUploading(true)
 		setUploadedFilename(null)
-		const toastId = toast.loading(`Uploading ${file.name}...`)
-
-		try {
-			const formData = new FormData()
-			formData.append("file", file)
-
-			const response = await fetch("/api/files/upload", {
-				method: "POST",
-				body: formData
-			})
-
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "File upload failed")
-				error.status = response.status
-				throw error
-			}
-
-			const result = await response.json()
-			setUploadedFilename(result.filename)
-			toast.success(`${result.filename} uploaded successfully.`, {
-				id: toastId
-			})
-		} catch (error) {
-			if (error.status === 429) {
-				toast.error(
-					error.message ||
-						"You've reached your daily file upload limit for the free plan.",
-					{ id: toastId }
-				)
-				if (!isPro) {
-					setUpgradeModalOpen(true)
-				}
-			} else {
-				toast.error(`Error: ${error.message}`, { id: toastId })
-			}
-			setSelectedFile(null)
-		} finally {
-			setIsUploading(false)
-		}
+		uploadFileMutation.mutate(file)
 	}
 
-	const handleDeleteMessage = async (messageId) => {
-		const originalMessages = [...displayedMessages]
-		setDisplayedMessages((prev) => prev.filter((m) => m.id !== messageId))
-
-		try {
-			const res = await fetch("/api/chat/delete", {
+	const deleteMessageMutation = useMutation({
+		mutationFn: (messageId) =>
+			fetch("/api/chat/delete", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ message_id: messageId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to delete message")
+				return res.json()
+			}),
+		onMutate: async (messageId) => {
+			await queryClient.cancelQueries({ queryKey: ["chatHistory"] })
+			const previousHistory = queryClient.getQueryData(["chatHistory"])
+			queryClient.setQueryData(["chatHistory"], (oldData) => {
+				if (!oldData) return oldData
+				const newPages = oldData.pages.map((page) => ({
+					...page,
+					messages: page.messages.filter((m) => m.id !== messageId)
+				}))
+				return { ...oldData, pages: newPages }
 			})
-			if (!res.ok) {
-				const errorData = await res.json()
-				throw new Error(errorData.error || "Failed to delete message")
-			}
+			return { previousHistory }
+		},
+		onSuccess: () => {
 			toast.success("Message deleted.")
-		} catch (error) {
+		},
+		onError: (error, variables, context) => {
 			toast.error(error.message)
-			setDisplayedMessages(originalMessages) // Revert on error
+			queryClient.setQueryData(["chatHistory"], context.previousHistory)
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 		}
-	}
+	})
 
-	const handleClearAllMessages = async () => {
-		setDisplayedMessages([])
-		setIsOptionsOpen(false)
-		setConfirmClear(false)
-		try {
-			const res = await fetch("/api/chat/delete", {
+	const clearAllMessagesMutation = useMutation({
+		mutationFn: () =>
+			fetch("/api/chat/delete", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ clear_all: true })
-			})
-			if (!res.ok) throw new Error("Failed to clear chat history")
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to clear chat history")
+				return res.json()
+			}),
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey: ["chatHistory"] })
+			const previousHistory = queryClient.getQueryData(["chatHistory"])
+			queryClient.setQueryData(["chatHistory"], () => ({
+				pages: [],
+				pageParams: []
+			}))
+			return { previousHistory }
+		},
+		onSuccess: () => {
 			toast.success("Chat history cleared.")
-		} catch (error) {
+		},
+		onError: (error, variables, context) => {
 			toast.error(error.message)
-			fetchInitialMessages() // Refetch to restore state on error
+			queryClient.setQueryData(["chatHistory"], context.previousHistory)
 		}
+	})
+
+	const handleClearAllMessages = () => {
+		setIsOptionsOpen(false)
+		setConfirmClear(false)
+		clearAllMessagesMutation.mutate()
 	}
 
 	const handleStopStreaming = () => {
@@ -925,7 +920,7 @@ export default function ChatPage() {
 			// Use 'auto' for an instant scroll, which feels better when switching modes.
 			chatEndRef.current.scrollIntoView({ behavior: "auto" })
 		}
-	}, [displayedMessages, thinking, isVoiceMode])
+	}, [displayedMessages, sendMessageMutation.isPending, isVoiceMode])
 
 	const getGreeting = () => {
 		const hour = new Date().getHours()
@@ -981,27 +976,45 @@ export default function ChatPage() {
 
 	const handleVoiceEvent = useCallback(
 		(event) => {
+			const addMessageToCache = (message) => {
+				queryClient.setQueryData(["chatHistory"], (oldData) => {
+					if (!oldData)
+						return {
+							pages: [{ messages: [message], hasMore: false }],
+							pageParams: [null]
+						}
+					const lastPage = oldData.pages[oldData.pages.length - 1]
+					const newPages = [
+						...oldData.pages.slice(0, -1),
+						{
+							...lastPage,
+							messages: [...lastPage.messages, message]
+						}
+					]
+					return { ...oldData, pages: newPages }
+				})
+			}
+
 			if (event.type === "stt_result" && event.text) {
-				setDisplayedMessages((prev) => [
-					...prev,
-					{
-						id: `user_${Date.now()}`,
-						role: "user",
-						content: event.text,
-						timestamp: new Date().toISOString()
-					}
-				])
+				const userMessage = {
+					id: `user_${Date.now()}`,
+					role: "user",
+					content: event.text,
+					timestamp: new Date().toISOString()
+				}
+				addMessageToCache(userMessage)
 			} else if (event.type === "llm_result" && event.text) {
 				lastSpokenTextRef.current = event.text // Store the text for duration calculation
-				setDisplayedMessages((prev) => [
-					...prev,
-					{
-						id: event.messageId || `assistant_${Date.now()}`,
-						role: "assistant",
-						content: event.text,
-						timestamp: new Date().toISOString()
-					}
-				])
+				const assistantMessage = {
+					id: event.messageId || `assistant_${Date.now()}`,
+					role: "assistant",
+					content: event.text,
+					timestamp: new Date().toISOString()
+				}
+				addMessageToCache(assistantMessage)
+
+				// Invalidate to ensure consistency, though optimistic update is usually enough.
+				queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 			} else if (event.type === "status") {
 				console.log(`[ChatPage] Voice status update: ${event.message}`)
 				if (event.message === "thinking") {
@@ -1065,7 +1078,7 @@ export default function ChatPage() {
 				setVoiceStatusText("Error. Click to retry.")
 			}
 		},
-		[setMicrophoneEnabled]
+		[setMicrophoneEnabled, queryClient]
 	)
 
 	const handleAudioLevel = useCallback((level) => {
@@ -1322,8 +1335,8 @@ export default function ChatPage() {
 		if (isVoiceMode) {
 			console.log("[ChatPage] Toggling voice mode OFF.")
 			handleStopVoice()
-			setIsVoiceMode(false)
-			fetchInitialMessages()
+			setIsVoiceMode(false) // This will trigger refetch via useEffect
+			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
 		} else {
 			console.log("[ChatPage] Toggling voice mode ON.")
 			// Switching TO voice mode, first get permissions
@@ -1428,7 +1441,7 @@ export default function ChatPage() {
 	)
 
 	const renderInputArea = () => (
-		<div
+		<div // prettier-ignore
 			data-tour-id="chat-input-area"
 			className="relative bg-neutral-800/60 backdrop-blur-sm border border-neutral-700/50 rounded-2xl"
 		>
@@ -1474,12 +1487,12 @@ export default function ChatPage() {
 					/>
 					<button
 						onClick={() => fileInputRef.current?.click()}
-						disabled={isUploading}
+						disabled={uploadFileMutation.isPending}
 						className="p-2 rounded-full text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-50"
 						data-tooltip-id="home-tooltip"
 						data-tooltip-content="Attach File (Max 5MB)"
 					>
-						{isUploading ? (
+						{uploadFileMutation.isPending ? (
 							<IconLoader size={20} className="animate-spin" />
 						) : (
 							<IconPaperclip size={20} />
@@ -1516,7 +1529,7 @@ export default function ChatPage() {
 					>
 						<IconHeadphonesFilled size={18} />
 					</button>
-					{thinking ? (
+					{sendMessageMutation.isPending ? (
 						<button
 							onClick={handleStopStreaming}
 							className="p-2.5 rounded-full text-white bg-red-600 hover:bg-red-500"
@@ -1530,8 +1543,8 @@ export default function ChatPage() {
 							onClick={sendMessage}
 							disabled={
 								(!input.trim() && !uploadedFilename) ||
-								thinking ||
-								isUploading
+								sendMessageMutation.isPending ||
+								uploadFileMutation.isPending
 							}
 							className="p-2.5 bg-brand-orange rounded-full text-white disabled:opacity-50 hover:bg-brand-orange/90 transition-all shadow-md"
 						>
@@ -1791,7 +1804,7 @@ export default function ChatPage() {
 					ref={scrollContainerRef}
 					className="flex-1 overflow-y-auto sm:p-0 md:px-4 pb-4 md:p-6 flex flex-col custom-scrollbar"
 				>
-					{isLoading ? (
+					{isHistoryLoading ? (
 						<div className="flex-1 flex justify-center items-center">
 							<IconLoader className="animate-spin text-neutral-500" />
 						</div>
@@ -1959,7 +1972,8 @@ export default function ChatPage() {
 								</div>
 							</div>
 						</div>
-					) : displayedMessages.length === 0 && !thinking ? (
+					) : displayedMessages.length === 0 &&
+					  !sendMessageMutation.isPending ? (
 						<div className="flex-1 flex flex-col justify-center items-center p-4 md:p-6">
 							<div className="text-center">
 								<h1 className="text-4xl sm:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-100 to-neutral-400 py-4">
@@ -1983,41 +1997,47 @@ export default function ChatPage() {
 						</div>
 					) : (
 						<div className="w-full max-w-4xl px-2 mx-auto flex flex-col gap-3 md:gap-4 flex-1">
-							{isLoadingOlder && (
+							{isFetchingNextPage && (
 								<div className="flex justify-center py-4">
 									<IconLoader className="animate-spin text-neutral-500" />
 								</div>
 							)}
-							{displayedMessages.map((msg, i) => (
-								<div
-									key={msg.id || i}
-									id={`message-${msg.id}`}
-									className={cn(
-										"flex w-full",
-										msg.role === "user"
-											? "justify-end"
-											: "justify-start"
-									)}
-								>
-									<ChatBubble
-										role={msg.role}
-										content={msg.content}
-										tools={msg.tools || []}
-										turn_steps={msg.turn_steps || []} // --- CHANGED --- Pass turn_steps instead of old props
-										onReply={handleReply}
-										message={msg}
-										allMessages={displayedMessages}
-										isStreaming={
-											thinking &&
-											i === displayedMessages.length - 1
-										}
-										onDelete={handleDeleteMessage}
-									/>
-								</div>
-							))}
+							<AnimatePresence initial={false}>
+								{displayedMessages.map((msg, i) => (
+									<motion.div
+										key={msg.id || i}
+										layout
+										id={`message-${msg.id}`}
+										className={cn(
+											"flex w-full",
+											msg.role === "user"
+												? "justify-end"
+												: "justify-start"
+										)}
+									>
+										<ChatBubble
+											role={msg.role}
+											content={msg.content}
+											tools={msg.tools || []}
+											turn_steps={msg.turn_steps || []} // --- CHANGED --- Pass turn_steps instead of old props
+											onReply={handleReply}
+											message={msg}
+											allMessages={displayedMessages}
+											isStreaming={
+												sendMessageMutation.isPending &&
+												i ===
+													displayedMessages.length - 1
+											}
+											onDelete={(id) =>
+												deleteMessageMutation.mutate(id)
+											}
+										/>
+									</motion.div>
+								))}
+							</AnimatePresence>
 							<div className="flex w-full justify-start">
 								<AnimatePresence>
-									{thinking && (
+									{sendMessageMutation.isPending && (
 										<motion.div
 											initial={{ opacity: 0, y: 10 }}
 											animate={{ opacity: 1, y: 0 }}
@@ -2038,17 +2058,19 @@ export default function ChatPage() {
 						</div>
 					)}
 				</main>
-				{!isLoading && !isVoiceMode && displayedMessages.length > 0 && (
-					<div className="flex-shrink-0 px-2 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
-						<div className="relative w-full max-w-4xl mx-auto">
-							{uploadedFilename
-								? renderUploadedFilePreview()
-								: renderReplyPreview()}
-							{renderToolsMenu()}
-							{renderInputArea()}
+				{!isHistoryLoading &&
+					!isVoiceMode &&
+					displayedMessages.length > 0 && (
+						<div className="flex-shrink-0 px-2 pt-2 pb-4 sm:px-6 sm:pb-6 bg-transparent">
+							<div className="relative w-full max-w-4xl mx-auto">
+								{uploadedFilename
+									? renderUploadedFilePreview()
+									: renderReplyPreview()}
+								{renderToolsMenu()}
+								{renderInputArea()}
+							</div>
 						</div>
-					</div>
-				)}
+					)}
 			</div>
 		</div>
 	)

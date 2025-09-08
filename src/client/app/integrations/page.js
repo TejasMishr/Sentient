@@ -1,7 +1,7 @@
 // src/client/app/integrations/page.js
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import SparkleEffect from "@components/ui/SparkleEffect"
 import { BorderTrail } from "@components/ui/border-trail"
 import toast from "react-hot-toast"
@@ -63,6 +63,7 @@ import { Tooltip } from "react-tooltip"
 import ModalDialog from "@components/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -448,53 +449,64 @@ const FilterInputSection = ({
 }
 
 const PrivacySettings = ({ serviceName }) => {
-	const [filters, setFilters] = useState({
-		keywords: [],
-		emails: [],
-		labels: []
-	})
-	const [isLoading, setIsLoading] = useState(true)
+	const queryClient = useQueryClient()
 
-	const fetchFilters = useCallback(async () => {
-		setIsLoading(true)
-		try {
+	const { data: filters, isLoading } = useQuery({
+		queryKey: ["privacyFilters", serviceName],
+		queryFn: async () => {
 			const response = await fetch(
 				`/api/settings/privacy-filters?service=${serviceName}`
 			)
 			if (!response.ok) throw new Error("Failed to fetch filters.")
 			const data = await response.json()
-			setFilters(data.filters)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [serviceName])
+			return data.filters
+		},
+		initialData: { keywords: [], emails: [], labels: [] }
+	})
 
-	useEffect(() => {
-		fetchFilters()
-	}, [fetchFilters])
-
-	const handleSaveFilters = async (updatedFilters) => {
-		setIsLoading(true)
-		try {
-			const response = await fetch("/api/settings/privacy-filters", {
+	const updateFiltersMutation = useMutation({
+		mutationFn: (updatedFilters) =>
+			fetch("/api/settings/privacy-filters", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					service: serviceName,
 					filters: updatedFilters
 				})
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to save filters.")
+				return res.json()
+			}),
+		onMutate: async (updatedFilters) => {
+			await queryClient.cancelQueries({
+				queryKey: ["privacyFilters", serviceName]
 			})
-			if (!response.ok) throw new Error("Failed to save filters.")
+			const previousFilters = queryClient.getQueryData([
+				"privacyFilters",
+				serviceName
+			])
+			queryClient.setQueryData(
+				["privacyFilters", serviceName],
+				updatedFilters
+			)
+			return { previousFilters }
+		},
+		onError: (err, newFilters, context) => {
+			queryClient.setQueryData(
+				["privacyFilters", serviceName],
+				context.previousFilters
+			)
+			toast.error(err.message)
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["privacyFilters", serviceName]
+			})
+		},
+		onSuccess: () => {
 			toast.success("Privacy filters updated.")
-			setFilters(updatedFilters)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
 		}
-	}
+	})
 
 	const handleAddItem = (type, value) => {
 		if (!filters[type].includes(value)) {
@@ -502,7 +514,7 @@ const PrivacySettings = ({ serviceName }) => {
 				...filters,
 				[type]: [...filters[type], value]
 			}
-			handleSaveFilters(updatedFilters)
+			updateFiltersMutation.mutate(updatedFilters)
 		}
 	}
 
@@ -511,7 +523,7 @@ const PrivacySettings = ({ serviceName }) => {
 			...filters,
 			[type]: filters[type].filter((item) => item !== value)
 		}
-		handleSaveFilters(updatedFilters)
+		updateFiltersMutation.mutate(updatedFilters)
 	}
 
 	if (isLoading) {
@@ -802,9 +814,7 @@ const IntegrationCard = ({
 }
 
 const IntegrationsPage = () => {
-	const [userIntegrations, setUserIntegrations] = useState([])
-	const [defaultTools, setDefaultTools] = useState([])
-	const [loading, setLoading] = useState(true)
+	const queryClient = useQueryClient()
 	const [processingIntegration, setProcessingIntegration] = useState(null)
 	const [searchQuery, setSearchQuery] = useState("")
 	const [activeCategory, setActiveCategory] = useState("Core")
@@ -823,11 +833,6 @@ const IntegrationsPage = () => {
 	const router = useRouter()
 	const { isPro } = usePlan()
 
-	const handleWhatsAppModalClose = useCallback(() => {
-		setIsWhatsAppQRModalOpen(false)
-		fetchIntegrations() // Always refetch on close to ensure UI is up-to-date
-	}, [])
-
 	const googleServices = [
 		"gmail",
 		"gcalendar",
@@ -839,49 +844,50 @@ const IntegrationsPage = () => {
 		"gpeople"
 	]
 
-	const fetchIntegrations = useCallback(async () => {
-		setLoading(true)
-		try {
+	const {
+		data: integrationsData,
+		isLoading: loading,
+		isError
+	} = useQuery({
+		queryKey: ["integrations"],
+		queryFn: async () => {
 			const response = await fetch("/api/settings/integrations", {
 				method: "POST",
 				cache: "no-store"
 			})
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.error || "Failed to fetch integrations")
-
-			const integrationsWithIcons = (data.integrations || []).map(
-				(ds) => ({
-					...ds,
-					icon: integrationColorIcons[ds.name] || IconSettingsCog
-				})
-			)
-
-			const hiddenTools = [
-				"google_search",
-				"progress_updater",
-				"chat_tools",
-				"tasks"
-			]
-			const connectable = integrationsWithIcons.filter(
-				(i) =>
-					(i.auth_type === "oauth" ||
-						i.auth_type === "manual" ||
-						i.auth_type === "composio") &&
-					!hiddenTools.includes(i.name)
-			)
-			const builtIn = integrationsWithIcons.filter(
-				(i) =>
-					i.auth_type === "builtin" && !hiddenTools.includes(i.name)
-			)
-			setUserIntegrations(connectable)
-			setDefaultTools(builtIn)
-		} catch (error) {
-			toast.error(`Error fetching integrations: ${error.message}`)
-		} finally {
-			setLoading(false)
+			if (!response.ok) throw new Error("Failed to fetch integrations")
+			return response.json()
 		}
-	}, [])
+	})
+
+	const { userIntegrations, defaultTools } = useMemo(() => {
+		if (!integrationsData) return { userIntegrations: [], defaultTools: [] }
+
+		const integrationsWithIcons = (integrationsData.integrations || []).map(
+			(ds) => ({
+				...ds,
+				icon: integrationColorIcons[ds.name] || IconSettingsCog
+			})
+		)
+
+		const hiddenTools = [
+			"google_search",
+			"progress_updater",
+			"chat_tools",
+			"tasks"
+		]
+		const connectable = integrationsWithIcons.filter(
+			(i) =>
+				(i.auth_type === "oauth" ||
+					i.auth_type === "manual" ||
+					i.auth_type === "composio") &&
+				!hiddenTools.includes(i.name)
+		)
+		const builtIn = integrationsWithIcons.filter(
+			(i) => i.auth_type === "builtin" && !hiddenTools.includes(i.name)
+		)
+		return { userIntegrations: connectable, defaultTools: builtIn }
+	}, [integrationsData])
 
 	const handleUpgradeClick = () => {
 		setUpgradeModalOpen(true)
@@ -1024,15 +1030,8 @@ const IntegrationsPage = () => {
 		}
 	}
 
-	const handleDisconnect = async () => {
-		if (!disconnectingIntegration) return
-
-		const { name: integrationName, display_name: displayName } =
-			disconnectingIntegration
-
-		setProcessingIntegration(integrationName)
-
-		try {
+	const disconnectMutation = useMutation({
+		mutationFn: ({ integrationName }) => {
 			const apiEndpoint =
 				integrationName === "whatsapp"
 					? "/api/settings/integrations/whatsapp/disconnect"
@@ -1043,26 +1042,30 @@ const IntegrationsPage = () => {
 					? {}
 					: { service_name: integrationName }
 
-			const response = await fetch(apiEndpoint, {
+			return fetch(apiEndpoint, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(bodyPayload)
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to disconnect")
+				return res.json()
 			})
-
-			if (!response.ok)
-				throw new Error(`Failed to disconnect ${displayName}`)
+		},
+		onSuccess: (data, { displayName, integrationName }) => {
+			toast.success(`${displayName} disconnected.`)
 			posthog?.capture("integration_disconnected", {
 				integration_name: integrationName
 			})
-			toast.success(`${displayName} disconnected.`)
-			fetchIntegrations()
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["integrations"] })
+		},
+		onError: (error) => {
 			toast.error(error.message)
-		} finally {
+		},
+		onSettled: () => {
 			setProcessingIntegration(null)
 			setDisconnectingIntegration(null) // Close modal
 		}
-	}
+	})
 
 	useEffect(() => {
 		// --- Handle Composio OAuth Callback ---
@@ -1070,16 +1073,6 @@ const IntegrationsPage = () => {
 		const composioStatus = urlParams.get("status")
 		const connectedAccountId = urlParams.get("connectedAccountId")
 		const pendingService = localStorage.getItem("composio_pending_service")
-
-		// If it's not a callback from an integration attempt, fetch normally.
-		if (
-			!composioStatus &&
-			!urlParams.get("integration_success") &&
-			!urlParams.get("integration_error") &&
-			!window.location.hash.includes("#token=")
-		) {
-			fetchIntegrations()
-		}
 
 		if (
 			composioStatus === "success" &&
@@ -1115,7 +1108,9 @@ const IntegrationsPage = () => {
 						integration_name: pendingService,
 						auth_type: "composio"
 					})
-					fetchIntegrations() // Refresh the list
+					queryClient.invalidateQueries({
+						queryKey: ["integrations"]
+					}) // Refresh the list
 				} catch (error) {
 					toast.error(`Error: ${error.message}`, { id: toastId })
 				} finally {
@@ -1194,15 +1189,15 @@ const IntegrationsPage = () => {
 			})
 			toast.success(`Successfully connected to ${capitalized}!`)
 			setSparkleTrigger((c) => c + 1)
-			fetchIntegrations()
+			queryClient.invalidateQueries({ queryKey: ["integrations"] })
 			window.history.replaceState({}, document.title, "/integrations")
 		} else if (error && !composioStatus) {
 			// Avoid showing generic error on composio callback
 			toast.error(`Connection failed: ${error}`)
-			fetchIntegrations() // Fetch to show current state even on error
+			queryClient.invalidateQueries({ queryKey: ["integrations"] }) // Fetch to show current state even on error
 			window.history.replaceState({}, document.title, "/integrations")
 		}
-	}, [fetchIntegrations, posthog, router])
+	}, [posthog, router, queryClient])
 
 	const renderIntegrationGrid = (integrations) => (
 		<motion.div
@@ -1481,24 +1476,6 @@ const IntegrationsPage = () => {
 				place="right-start"
 				style={{ zIndex: 9999 }}
 			/>
-			<AnimatePresence>
-				{isWhatsAppDisclaimerOpen && (
-					<div className="isolate z-[120]">
-						<WhatsAppDisclaimerModal
-							isOpen={isWhatsAppDisclaimerOpen}
-							onClose={() => setIsWhatsAppDisclaimerOpen(false)}
-							onAgree={() => {
-								setIsWhatsAppDisclaimerOpen(false)
-								setIsWhatsAppQRModalOpen(true)
-							}}
-						/>
-					</div>
-				)}
-			</AnimatePresence>
-			<UpgradeToProModal
-				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
-			/>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
 				onClose={() => setUpgradeModalOpen(false)}
@@ -1519,7 +1496,13 @@ const IntegrationsPage = () => {
 							description="This will permanently delete all tasks that use this tool and any related polling data. This action cannot be undone."
 							confirmButtonText="Disconnect"
 							confirmButtonType="danger"
-							onConfirm={handleDisconnect}
+							onConfirm={() => {
+								if (disconnectingIntegration) {
+									disconnectMutation.mutate(
+										disconnectingIntegration
+									)
+								}
+							}}
 							onCancel={() => setDisconnectingIntegration(null)}
 							confirmButtonLoading={
 								processingIntegration ===
@@ -1564,7 +1547,14 @@ const IntegrationsPage = () => {
 			</div>
 			<AnimatePresence>
 				{isWhatsAppQRModalOpen && (
-					<WhatsAppQRCodeModal onClose={handleWhatsAppModalClose} />
+					<WhatsAppQRCodeModal
+						onClose={() => {
+							setIsWhatsAppQRModalOpen(false)
+							queryClient.invalidateQueries({
+								queryKey: ["integrations"]
+							})
+						}}
+					/>
 				)}
 			</AnimatePresence>
 			<AnimatePresence>
@@ -1573,6 +1563,20 @@ const IntegrationsPage = () => {
 						serviceName={privacyModalService}
 						onClose={() => setPrivacyModalService(null)}
 					/>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{isWhatsAppDisclaimerOpen && (
+					<div className="isolate z-[120]">
+						<WhatsAppDisclaimerModal
+							isOpen={isWhatsAppDisclaimerOpen}
+							onClose={() => setIsWhatsAppDisclaimerOpen(false)}
+							onAgree={() => {
+								setIsWhatsAppDisclaimerOpen(false)
+								setIsWhatsAppQRModalOpen(true)
+							}}
+						/>
+					</div>
 				)}
 			</AnimatePresence>
 		</div>

@@ -1,14 +1,7 @@
 "use client"
 
 import { cn } from "@utils/cn"
-import React, {
-	useRef,
-	useState,
-	useMemo,
-	useEffect,
-	useCallback, // eslint-disable-line
-	Suspense
-} from "react"
+import React, { useRef, useState, useMemo, useEffect, Suspense } from "react" // eslint-disable-line
 import { useRouter, useSearchParams } from "next/navigation"
 import {
 	IconLoader,
@@ -17,6 +10,7 @@ import {
 	IconPlus,
 	IconBolt // Added IconBolt
 } from "@tabler/icons-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
@@ -138,18 +132,10 @@ function usePrevious(value) {
 function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
+	const queryClient = useQueryClient()
 
-	const [allTasks, setAllTasks] = useState([])
-	const [allTools, setAllTools] = useState([])
-	const [integrations, setIntegrations] = useState([])
-	const [isLoading, setIsLoading] = useState(true)
 	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
 	const [isMobile, setIsMobile] = useState(false)
-
-	const selectedTaskId = searchParams.get("taskId")
-	const selectedTask = useMemo(() => {
-		return allTasks.find((t) => t.task_id === selectedTaskId) || null
-	}, [allTasks, selectedTaskId])
 
 	const [isModalOpen, setIsModalOpen] = useState(false)
 	const [searchQuery, setSearchQuery] = useState("")
@@ -160,6 +146,37 @@ function TasksPageContent() {
 	const tour = useTour()
 	const { tourState, setTourState } = tour
 	const prevTourState = usePrevious(tourState)
+
+	const { data, isLoading, isError } = useQuery({
+		queryKey: ["tasksPageData"],
+		queryFn: async () => {
+			if (tourState.isActive) {
+				return { tasks: [], integrations: [] }
+			}
+			const [tasksRes, integrationsRes] = await Promise.all([
+				fetch("/api/tasks", { method: "POST" }),
+				fetch("/api/settings/integrations", { method: "POST" })
+			])
+			if (!tasksRes.ok) throw new Error("Failed to fetch tasks")
+			if (!integrationsRes.ok)
+				throw new Error("Failed to fetch integrations")
+			const tasksData = await tasksRes.json()
+			const integrationsData = await integrationsRes.json()
+			return {
+				tasks: Array.isArray(tasksData.tasks) ? tasksData.tasks : [],
+				integrations: integrationsData.integrations || []
+			}
+		},
+		staleTime: 1000 * 60 // 1 minute
+	})
+
+	const allTasks = data?.tasks || []
+	const integrations = data?.integrations || []
+	const allTools = integrations.map((i) => ({
+		name: i.name,
+		display_name: i.display_name
+	}))
+	const selectedTaskId = searchParams.get("taskId")
 
 	const demoWorkflow = useMemo(() => {
 		if (!tourState.isActive || tourState.step < 6) return null
@@ -246,14 +263,14 @@ function TasksPageContent() {
 		}
 	}, [tourState.isActive, tourState.step, tourState.subStep])
 
-	const handleClosePanel = useCallback(() => {
+	const handleClosePanel = () => {
 		if (tourState.isActive && tourState.step >= 3) {
 			// Don't close panel during tour simulation
 		} else {
 			router.push("/tasks", { scroll: false }) // Clear URL param
 		}
 		setIsModalOpen(false)
-	}, [router, tourState])
+	}
 
 	// Effect to sync UI state with the tour state
 	useEffect(() => {
@@ -311,6 +328,10 @@ function TasksPageContent() {
 		return () => window.removeEventListener("resize", handleResize)
 	}, [isMobile, selectedTaskId])
 
+	const selectedTask = useMemo(() => {
+		return allTasks.find((t) => t.task_id === selectedTaskId) || null
+	}, [allTasks, selectedTaskId])
+
 	useEffect(() => {
 		const taskId = searchParams.get("taskId")
 
@@ -338,6 +359,228 @@ function TasksPageContent() {
 		return [demoTask, demoWorkflow, ...allTasks].filter(Boolean)
 	}, [allTasks, demoTask, demoWorkflow])
 
+	useEffect(() => {
+		// When tour ends, refetch tasks
+		if (!tourState.isActive && prevTourState?.isActive) {
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+		}
+	}, [tourState.isActive, prevTourState?.isActive, queryClient])
+
+	useEffect(() => {
+		const handleBackendUpdate = () => {
+			console.log(
+				"Received tasksUpdatedFromBackend event, fetching tasks..."
+			)
+			toast.success("Task list updated from backend.")
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+		}
+		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
+		return () => {
+			window.removeEventListener(
+				"tasksUpdatedFromBackend",
+				handleBackendUpdate
+			)
+		}
+	}, [queryClient])
+
+	const useTaskMutation = (mutationFn, { successMessage, errorMessage }) => {
+		return useMutation({
+			mutationFn,
+			onSuccess: () => {
+				toast.success(successMessage)
+				queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+			},
+			onError: (error) => {
+				toast.error(error.message || errorMessage)
+			}
+		})
+	}
+
+	const answerClarificationsMutation = useTaskMutation(
+		({ taskId, answers }) =>
+			fetch("/api/tasks/answer-clarifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId, answers })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answers.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answers submitted. The task will now resume.",
+			errorMessage: "Failed to submit answers."
+		}
+	)
+
+	const answerLongFormClarificationMutation = useTaskMutation(
+		({ taskId, requestId, answer }) =>
+			fetch(`/api/tasks/${taskId}/answer-clarification`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ requestId, answer })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answer.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answer submitted. The task will now resume.",
+			errorMessage: "Failed to submit answer."
+		}
+	)
+
+	const createTaskMutation = useMutation({
+		mutationFn: (payload) =>
+			fetch("/api/tasks/add", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json().catch(() => ({}))
+					const error = new Error(
+						errorData.error || "Failed to add task"
+					)
+					error.status = res.status
+					throw error
+				}
+				return res.json()
+			}),
+		onSuccess: (data) => {
+			toast.success(
+				data.message ||
+					(view === "workflows"
+						? "Workflow created!"
+						: "Task created!")
+			)
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+		},
+		onError: (error) => {
+			if (error.status === 429) {
+				toast.error(
+					error.message || "You've reached your daily task limit."
+				)
+				if (!isPro) setUpgradeModalOpen(true)
+			} else {
+				toast.error(`Error: ${error.message}`)
+			}
+		}
+	})
+
+	const resumeTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/${taskId}/action`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "resume" })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to resume task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task resumed.",
+			errorMessage: "Failed to resume task."
+		}
+	)
+
+	const updateTaskMutation = useTaskMutation(
+		(updatedTask) =>
+			fetch("/api/tasks/update", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...updatedTask,
+					taskId: updatedTask.task_id
+				})
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to update task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task updated!",
+			errorMessage: "Failed to update task."
+		}
+	)
+
+	const deleteTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/delete`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to delete task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task deleted.",
+			errorMessage: "Failed to delete task."
+		}
+	)
+
+	const approveTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/approve`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to approve task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task approved.",
+			errorMessage: "Failed to approve task."
+		}
+	)
+
+	const rerunTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch("/api/tasks/rerun", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to re-run task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task re-run initiated.",
+			errorMessage: "Failed to re-run task."
+		}
+	)
+
+	const archiveTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/update`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, status: "archived" }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to archive task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task archived.",
+			errorMessage: "Failed to archive task."
+		}
+	)
+
+	const sendChatMessageMutation = useTaskMutation(
+		({ taskId, message }) =>
+			fetch(`/api/tasks/chat`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, message }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to send message.")
+				return res.json()
+			}),
+		{
+			successMessage: "Message sent.",
+			errorMessage: "Failed to send message."
+		}
+	)
+
 	const selectedTaskOrDemo = useMemo(() => {
 		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
 		if (tourState.isActive && tourState.step >= 5) {
@@ -347,181 +590,49 @@ function TasksPageContent() {
 		return selectedTask
 	}, [tourState, demoTask, selectedTask])
 
-	const fetchTasks = useCallback(async () => {
-		if (tourState.isActive) {
-			setIsLoading(false)
-			return
-		}
-		setIsLoading(true)
-		try {
-			const tasksRes = await fetch("/api/tasks", { method: "POST" })
-			if (!tasksRes.ok) throw new Error("Failed to fetch tasks")
-			const tasksData = await tasksRes.json()
-			const rawTasks = Array.isArray(tasksData.tasks)
-				? tasksData.tasks
-				: []
-			setAllTasks(rawTasks)
-
-			const integrationsRes = await fetch("/api/settings/integrations", {
-				method: "POST"
-			})
-			if (!integrationsRes.ok)
-				throw new Error("Failed to fetch integrations")
-			const integrationsData = await integrationsRes.json()
-			setIntegrations(integrationsData.integrations || [])
-			const tools = integrationsData.integrations.map((i) => ({
-				name: i.name,
-				display_name: i.display_name
-			}))
-			setAllTools(tools)
-		} catch (error) {
-			toast.error(`Error fetching data: ${error.message}`)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [tourState.isActive])
-
-	useEffect(() => {
-		// When tour ends, refetch tasks
-		if (!tourState.isActive && prevTourState?.isActive) {
-			fetchTasks()
-		}
-	}, [tourState.isActive, prevTourState?.isActive, fetchTasks])
-
-	useEffect(() => {
-		fetchTasks()
-	}, [fetchTasks])
-
-	useEffect(() => {
-		const handleBackendUpdate = () => {
-			console.log(
-				"Received tasksUpdatedFromBackend event, fetching tasks..."
-			)
-			toast.success("Task list updated from backend.")
-			fetchTasks()
-		}
-		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
-		return () => {
-			window.removeEventListener(
-				"tasksUpdatedFromBackend",
-				handleBackendUpdate
-			)
-		}
-	}, [fetchTasks])
-
-	const handleAction = useCallback(
-		async (actionFn, successMessage, ...args) => {
-			const toastId = toast.loading("Processing...")
-			try {
-				const response = await actionFn(...args)
-				if (!response.ok) {
-					const errorData = await response.json()
-					throw new Error(errorData.error || "Action failed")
-				}
-				toast.success(successMessage, { id: toastId })
-				await fetchTasks()
-			} catch (error) {
-				toast.error(`Error: ${error.message}`, { id: toastId })
-			}
-		},
-		[fetchTasks]
-	)
-
-	const handleAnswerClarifications = async (taskId, answers) => {
-		await handleAction(
-			() =>
-				fetch("/api/tasks/answer-clarifications", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId, answers })
-				}),
-			"Answers submitted successfully. The task will now resume."
-		)
+	const handleAnswerClarifications = (taskId, answers) => {
+		answerClarificationsMutation.mutate({ taskId, answers })
 		handleClosePanel()
 	}
 
-	const handleAnswerLongFormClarification = async (
-		taskId,
-		requestId,
-		answer
-	) => {
-		await handleAction(
-			() =>
-				fetch(`/api/tasks/${taskId}/answer-clarification`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ requestId, answer })
-				}),
-			"Answer submitted. The task will now resume."
-		)
+	const handleAnswerLongFormClarification = (taskId, requestId, answer) => {
+		answerLongFormClarificationMutation.mutate({
+			taskId,
+			requestId,
+			answer
+		})
 	}
 
-	const handleCreateTask = async (payload) => {
-		const toastId = toast.loading(
-			view === "workflows" ? "Creating workflow..." : "Creating task..."
-		)
-		try {
-			const response = await fetch("/api/tasks/add", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload)
-			})
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "Failed to add task")
-				error.status = response.status
-				throw error
-			}
-			const data = await response.json()
-
-			toast.success(
-				data.message ||
-					(view === "workflows"
-						? "Workflow created!"
-						: "Task created!"),
-				{ id: toastId }
-			)
-			await fetchTasks()
-			// The view is already correct, so no need to set it again.
-			// This fixes the issue of being switched to 'tasks' after creating a workflow.
-		} catch (error) {
-			if (error.status === 429) {
-				toast.error(
-					error.message || "You've reached your daily task limit.",
-					{ id: toastId }
-				)
-				if (!isPro) setUpgradeModalOpen(true)
-			} else {
-				toast.error(`Error: ${error.message}`, { id: toastId })
-			}
-		}
+	const handleCreateTask = (payload) => {
+		createTaskMutation.mutate(payload)
 	}
 
-	const handleResumeTask = async (taskId) => {
-		await handleAction(
-			() =>
-				fetch(`/api/tasks/${taskId}/action`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ action: "resume" })
-				}),
-			"Task resumed."
-		)
+	const handleResumeTask = (taskId) => {
+		resumeTaskMutation.mutate(taskId)
 	}
 
-	const handleUpdateTask = async (updatedTask) => {
-		await handleAction(
-			() =>
-				fetch("/api/tasks/update", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						...updatedTask,
-						taskId: updatedTask.task_id
-					})
-				}),
-			"Task updated!"
-		)
+	const handleUpdateTask = (updatedTask) => {
+		updateTaskMutation.mutate(updatedTask)
+	}
+
+	const handleDeleteTask = (taskId) => {
+		deleteTaskMutation.mutate(taskId)
+	}
+
+	const handleApproveTask = (taskId) => {
+		approveTaskMutation.mutate(taskId)
+	}
+
+	const handleRerunTask = (taskId) => {
+		rerunTaskMutation.mutate(taskId)
+	}
+
+	const handleArchiveTask = (taskId) => {
+		archiveTaskMutation.mutate(taskId)
+	}
+
+	const handleSendChatMessage = (taskId, message) => {
+		sendChatMessageMutation.mutate({ taskId, message })
 	}
 
 	const handleSelectItem = (item) => {
@@ -553,64 +664,11 @@ function TasksPageContent() {
 			onAnswerLongFormClarification={handleAnswerLongFormClarification}
 			onResumeTask={handleResumeTask}
 			onSelectTask={handleSelectItem}
-			onDelete={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/delete`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task deleted."
-				)
-			}
-			onApprove={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/approve`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task approved."
-				)
-			}
-			onRerun={(taskId) =>
-				handleAction(
-					() =>
-						fetch("/api/tasks/rerun", {
-							method: "POST",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ taskId })
-						}),
-					"Task re-run initiated."
-				)
-			}
-			onArchiveTask={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/update`, {
-							method: "POST",
-							body: JSON.stringify({
-								taskId,
-								status: "archived"
-							}),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task archived."
-				)
-			}
-			onSendChatMessage={(taskId, message) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/chat`, {
-							method: "POST",
-							body: JSON.stringify({ taskId, message }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Message sent."
-				)
-			}
+			onDelete={handleDeleteTask}
+			onApprove={handleApproveTask}
+			onRerun={handleRerunTask}
+			onArchiveTask={handleArchiveTask}
+			onSendChatMessage={handleSendChatMessage}
 		/>
 	)
 

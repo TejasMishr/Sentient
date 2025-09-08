@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
 	IconSearch,
@@ -12,6 +12,7 @@ import {
 	IconFileText,
 	IconArrowRight
 } from "@tabler/icons-react"
+import { useQuery } from "@tanstack/react-query"
 import { cn } from "@utils/cn"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow, parseISO } from "date-fns"
@@ -84,38 +85,24 @@ const ResultItem = ({ item, onClose }) => {
 export default function GlobalSearch({ onClose }) {
 	const [query, setQuery] = useState("")
 	const [activeFilter, setActiveFilter] = useState("All")
-	const [results, setResults] = useState([])
-	const [isLoading, setIsLoading] = useState(false)
 	const debouncedQuery = useDebounce(query, 300)
 
 	const filters = ["All", "Tasks", "Chats", "Memories"]
 
-	const fetchResults = useCallback(async (searchQuery) => {
-		if (searchQuery.length < 3) {
-			setResults([])
-			return
-		}
-		setIsLoading(true)
-		try {
+	const { data: results = [], isLoading } = useQuery({
+		queryKey: ["globalSearch", debouncedQuery],
+		queryFn: async () => {
 			const response = await fetch(
-				`/api/search?q=${encodeURIComponent(searchQuery)}`
+				`/api/search?q=${encodeURIComponent(debouncedQuery)}`
 			)
 			if (!response.ok) {
 				throw new Error("Search failed")
 			}
 			const data = await response.json()
-			setResults(data.results || [])
-		} catch (error) {
-			console.error("Search error:", error)
-			setResults([])
-		} finally {
-			setIsLoading(false)
-		}
-	}, [])
-
-	useEffect(() => {
-		fetchResults(debouncedQuery)
-	}, [debouncedQuery, fetchResults])
+			return data.results || []
+		},
+		enabled: debouncedQuery.length >= 3
+	})
 
 	const filteredResults = useMemo(() => {
 		if (activeFilter === "All") {

@@ -22,6 +22,7 @@ import toast from "react-hot-toast"
 import { useUser } from "@auth0/nextjs-auth0"
 import { usePostHog } from "posthog-js/react"
 import { motion } from "framer-motion"
+import { useQuery, useMutation } from "@tanstack/react-query"
 
 const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768
 
@@ -826,6 +827,11 @@ export default function LayoutWrapper({ children }) {
 	const [isAllowed, setIsAllowed] = useState(false)
 
 	const handleCustomAction = useCallback(() => {
+		// This function is complex and tightly coupled with the tour's state machine.
+		// Refactoring it to use mutations would be overly complex for a tour simulation.
+		// The core logic here is about advancing the local state of the tour, not
+		// interacting with a server, so TanStack Query doesn't provide a direct benefit.
+		// We will keep this logic as-is.
 		setHighlightPaused(true)
 		setTourState((prev) => {
 			if (prev.step === 5) {
@@ -969,51 +975,35 @@ export default function LayoutWrapper({ children }) {
 		}
 	}, [user, posthog])
 
+	const {
+		data: userData,
+		isLoading: isUserDataLoading,
+		error: userDataError,
+		isFetching: isUserDataFetching
+	} = useQuery({
+		queryKey: ["userData"],
+		queryFn: async () => {
+			const res = await fetch("/api/user/data", { method: "POST" })
+			if (!res.ok) throw new Error("Could not verify user status.")
+			return res.json()
+		},
+		enabled: !!user && !isAuthLoading && showNav,
+		retry: false,
+		staleTime: 5 * 60 * 1000 // 5 minutes
+	})
+
 	useEffect(() => {
 		const paymentStatus = searchParams.get("payment_status")
 		const needsRefresh = searchParams.get("refresh_session")
 
-		if (paymentStatus === "success" && posthog) {
-			posthog.capture("plan_upgraded", {
-				plan_name: "pro"
-				// MRR and billing_cycle are not available on the client
-			})
-		}
-		// Check for either trigger
 		if (paymentStatus === "success" || needsRefresh === "true") {
-			// CRITICAL FIX: Clean the URL synchronously *before* doing anything else.
-			// This prevents the refresh loop.
 			window.history.replaceState(null, "", pathname)
-			const toastId = toast.loading("Updating your session...", {
-				duration: 4000
+			if (paymentStatus === "success" && posthog) {
+				posthog.capture("plan_upgraded", { plan_name: "pro" })
+			}
+			toast.loading("Session updated. Redirecting to apply changes...", {
+				duration: 5000
 			})
-
-			// const refreshSession = async () => {
-			// 	const toastId = toast.loading("Updating your session...", {
-			// 		duration: 4000
-			// 	})
-			// 	try {
-			// 		// Call the API to get a new session cookie
-			// 		const res = await fetch("/api/auth/refresh-session")
-			// 		if (!res.ok) {
-			// 			const errorData = await res.json()
-			// 			throw new Error(
-			// 				errorData.error || "Session refresh failed."
-			// 			)
-			// 		}
-
-			// 		// Now that the cookie is updated and the URL is clean, reload the page.
-			// 		// This will re-run server components and hooks with the new session data.
-			// 		window.location.reload()
-			// 	} catch (error) {
-			// 		toast.error(
-			// 			`Failed to refresh session: ${error.message}. Please log in again to see your new plan.`,
-			// 			{ id: toastId }
-			// 		)
-			// 	}
-			// }
-			// refreshSession()
-
 			const logoutUrl = new URL("/auth/logout", window.location.origin)
 			logoutUrl.searchParams.set(
 				"returnTo",
@@ -1023,7 +1013,6 @@ export default function LayoutWrapper({ children }) {
 		}
 	}, [searchParams, router, pathname, posthog]) // Dependencies are correct
 
-	// ... (keep the rest of your useEffects and functions exactly as they were)
 	useEffect(() => {
 		if (!showNav) {
 			setIsLoading(false)
@@ -1031,7 +1020,11 @@ export default function LayoutWrapper({ children }) {
 			return
 		}
 
-		if (isAuthLoading) return
+		// Show loading indicator if Auth0 or user data is loading
+		if (isAuthLoading || isUserDataLoading || isUserDataFetching) {
+			setIsLoading(true)
+			return
+		}
 
 		if (authError) {
 			toast.error("Session error. Redirecting to login.", {
@@ -1042,40 +1035,36 @@ export default function LayoutWrapper({ children }) {
 		}
 
 		if (!user) {
-			// This handles the case where the user logs out.
 			router.push("/auth/login")
 			return
 		}
 
-		const checkStatus = async () => {
-			// No need to set isLoading(true) here, it's already true by default.
-			try {
-				const res = await fetch("/api/user/data", { method: "POST" })
-				if (!res.ok) throw new Error("Could not verify user status.")
-				const result = await res.json()
-				const data = result?.data || {}
-
-				const onboardingComplete = data.onboardingComplete
-
-				if (!onboardingComplete) {
-					toast.error("Please complete onboarding first.", {
-						id: "onboarding-check"
-					})
-					router.push("/onboarding")
-				} else {
-					// User is fully onboarded and profile is complete.
-					setIsAllowed(true)
-				}
-			} catch (error) {
-				toast.error(error.message)
-				router.push("/")
-			} finally {
-				setIsLoading(false)
-			}
+		if (userDataError) {
+			toast.error(userDataError.message)
+			router.push("/")
+			return
 		}
 
-		checkStatus()
-	}, [pathname, router, showNav, user, authError, isAuthLoading]) // Reruns on navigation
+		if (userData && !userData.data?.onboardingComplete) {
+			toast.error("Please complete onboarding first.", {
+				id: "onboarding-check"
+			})
+			router.push("/onboarding")
+		} else {
+			setIsAllowed(true)
+			setIsLoading(false)
+		}
+	}, [
+		showNav,
+		user,
+		authError,
+		isAuthLoading,
+		userData,
+		isUserDataLoading,
+		isUserDataFetching,
+		userDataError,
+		router
+	])
 
 	const handleNotificationsOpen = useCallback(() => {
 		setNotificationsOpen(true)
@@ -1200,6 +1189,19 @@ export default function LayoutWrapper({ children }) {
 		}
 	}, [])
 
+	const subscribeMutation = useMutation({
+		mutationFn: subscribeUser,
+		onSuccess: () => {
+			toast.success("Subscribed to push notifications!")
+		},
+		onError: (error) => {
+			console.error("Error during push notification subscription:", error)
+			toast.error(
+				`Failed to subscribe: ${error.message || "Unknown error"}`
+			)
+		}
+	})
+
 	// PWA Update Handler
 	useEffect(() => {
 		if (
@@ -1253,13 +1255,15 @@ export default function LayoutWrapper({ children }) {
 	}, [])
 
 	const subscribeToPushNotifications = useCallback(async () => {
-		if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-			return
-		}
 		if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
 			console.warn(
 				"VAPID public key not configured. Skipping push subscription."
 			)
+			return
+		}
+
+		if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+			toast.error("Push notifications are not supported by your browser.")
 			return
 		}
 
@@ -1270,7 +1274,9 @@ export default function LayoutWrapper({ children }) {
 			if (subscription === null) {
 				const permission = await window.Notification.requestPermission()
 				if (permission !== "granted") {
-					console.log("Notification permission not granted.")
+					toast.error(
+						"Permission for push notifications was not granted."
+					)
 					return
 				}
 
@@ -1284,18 +1290,16 @@ export default function LayoutWrapper({ children }) {
 				})
 
 				const serializedSub = JSON.parse(JSON.stringify(subscription))
-				await subscribeUser(serializedSub)
-				toast.success("Subscribed to push notifications!")
+				subscribeMutation.mutate(serializedSub)
 			}
 		} catch (error) {
-			console.error("Error during push notification subscription:", error)
-			toast.error("Failed to subscribe to push notifications.")
+			subscribeMutation.onError(error)
 		}
-	}, [])
+	}, [subscribeMutation])
 
 	useEffect(() => {
-		if (showNav && userDetails?.sub) subscribeToPushNotifications()
-	}, [showNav, userDetails, subscribeToPushNotifications])
+		if (showNav && user?.sub) subscribeToPushNotifications()
+	}, [showNav, user, subscribeToPushNotifications])
 
 	// Define shortcuts after all their callback dependencies are defined
 	useGlobalShortcuts(

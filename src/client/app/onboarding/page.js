@@ -16,6 +16,7 @@ import {
 	IconBrain
 } from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
+import { useMutation } from "@tanstack/react-query"
 import ProgressBar from "@components/onboarding/ProgressBar"
 import SparkleEffect from "@components/ui/SparkleEffect"
 import SiriSpheres from "@components/voice-visualization/SiriSpheres"
@@ -231,7 +232,6 @@ const OnboardingPage = () => {
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
 	const [score, setScore] = useState(0)
-	const [maxQuestionIndexReached, setMaxQuestionIndexReached] = useState(0)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
 	const posthog = usePostHog()
 	const router = useRouter()
@@ -261,43 +261,44 @@ const OnboardingPage = () => {
 		if (countryCode !== "OTHER") setCustomDialCode("")
 	}
 
-	const verifyWhatsappNumber = async (number) => {
-		if (!/^\+[1-9]\d{6,14}$/.test(number.trim())) {
-			setWhatsappStatus("invalid")
-			setWhatsappError(
-				"Please use E.164 format with country code (e.g., +14155552671)."
-			)
-			return
-		}
-		setWhatsappStatus("checking")
-		setWhatsappError("")
-		try {
-			const response = await fetch(
+	const verifyWhatsappMutation = useMutation({
+		mutationFn: (number) => {
+			if (!/^\+[1-9]\d{6,14}$/.test(number.trim())) {
+				throw new Error(
+					"Please use E.164 format with country code (e.g., +14155552671)."
+				)
+			}
+			return fetch(
 				"/api/settings/whatsapp-notifications/verify",
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ phone_number: number })
 				}
-			)
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Verification request failed.")
-			}
+			).then(async (res) => {
+				const result = await res.json()
+				if (!res.ok) {
+					throw new Error(
+						result.detail || "Verification request failed."
+					)
+				}
+				return result
+			})
+		},
+		onSuccess: (result) => {
 			if (result.numberExists) {
 				setWhatsappStatus("valid")
 				setWhatsappError("")
 			} else {
 				setWhatsappStatus("invalid")
-				setWhatsappError(
-					"This number does not appear to be on WhatsApp."
-				)
+				setWhatsappError("This number does not appear to be on WhatsApp.")
 			}
-		} catch (error) {
+		},
+		onError: (error) => {
 			setWhatsappStatus("invalid")
 			setWhatsappError(error.message)
 		}
-	}
+	})
 
 	const handleAnswer = (questionId, answer) => {
 		setAnswers((prev) => ({ ...prev, [questionId]: answer }))
@@ -308,7 +309,8 @@ const OnboardingPage = () => {
 			}
 			if (answer.trim()) {
 				debounceTimeoutRef.current = setTimeout(() => {
-					verifyWhatsappNumber(answer)
+					setWhatsappStatus("checking")
+					verifyWhatsappMutation.mutate(answer)
 				}, 800)
 			} else {
 				setWhatsappStatus("idle")
@@ -436,37 +438,35 @@ const OnboardingPage = () => {
 		return true
 	}, [answers, currentQuestionIndex, stage, whatsappStatus])
 
-	const handleSubmit = async () => {
-		setStage("submitting")
-
-		try {
-			const response = await fetch("/api/onboarding", {
+	const submitOnboardingMutation = useMutation({
+		mutationFn: (onboardingData) =>
+			fetch("/api/onboarding", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ data: answers })
-			})
-			if (!response.ok) {
-				const result = await response.json()
-				throw new Error(
-					result.message || "Failed to save onboarding data"
-				)
-			}
-			// Identify the user in PostHog as soon as we have their name
+				body: JSON.stringify({ data: onboardingData })
+			}).then(async (res) => {
+				if (!res.ok) {
+					const result = await res.json()
+					throw new Error(
+						result.message || "Failed to save onboarding data"
+					)
+				}
+				return res.json()
+			}),
+		onSuccess: async (data, submittedAnswers) => {
 			posthog?.identify(
 				(await (await fetch("/api/user/profile")).json()).sub, // Fetch user ID from session
-				{ name: answers["user-name"] }
+				{ name: submittedAnswers["user-name"] }
 			)
-			posthog?.capture("user_signed_up", {
-				signup_method: "auth0", // or derive from user profile if available
-				referral_source: "direct" // Placeholder, can be populated from URL params
-			})
+			posthog?.capture("user_signed_up", { signup_method: "auth0" })
 			posthog?.capture("onboarding_completed")
-			window.location.href = "/chat?show_demo=true"
-		} catch (error) {
+			router.push("/chat?show_demo=true")
+		},
+		onError: (error) => {
 			toast.error(`Error: ${error.message}`)
 			setStage("questions") // Go back to questions on error
 		}
-	}
+	});
 
 	const handleNext = useCallback(() => {
 		if (!isCurrentQuestionAnswered()) return
@@ -476,18 +476,13 @@ const OnboardingPage = () => {
 		setAudioLevel(0.9) // High impact
 		setSparkleTrigger((c) => c + 1)
 
-		setTimeout(() => {
-			setModelReacting(false)
-			if (currentQuestionIndex >= maxQuestionIndexReached) {
-				setScore((s) => s + 10)
-				setMaxQuestionIndexReached(currentQuestionIndex + 1)
-			}
-		}, 400)
+		setTimeout(() => setModelReacting(false), 400)
 
 		if (currentQuestionIndex < questions.length - 1) {
 			setCurrentQuestionIndex((prev) => prev + 1)
 		} else {
-			handleSubmit()
+			setStage("submitting")
+			submitOnboardingMutation.mutate(answers)
 		}
 	}, [
 		currentQuestionIndex,
@@ -495,7 +490,6 @@ const OnboardingPage = () => {
 		handleSubmit,
 		maxQuestionIndexReached
 	])
-
 	// --- Effects ---
 
 	useEffect(() => {
@@ -720,7 +714,7 @@ const OnboardingPage = () => {
 				)
 
 			case "submitting":
-				return (
+				return ( // prettier-ignore
 					<motion.div
 						key="submitting"
 						initial={{ opacity: 0 }}

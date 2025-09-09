@@ -23,9 +23,14 @@ import { useState, useEffect, useCallback } from "react"
 import { Tooltip } from "react-tooltip"
 import { cn } from "@utils/cn"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import CollapsibleSection from "@components/tasks/CollapsibleSection"
 import { sendNotificationToCurrentUser } from "@app/actions"
 import { Button } from "@components/ui/button"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
 
 const handleTestPush = async () => {
 	const toastId = toast.loading("Sending test push notification...")
@@ -923,214 +928,220 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 
 			<div className="space-y-10 bg-neutral-900/50 p-3 rounded-2xl border border-neutral-800">
 				{Object.entries(questionSections).map(
-					([key, { title, icon }]) => (
-						<CollapsibleSection
+					([key, { title, icon }], index) => (
+						<Accordion
 							key={key}
-							title={
-								<h3 className="text-lg font-semibold text-neutral-200 flex items-center gap-3">
-									{icon} {title}
-								</h3>
-							}
-							defaultOpen={true}
+							type="single"
+							collapsible
+							defaultValue={`item-${index}`}
 						>
-							<div className="space-y-6 mt-4">
-								{questions
-									.filter((q) => q.section === key)
-									.map((q) => (
-										<div
-											key={q.id}
-											className="min-h-[68px]"
-										>
-											<label className="block text-sm font-medium text-neutral-300 mb-2 font-sans">
-												{q.question}
-											</label>
-											{(() => {
-												switch (q.type) {
-													case "text-input":
-														return (
-															// eslint-disable-line
-															<input
-																type="text"
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder={
-																	q.placeholder
-																}
-															/>
-														)
-													case "textarea":
-														return (
-															// eslint-disable-line
-															<textarea
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																rows={4}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder={
-																	q.placeholder
-																}
-															/>
-														)
-													case "select": {
-														let options = q.options
-														if (
-															q.id === "timezone"
-														) {
-															const savedTimezone =
-																formData[q.id]
-															const isTimezoneInOptions =
-																q.options.some(
-																	(opt) =>
-																		opt.value ===
-																		savedTimezone
-																)
-															if (
-																savedTimezone &&
-																!isTimezoneInOptions
-															) {
-																// Clone to avoid mutating the original questions array
-																options = [
-																	...q.options
-																]
-																options.unshift(
-																	{
-																		value: savedTimezone,
-																		label: savedTimezone.replace(
-																			/_/g,
-																			" "
-																		)
-																	}
-																)
-															}
-														}
-
-														return (
-															// eslint-disable-line
-															<select
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
-															>
-																{options.map(
-																	(opt) => (
-																		<option
-																			key={
-																				opt.value
-																			}
-																			value={
-																				opt.value
-																			}
-																		>
-																			{
-																				opt.label
-																			}
-																		</option>
-																	)
-																)}
-															</select>
-														)
-													}
-													case "location": // Simplified for now
-														const locationValue =
-															formData[q.id]
-														const isGpsLocation =
-															typeof locationValue ===
-																"object" &&
-															locationValue !==
-																null &&
-															locationValue.latitude
-
-														if (isGpsLocation) {
-															return (
-																<div className="flex items-center gap-2 font-mono">
-																	<p className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-300">
-																		{`Lat: ${locationValue.latitude?.toFixed(
-																			4
-																		)}, Lon: ${locationValue.longitude?.toFixed(
-																			4
-																		)} (Detected)`}
-																	</p>
-																	<button
-																		onClick={() =>
+							<AccordionItem value={`item-${index}`}>
+								<AccordionTrigger>
+									<h3 className="text-lg font-semibold text-neutral-200 flex items-center gap-3">
+										{icon} {title}
+									</h3>
+								</AccordionTrigger>
+								<AccordionContent>
+									<div className="space-y-6 mt-4">
+										{questions
+											.filter((q) => q.section === key)
+											.map((q) => (
+												<div
+													key={q.id}
+													className="min-h-[68px]"
+												>
+													<label className="block text-sm font-medium text-neutral-300 mb-2 font-sans">
+														{q.question}
+													</label>
+													{(() => {
+														switch (q.type) {
+															case "text-input":
+																return (
+																	// eslint-disable-line
+																	<input
+																		type="text"
+																		value={
+																			formData[
+																				q.id
+																			] || ""
+																		}
+																		onChange={(e) =>
 																			handleAnswer(
 																				q.id,
-																				""
+																				e.target
+																					.value
 																			)
 																		}
-																		className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-700 rounded-md"
-																		title="Clear and enter manually"
-																	>
-																		<IconX
-																			size={
-																				18
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder={
+																			q.placeholder
+																		}
+																	/>
+																)
+															case "textarea":
+																return (
+																	// eslint-disable-line
+																	<textarea
+																		value={
+																			formData[
+																				q.id
+																			] || ""
+																		}
+																		onChange={(e) =>
+																			handleAnswer(
+																				q.id,
+																				e.target
+																					.value
+																			)
+																		}
+																		rows={4}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder={
+																			q.placeholder
+																		}
+																	/>
+																)
+															case "select": {
+																let options = q.options
+																if (
+																	q.id === "timezone"
+																) {
+																	const savedTimezone =
+																		formData[q.id]
+																	const isTimezoneInOptions =
+																		q.options.some(
+																			(opt) =>
+																				opt.value ===
+																				savedTimezone
+																		)
+																	if (
+																		savedTimezone &&
+																		!isTimezoneInOptions
+																	) {
+																		// Clone to avoid mutating the original questions array
+																		options = [
+																			...q.options
+																		]
+																		options.unshift(
+																			{
+																				value: savedTimezone,
+																				label: savedTimezone.replace(
+																					/_/g,
+																					" "
+																				)
 																			}
-																		/>
-																	</button>
-																</div>
-															)
+																		)
+																	}
+																}
+
+																return (
+																	// eslint-disable-line
+																	<select
+																		value={
+																			formData[
+																				q.id
+																			] || ""
+																		}
+																		onChange={(e) =>
+																			handleAnswer(
+																				q.id,
+																				e.target
+																					.value
+																			)
+																		}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
+																	>
+																		{options.map(
+																			(opt) => (
+																				<option
+																					key={
+																						opt.value
+																					}
+																					value={
+																						opt.value
+																					}
+																				>
+																					{
+																						opt.label
+																					}
+																				</option>
+																			)
+																		)}
+																	</select>
+																)
+															}
+															case "location": // Simplified for now
+																const locationValue =
+																	formData[q.id]
+																const isGpsLocation =
+																	typeof locationValue ===
+																		"object" &&
+																	locationValue !==
+																		null &&
+																	locationValue.latitude
+
+																if (isGpsLocation) {
+																	return (
+																		<div className="flex items-center gap-2 font-mono">
+																			<p className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-300">
+																				{`Lat: ${locationValue.latitude?.toFixed(
+																					4
+																				)}, Lon: ${locationValue.longitude?.toFixed(
+																					4
+																				)} (Detected)`}
+																			</p>
+																			<button
+																				onClick={() =>
+																					handleAnswer(
+																						q.id,
+																						""
+																					)
+																				}
+																				className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-700 rounded-md"
+																				title="Clear and enter manually"
+																			>
+																				<IconX
+																					size={
+																						18
+																					}
+																				/>
+																			</button>
+																		</div>
+																	)
+																}
+																return (
+																	<input
+																		type="text"
+																		value={
+																			formData[
+																				q.id
+																			] || ""
+																		}
+																		onChange={
+																			(
+																				e
+																			) =>
+																				handleAnswer(
+																					q.id,
+																					e
+																						.target
+																						.value
+																				) // prettier-ignore
+																		}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder="City, Country"
+																	/>
+																)
+															default:
+																return null
 														}
-														return (
-															<input
-																type="text"
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={
-																	(
-																		e
-																	) =>
-																		handleAnswer(
-																			q.id,
-																			e
-																				.target
-																				.value
-																		) // prettier-ignore
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder="City, Country"
-															/>
-														)
-													default:
-														return null
-												}
-											})()}
-										</div>
-									))}
-							</div>
-						</CollapsibleSection>
+													})()}
+												</div>
+											))}
+									</div>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 					)
 				)}
 			</div>

@@ -22,11 +22,16 @@ import {
 } from "@tabler/icons-react"
 import ScheduleEditor from "./ScheduleEditor"
 import ChatBubble from "@components/ChatBubble"
-import CollapsibleSection from "./CollapsibleSection"
 import ReactMarkdown from "react-markdown"
 import ExecutionUpdate from "./ExecutionUpdate"
 import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
 import { Textarea } from "@components/ui/textarea"
 import { Select } from "@components/ui/select"
 import { Button } from "@components/ui/button"
@@ -59,7 +64,7 @@ const WaitingNodeDetails = ({
 			dateString = timeoutVal.$date
 		}
 
-		// Case 3: It's a string. Parse it robustly to avoid timezone ambiguity.
+		// Case 3: It's a string. Parse it robustly to avoid ambiguity.
 		if (typeof dateString === "string") {
 			const match = dateString.match(
 				/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/
@@ -941,12 +946,16 @@ const TaskDetailsContent = ({
 			<div className="space-y-6">
 				{/* Show context from the last run before this new plan */}
 				{latestRun?.result && (
-					<CollapsibleSection
-						title="Context from Previous Run"
-						defaultOpen={true}
-					>
-						<TaskResultDisplay result={latestRun.result} />
-					</CollapsibleSection>
+					<Accordion type="single" collapsible defaultValue="item-1">
+						<AccordionItem value="item-1">
+							<AccordionTrigger>
+								Context from Previous Run
+							</AccordionTrigger>
+							<AccordionContent>
+								<TaskResultDisplay result={latestRun.result} />
+							</AccordionContent>
+						</AccordionItem>
+					</Accordion>
 				)}
 				{/* Show the new plan that needs approval */}
 				<CurrentPlanSection task={displayTask} />
@@ -980,16 +989,25 @@ const TaskDetailsContent = ({
 					</div>
 				</div>
 				{latestRun?.progress_updates?.length > 0 && (
-					<CollapsibleSection
-						title="Execution Log (Advanced)"
-						defaultOpen={false}
-					>
-						<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
-							{latestRun.progress_updates.map((update, index) => (
-								<ExecutionUpdate key={index} update={update} />
-							))}
-						</div>
-					</CollapsibleSection>
+					<Accordion type="single" collapsible>
+						<AccordionItem value="item-1">
+							<AccordionTrigger>
+								Execution Log (Advanced)
+							</AccordionTrigger>
+							<AccordionContent>
+								<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
+									{latestRun.progress_updates.map(
+										(update, index) => (
+											<ExecutionUpdate
+												key={index}
+												update={update}
+											/>
+										)
+									)}
+								</div>
+							</AccordionContent>
+						</AccordionItem>
+					</Accordion>
 				)}
 			</div>
 		)
@@ -1230,196 +1248,221 @@ const TaskDetailsContent = ({
 					{/* --- NEW: Show previous result if re-planning, collapsed by default --- */}
 					{displayTask.status === "approval_pending" &&
 						latestRun?.result && (
-							<CollapsibleSection
-								title="Context from Previous Run"
-								defaultOpen={false}
-							>
-								<TaskResultDisplay result={latestRun.result} />
-							</CollapsibleSection>
+							<Accordion type="single" collapsible>
+								<AccordionItem value="item-1">
+									<AccordionTrigger>
+										Context from Previous Run
+									</AccordionTrigger>
+									<AccordionContent>
+										<TaskResultDisplay
+											result={latestRun.result}
+										/>
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
 						)}
 
 					{runs.length > 0 && (
-						<CollapsibleSection
-							title="Full Run History"
-							// Collapse history if a new plan is pending approval to reduce clutter
-							defaultOpen={
+						<Accordion
+							type="single"
+							collapsible
+							defaultValue={
 								displayTask.status !== "approval_pending"
+									? "run-history"
+									: undefined
 							}
 						>
-							{runs
-								.slice()
-								.reverse()
-								.map(
-									(
-										run,
-										index // Show newest run first
-									) => (
-										<div
-											key={run.run_id || `run-${index}`}
-											className="space-y-4 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
-										>
-											<div className="flex justify-between items-center text-xs text-neutral-500">
-												<span>
-													Run #{runs.length - index}
-												</span>
-												{run.execution_start_time && (
-													<span>
-														Executed:{" "}
-														{new Date(
-															run.execution_start_time
-														).toLocaleString()}
-													</span>
-												)}
-											</div>
+							<AccordionItem value="run-history">
+								<AccordionTrigger>
+									Full Run History
+								</AccordionTrigger>
+								<AccordionContent>
+									{runs
+										.slice()
+										.reverse()
+										.map(
+											(
+												run,
+												index // Show newest run first
+											) => (
+												<div
+													key={
+														run.run_id ||
+														`run-${index}`
+													}
+													className="space-y-4 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
+												>
+													<div className="flex justify-between items-center text-xs text-neutral-500">
+														<span>
+															Run #
+															{runs.length -
+																index}
+														</span>
+														{run.execution_start_time && (
+															<span>
+																Executed:{" "}
+																{new Date(
+																	run.execution_start_time
+																).toLocaleString()}
+															</span>
+														)}
+													</div>
 
-											{run.plan &&
-												run.plan.length > 0 && (
-													<>
-														{displayTask.task_type ===
-														"swarm" ? (
-															<SwarmPlanSection
-																plan={run.plan}
-															/>
-														) : (
+													{run.plan &&
+														run.plan.length > 0 && (
+															<>
+																{displayTask.task_type ===
+																"swarm" ? (
+																	<SwarmPlanSection
+																		plan={
+																			run.plan
+																		}
+																	/>
+																) : (
+																	<div>
+																		<h4 className="font-semibold text-neutral-300 mb-2">
+																			Executed
+																			Plan
+																		</h4>
+																		<div className="space-y-2">
+																			{run.plan.map(
+																				(
+																					step,
+																					stepIndex
+																				) => (
+																					<div
+																						key={
+																							stepIndex
+																						}
+																						className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
+																					>
+																						<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
+																							{stepIndex +
+																								1}
+																						</div>
+																						<div>
+																							<p className="text-sm font-medium text-neutral-100">
+																								{
+																									step.tool
+																								}
+																							</p>
+																							<p className="text-sm text-neutral-400">
+																								{
+																									step.description
+																								}
+																							</p>
+																						</div>
+																					</div>
+																				)
+																			)}
+																		</div>
+																	</div>
+																)}
+															</>
+														)}
+
+													{run.progress_updates &&
+														run.progress_updates
+															.length > 0 && (
 															<div>
 																<h4 className="font-semibold text-neutral-300 mb-2">
-																	Executed
-																	Plan
+																	Execution
+																	Log
+																	(Advanced)
 																</h4>
-																<div className="space-y-2">
-																	{run.plan.map(
+																<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
+																	{run.progress_updates.map(
 																		(
-																			step,
-																			stepIndex
-																		) => (
-																			<div
-																				key={
-																					stepIndex
-																				}
-																				className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
-																			>
-																				<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
-																					{stepIndex +
-																						1}
-																				</div>
-																				<div>
-																					<p className="text-sm font-medium text-neutral-100">
-																						{
-																							step.tool
+																			update,
+																			index
+																		) => {
+																			const isLastUpdate =
+																				index ===
+																				run
+																					.progress_updates
+																					.length -
+																					1
+																			const isExecuting =
+																				[
+																					"processing",
+																					"planning"
+																				].includes(
+																					run.status
+																				)
+																			const messageContent =
+																				update
+																					.message
+																					?.content ||
+																				update.message
+
+																			if (
+																				isLastUpdate &&
+																				isExecuting &&
+																				update
+																					.message
+																					?.type ===
+																					"info" &&
+																				typeof messageContent ===
+																					"string"
+																			) {
+																				return (
+																					<TextShimmer
+																						key={
+																							index
 																						}
-																					</p>
-																					<p className="text-sm text-neutral-400">
-																						{
-																							step.description
+																						className="font-mono text-sm text-brand-white"
+																						duration={
+																							2
 																						}
-																					</p>
-																				</div>
-																			</div>
-																		)
+																					>
+																						{
+																							messageContent
+																						}
+																					</TextShimmer>
+																				)
+																			}
+																			return (
+																				<ExecutionUpdate
+																					key={
+																						index
+																					}
+																					update={
+																						update
+																					}
+																				/>
+																			)
+																		}
 																	)}
 																</div>
 															</div>
 														)}
-													</>
-												)}
 
-											{run.progress_updates &&
-												run.progress_updates.length >
-													0 && (
-													<div>
-														<h4 className="font-semibold text-neutral-300 mb-2">
-															Execution Log
-															(Advanced)
-														</h4>
-														<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
-															{run.progress_updates.map(
-																(
-																	update,
-																	index
-																) => {
-																	const isLastUpdate =
-																		index ===
-																		run
-																			.progress_updates
-																			.length -
-																			1
-																	const isExecuting =
-																		[
-																			"processing",
-																			"planning"
-																		].includes(
-																			run.status
-																		)
-																	const messageContent =
-																		update
-																			.message
-																			?.content ||
-																		update.message
-
-																	if (
-																		isLastUpdate &&
-																		isExecuting &&
-																		update
-																			.message
-																			?.type ===
-																			"info" &&
-																		typeof messageContent ===
-																			"string"
-																	) {
-																		return (
-																			<TextShimmer
-																				key={
-																					index
-																				}
-																				className="font-mono text-sm text-brand-white"
-																				duration={
-																					2
-																				}
-																			>
-																				{
-																					messageContent
-																				}
-																			</TextShimmer>
-																		)
-																	}
-																	return (
-																		<ExecutionUpdate
-																			key={
-																				index
-																			}
-																			update={
-																				update
-																			}
-																		/>
-																	)
+													{run.result && (
+														<div className="mt-4">
+															<TaskResultDisplay
+																result={
+																	run.result
 																}
-															)}
+															/>
 														</div>
-													</div>
-												)}
+													)}
 
-											{run.result && (
-												<div className="mt-4">
-													<TaskResultDisplay
-														result={run.result}
-													/>
+													{run.error && (
+														<div>
+															<h4 className="font-semibold text-neutral-300 mb-2">
+																Error
+															</h4>
+															<p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-lg">
+																{run.error}
+															</p>
+														</div>
+													)}
 												</div>
-											)}
-
-											{run.error && (
-												<div>
-													<h4 className="font-semibold text-neutral-300 mb-2">
-														Error
-													</h4>
-													<p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-lg">
-														{run.error}
-													</p>
-												</div>
-											)}
-										</div>
-									)
-								)}
-						</CollapsibleSection>
+											)
+										)}
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 					)}
 				</>
 			)}

@@ -39,6 +39,7 @@ import useClickOutside from "@hooks/useClickOutside"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter } from "@components/ui/card"
+import { Drawer } from "@components/ui/drawer"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -978,16 +979,17 @@ export default function MemoriesPage() {
 					)}
 				</main>
 			</div>
-			<AnimatePresence>
-				{selectedMemory && (
-					<MemoryDetailPanel
-						memory={selectedMemory}
-						onClose={() => setSelectedMemory(null)}
-						onUpdate={handleUpdateMemory}
-						onDelete={handleDeleteMemory}
-					/>
-				)}
-			</AnimatePresence>
+			<Drawer
+				isOpen={!!selectedMemory}
+				onClose={() => setSelectedMemory(null)}
+			>
+				<MemoryDetailPanel
+					memory={selectedMemory}
+					onClose={() => setSelectedMemory(null)}
+					onUpdate={handleUpdateMemory}
+					onDelete={handleDeleteMemory}
+				/>
+			</Drawer>
 			<button
 				onClick={() => setIsCreateModalOpen(true)}
 				className="fixed bottom-6 right-6 z-40 p-4 bg-brand-orange text-black rounded-full shadow-lg hover:bg-brand-orange/90 transition-transform hover:scale-105"

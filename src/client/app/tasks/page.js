@@ -28,6 +28,7 @@ import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { usePlan } from "@hooks/usePlan"
 import { useTour } from "@components/LayoutWrapper"
+import { Drawer } from "@components/ui/drawer"
 import { Button } from "@components/ui/button"
 
 const proPlanFeatures = [
@@ -748,53 +749,24 @@ function TasksPageContent() {
 					</AnimatePresence>
 				</main>
 
-				<AnimatePresence>
-					{!isMobile && selectedTaskOrDemo && (
-						<motion.div
-							initial={{ width: 0 }}
-							animate={{ width: 550 }}
-							exit={{ width: 0 }}
-							transition={{
-								type: "spring",
-								stiffness: 300,
-								damping: 30
-							}}
-							className="h-full flex-shrink-0 bg-neutral-900/80 backdrop-blur-lg overflow-hidden"
-						>
-							{renderTaskDetails(selectedTaskOrDemo)}
-						</motion.div>
-					)}
-				</AnimatePresence>
+				{/* Desktop Drawer */}
+				<Drawer isOpen={!isMobile && !!selectedTaskOrDemo} onClose={handleClosePanel}>
+					{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
+				</Drawer>
 			</div>
 
-			<AnimatePresence>
-				{isMobile && isModalOpen && selectedTaskOrDemo && (
-					<motion.div
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						className={cn(
-							"fixed inset-0 z-[70] md:hidden",
-							// Let the tour component control the overlay during the tour
-							!tourState.isActive && "bg-black/70"
-						)}
-					>
-						<motion.div
-							initial={{ y: "100%" }}
-							animate={{ y: "0%" }}
-							exit={{ y: "100%" }}
-							transition={{
-								type: "spring",
-								stiffness: 300,
-								damping: 30
-							}}
-							className="absolute inset-0"
-						>
-							{renderTaskDetails(selectedTaskOrDemo)}
-						</motion.div>
-					</motion.div>
+			{/* Mobile Drawer */}
+			<Drawer
+				isOpen={isMobile && isModalOpen && !!selectedTaskOrDemo}
+				onClose={handleClosePanel}
+				side="bottom"
+				className={cn(
+					// Let the tour component control the overlay during the tour
+					tourState.isActive && "!bg-transparent"
 				)}
-			</AnimatePresence>
+			>
+				{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
+			</Drawer>
 		</div>
 	)
 }

@@ -23,6 +23,7 @@ import { useUser } from "@auth0/nextjs-auth0"
 import { usePostHog } from "posthog-js/react"
 import { motion } from "framer-motion"
 
+import { Drawer } from "./ui/drawer"
 const isMobile = () => typeof window !== "undefined" && window.innerWidth < 768
 
 // --- Context Creation ---
@@ -1367,14 +1368,9 @@ export default function LayoutWrapper({ children }) {
 				>
 					{children}
 				</div>
-				<AnimatePresence>
-					{isNotificationsOpen && (
-						<NotificationsOverlay
-							notifRefreshKey={notifRefreshKey}
-							onClose={() => setNotificationsOpen(false)}
-						/>
-					)}
-				</AnimatePresence>
+				<Drawer isOpen={isNotificationsOpen} onClose={() => setNotificationsOpen(false)}>
+					<NotificationsOverlay notifRefreshKey={notifRefreshKey} onClose={() => setNotificationsOpen(false)} />
+				</Drawer>
 				<AnimatePresence>
 					{isSearchOpen && (
 						<GlobalSearch onClose={() => setSearchOpen(false)} />

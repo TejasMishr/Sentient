@@ -14,6 +14,7 @@ import {
 import { formatDistanceToNow, parseISO } from "date-fns"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Drawer } from "./ui/drawer"
 
 const NotificationItem = ({
 	notification,
@@ -237,21 +238,14 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 	}
 
 	return (
-		<motion.div
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
-			className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center p-4"
-			onClick={onClose}
+		<Drawer
+			isOpen={true}
+			onClose={onClose}
+			className="w-full max-w-md"
 		>
-			<motion.div
-				variants={overlayVariants}
-				initial="hidden"
-				animate="visible"
-				exit="exit"
-				transition={{ duration: 0.2, ease: "easeInOut" }}
-				onClick={(e) => e.stopPropagation()}
-				className="relative bg-neutral-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl w-full max-w-md border border-neutral-700 max-h-[70vh] flex flex-col"
+			<div
+				onClick={(e) => e.stopPropagation()} // Prevent drawer from closing when clicking inside
+				className="h-full flex flex-col p-4"
 			>
 				<header className="flex justify-between items-center mb-4 flex-shrink-0">
 					<h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -319,8 +313,8 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 						</button>
 					</footer>
 				)}
-			</motion.div>
-		</motion.div>
+			</div>
+		</Drawer>
 	)
 }
 

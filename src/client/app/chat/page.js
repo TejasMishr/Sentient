@@ -77,7 +77,7 @@ import {
 	useUserStore,
 	useTourStore,
 	useChatStore
-} from "@tanstack/react-query"
+} from "@stores/app-stores"
 import { useTour } from "@components/LayoutWrapper"
 
 const toolIcons = {

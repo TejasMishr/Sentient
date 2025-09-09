@@ -5,6 +5,7 @@ import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import FloatingIcons from "./FloatingIcons"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { IconArrowRight } from "@tabler/icons-react"
+import { Button } from "@components/ui/button"
 
 const introStages = [
 	{
@@ -162,7 +163,7 @@ const IntroSequence = ({ onComplete }) => {
 					{/* Continue Button */}
 					<AnimatePresence>
 						{showNextButton && (
-							<motion.button
+							<Button
 								initial={{ opacity: 0, y: 20 }}
 								animate={{ opacity: 1, y: 0 }}
 								exit={{ opacity: 0, y: -20 }}
@@ -171,7 +172,8 @@ const IntroSequence = ({ onComplete }) => {
 										? handleContinue
 										: goToNextStage
 								}
-								className="mt-8 px-8 py-3 md:px-10 md:py-4 text-base md:text-lg bg-brand-orange text-brand-black font-semibold rounded-lg hover:bg-brand-orange/90 transition-colors flex items-center gap-2"
+								className="mt-8 text-base md:text-lg bg-brand-orange text-brand-black font-semibold hover:bg-brand-orange/90 flex items-center gap-2"
+								size="lg"
 							>
 								<span>
 									{currentStageIndex ===
@@ -180,7 +182,7 @@ const IntroSequence = ({ onComplete }) => {
 										: "Next"}
 								</span>
 								<IconArrowRight size={22} strokeWidth={2.5} />
-							</motion.button>
+							</Button>
 						)}
 					</AnimatePresence>
 				</div>

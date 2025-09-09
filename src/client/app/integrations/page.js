@@ -63,6 +63,7 @@ import { Tooltip } from "react-tooltip"
 import ModalDialog from "@components/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
+import { Button } from "@components/ui/button"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -179,18 +180,15 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
-								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 transition-colors"
-							>
+							</Button>
+							<Button onClick={onClose} variant="ghost">
 								Cancel
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -368,12 +366,9 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 					)}
 				</main>
 				<footer className="mt-6 text-center">
-					<button
-						onClick={onClose}
-						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-					>
+					<Button onClick={onClose} variant="secondary">
 						Cancel
-					</button>
+					</Button>
 				</footer>
 			</motion.div>
 		</motion.div>
@@ -414,12 +409,12 @@ const FilterInputSection = ({
 					placeholder={placeholder}
 					className="flex-grow bg-[var(--color-primary-surface-elevated)] border border-neutral-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] w-full"
 				/>
-				<button
+				<Button
 					onClick={handleAdd}
-					className="flex flex-row items-center justify-center py-2 px-4 rounded-md bg-brand-orange hover:bg-brand-orange/80 text-brand-black font-semibold transition-colors"
+					className="gap-2 bg-brand-orange hover:bg-brand-orange/80 text-brand-black font-semibold"
 				>
-					<IconPlus className="w-4 h-4 mr-2" /> Add
-				</button>
+					<IconPlus size={16} /> Add
+				</Button>
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{items.length > 0 ? (
@@ -600,12 +595,9 @@ const PrivacySettingsModal = ({ serviceName, onClose }) => {
 					<PrivacySettings serviceName={serviceName} />
 				</main>
 				<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end">
-					<button
-						onClick={onClose}
-						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-					>
+					<Button onClick={onClose} variant="secondary">
 						Done
-					</button>
+					</Button>
 				</footer>
 			</motion.div>
 		</motion.div>
@@ -673,18 +665,23 @@ const IntegrationHeader = ({
 			{/* Filter Pills */}
 			<div className="mt-4 flex flex-wrap gap-2">
 				{categoriesToShow.map((category) => (
-					<button
+					<Button
 						key={category}
 						onClick={() => onCategoryChange(category)}
-						className={cn(
-							"px-4 py-2 rounded-full text-sm font-medium transition-colors",
+						variant={
 							activeCategory === category
-								? "bg-brand-orange text-black"
-								: "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+								? "default"
+								: "secondary"
+						}
+						className={cn(
+							"rounded-full",
+							activeCategory === category &&
+								"bg-brand-orange text-black hover:bg-brand-orange/90",
+							activeCategory !== category && "text-neutral-300"
 						)}
 					>
 						{category}
-					</button>
+					</Button>
 				))}
 			</div>
 		</div>
@@ -783,13 +780,14 @@ const IntegrationCard = ({
 			{isConnectable && (
 				<div className="mt-4 pt-4 border-t border-neutral-800 flex justify-end">
 					{isDisabledForFree ? (
-						<button
+						<Button
 							onClick={onUpgradeClick}
-							className="text-sm font-medium text-brand-orange group-hover:text-yellow-300 transition-colors flex items-center gap-1.5"
+							variant="link"
+							className="text-brand-orange group-hover:text-yellow-300"
 						>
-							<IconArrowUpCircle size={16} />
+							<IconArrowUpCircle size={16} className="mr-1.5" />
 							Upgrade to Unlock
-						</button>
+						</Button>
 					) : (
 						<span className="text-sm font-medium text-neutral-400 group-hover:text-white transition-colors">
 							View Details →
@@ -1425,13 +1423,13 @@ const IntegrationsPage = () => {
 												integration
 											)
 										}}
-										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-[var(--color-accent-red)]/20 hover:bg-[var(--color-accent-red)]/40 text-[var(--color-accent-red)] text-sm font-medium transition-colors"
+										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-red-600/20 hover:bg-red-600/40 text-red-300 text-sm font-medium transition-colors"
 									>
 										<IconPlugOff size={16} />
 										<span>Disconnect</span>
 									</button>
 								) : (
-									<button
+									<Button
 										onClick={async (e) => {
 											e.stopPropagation()
 											if (
@@ -1452,11 +1450,11 @@ const IntegrationsPage = () => {
 												await handleConnect(integration)
 											}
 										}}
-										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm transition-colors"
+										className="w-full gap-2 bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 									>
 										<IconSparkles size={16} />
 										<span>Connect</span>
-									</button>
+									</Button>
 								)}
 							</div>
 						</MorphingDialogDescription>

@@ -28,6 +28,7 @@ import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { usePlan } from "@hooks/usePlan"
 import { useTour } from "@components/LayoutWrapper"
+import { Button } from "@components/ui/button"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -107,18 +108,19 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
+							</Button>
+							<Button
 								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 text-sm font-medium text-neutral-400"
+								variant="ghost"
+								className="w-full text-neutral-400"
 							>
 								Not now
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -724,15 +726,15 @@ function TasksPageContent() {
 								}}
 								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
 							>
-								<button
+								<Button
 									onClick={() => setIsComposerOpen(true)}
-									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
 									aria-label={
 										view === "workflows"
 											? "Create new workflow"
 											: "Create new task"
 									}
 									data-tour-id="create-task-button"
+									className="gap-2 rounded-xl px-6 py-3 font-semibold shadow-2xl transition-all duration-300 hover:scale-105 bg-brand-orange text-brand-black hover:bg-brand-orange/90"
 								>
 									<IconPlus size={20} />
 									<span>
@@ -740,7 +742,7 @@ function TasksPageContent() {
 											? "Create Workflow"
 											: "Create Task"}
 									</span>
-								</button>
+								</Button>
 							</motion.div>
 						)}
 					</AnimatePresence>

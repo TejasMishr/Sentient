@@ -60,6 +60,7 @@ import { WebRTCClient } from "@lib/webrtc-client"
 import useClickOutside from "@hooks/useClickOutside"
 import { usePlan } from "@hooks/usePlan"
 import { useTour } from "@components/LayoutWrapper"
+import { Button } from "@components/ui/button"
 
 const toolIcons = {
 	gmail: IconGoogleMail,
@@ -159,18 +160,19 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
+							</Button>
+							<Button
 								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 text-sm font-medium text-neutral-400"
+								variant="ghost"
+								className="w-full text-neutral-400"
 							>
 								Not now
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -1472,10 +1474,12 @@ export default function ChatPage() {
 						className="hidden"
 						accept=".csv,.doc,.docx,.eml,.epub,.gif,.jpg,.jpeg,.json,.html,.htm,.msg,.odt,.pdf,.png,.pptx,.ps,.rtf,.tiff,.tif,.txt,.xlsx,.xls"
 					/>
-					<button
+					<Button
 						onClick={() => fileInputRef.current?.click()}
 						disabled={isUploading}
-						className="p-2 rounded-full text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors disabled:opacity-50"
+						variant="ghost"
+						size="icon"
+						className="rounded-full p-2 h-auto disabled:opacity-50"
 						data-tooltip-id="home-tooltip"
 						data-tooltip-content="Attach File (Max 5MB)"
 					>
@@ -1484,29 +1488,35 @@ export default function ChatPage() {
 						) : (
 							<IconPaperclip size={20} />
 						)}
-					</button>
-					<button
+					</Button>
+					<Button
 						ref={toolsButtonRef}
 						onClick={() => setIsToolsMenuOpen((prev) => !prev)}
-						className="p-2 rounded-full text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+						variant="ghost"
+						size="icon"
+						className="rounded-full p-2 h-auto"
 						data-tooltip-id="home-tooltip"
 						data-tooltip-content="View Available Tools"
 					>
 						<IconTool size={20} />
-					</button>
-					<button
+					</Button>
+					<Button
 						onClick={() => setIsWelcomeModalOpen(true)}
-						className="p-2 rounded-full text-neutral-300 hover:bg-neutral-700 hover:text-white transition-colors"
+						variant="ghost"
+						size="icon"
+						className="rounded-full p-2 h-auto"
 						data-tooltip-id="home-tooltip"
 						data-tooltip-content="About Chat"
 					>
 						<IconInfoCircle size={20} />
-					</button>
+					</Button>
 				</div>
 				<div className="flex items-center gap-2">
-					<button
+					<Button
 						onClick={toggleVoiceMode}
-						className="p-2.5 rounded-full text-white bg-neutral-700 hover:bg-neutral-600 transition-colors"
+						variant="secondary"
+						size="icon"
+						className="rounded-full p-2.5 h-auto bg-neutral-700 hover:bg-neutral-600"
 						data-tooltip-id="home-tooltip"
 						data-tooltip-content={
 							isPro
@@ -1515,28 +1525,31 @@ export default function ChatPage() {
 						}
 					>
 						<IconHeadphonesFilled size={18} />
-					</button>
+					</Button>
 					{thinking ? (
-						<button
+						<Button
 							onClick={handleStopStreaming}
-							className="p-2.5 rounded-full text-white bg-red-600 hover:bg-red-500"
+							variant="destructive"
+							size="icon"
+							className="rounded-full p-2.5 h-auto"
 							data-tooltip-id="home-tooltip"
 							data-tooltip-content="Stop Generation"
 						>
 							<IconPlayerStopFilled size={18} />
-						</button>
+						</Button>
 					) : (
-						<button
+						<Button
 							onClick={sendMessage}
 							disabled={
 								(!input.trim() && !uploadedFilename) ||
 								thinking ||
 								isUploading
 							}
-							className="p-2.5 bg-brand-orange rounded-full text-white disabled:opacity-50 hover:bg-brand-orange/90 transition-all shadow-md"
+							size="icon"
+							className="rounded-full p-2.5 h-auto bg-brand-orange hover:bg-brand-orange/90"
 						>
 							<IconSend size={18} />
-						</button>
+						</Button>
 					)}
 				</div>
 			</div>
@@ -1565,12 +1578,14 @@ export default function ChatPage() {
 							<h2 className="text-lg font-semibold text-white flex items-center gap-2">
 								<IconMessageChatbot /> Welcome to Unified Chat
 							</h2>
-							<button
+							<Button
 								onClick={() => setIsWelcomeModalOpen(false)}
-								className="p-1.5 rounded-full hover:bg-neutral-700"
+								variant="ghost"
+								size="icon"
+								className="rounded-full"
 							>
 								<IconX size={18} />
-							</button>
+							</Button>
 						</header>
 						<main className="flex-1 overflow-y-auto custom-scrollbar pr-2 text-left space-y-6">
 							<p className="text-neutral-300">
@@ -1633,12 +1648,12 @@ export default function ChatPage() {
 							</div>
 						</main>
 						<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end">
-							<button
+							<Button
 								onClick={() => setIsWelcomeModalOpen(false)}
-								className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
+								variant="secondary"
 							>
 								Got it
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -1734,7 +1749,7 @@ export default function ChatPage() {
 							exit={{ opacity: 0, y: 10, scale: 0.95 }}
 							className="absolute top-full right-0 mt-2 w-48 bg-neutral-900/80 backdrop-blur-md border border-neutral-700 rounded-lg shadow-lg p-1"
 						>
-							<button
+							<Button
 								onClick={() => {
 									if (confirmClear) {
 										handleClearAllMessages()
@@ -1742,15 +1757,11 @@ export default function ChatPage() {
 										setConfirmClear(true)
 									}
 								}}
-								className={cn(
-									"w-full text-left px-3 py-2 text-sm rounded-md transition-colors",
-									confirmClear
-										? "bg-red-600/80 text-white hover:bg-red-500"
-										: "text-neutral-300 hover:bg-neutral-700/50"
-								)}
+								variant={confirmClear ? "destructive" : "ghost"}
+								className="w-full justify-start"
 							>
 								{confirmClear ? "Confirm Clear?" : "Clear Chat"}
-							</button>
+							</Button>
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -1874,13 +1885,14 @@ export default function ChatPage() {
 
 									{/* Main Call/End Button */}
 									{connectionStatus === "disconnected" ? (
-										<button
+										<Button
 											onClick={handleStartVoice}
-											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-green text-white shadow-lg transition-colors duration-200 hover:bg-brand-green/80"
+											size="icon"
+											className="h-12 w-12 rounded-full bg-brand-green text-white shadow-lg hover:bg-brand-green/80"
 											title="Start Call"
 										>
 											<IconPhone size={24} />
-										</button>
+										</Button>
 									) : connectionStatus === "connecting" ? (
 										<div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-yellow text-brand-black shadow-lg">
 											<IconLoader
@@ -1889,23 +1901,27 @@ export default function ChatPage() {
 											/>
 										</div>
 									) : (
-										<button
+										<Button
 											onClick={handleStopVoice}
-											className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-red text-white shadow-lg transition-colors duration-200 hover:bg-brand-red/80"
+											variant="destructive"
+											size="icon"
+											className="h-12 w-12 rounded-full"
 											title="Hang Up"
 										>
 											<IconPhoneOff size={24} />
-										</button>
+										</Button>
 									)}
 
 									{/* Switch to Text Mode Button */}
-									<button
+									<Button
 										onClick={toggleVoiceMode}
-										className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full bg-brand-gray hover:bg-neutral-600 text-white shadow-lg"
+										variant="secondary"
+										size="icon"
+										className="h-12 w-12 rounded-full bg-brand-gray hover:bg-neutral-600"
 										title="Switch to Text Mode"
 									>
 										<IconMessageOff size={24} />
-									</button>
+									</Button>
 								</div>
 
 								{/* Status and Message Display (below controls) */}

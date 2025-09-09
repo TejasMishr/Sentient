@@ -9,6 +9,7 @@ import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
 import toast from "react-hot-toast"
 import { IconLoader } from "@tabler/icons-react"
+import { Button } from "@components/ui/button"
 
 // This component is used to handle clarification questions
 // within recurring task runs. It's modified to use the run's status.
@@ -86,10 +87,10 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 				))}
 				{isInputMode && (
 					<div className="flex justify-end">
-						<button
+						<Button
 							onClick={handleSubmit}
 							disabled={isSubmitting}
-							className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+							className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
 						>
 							{isSubmitting && (
 								<IconLoader
@@ -98,7 +99,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 								/>
 							)}
 							{isSubmitting ? "Submitting..." : "Submit Answers"}
-						</button>
+						</Button>
 					</div>
 				)}
 			</div>

@@ -1,7 +1,7 @@
 import React from "react"
 import { IconX, IconLoader } from "@tabler/icons-react"
 import { cn } from "@utils/cn" // Import cn utility
-
+import { Button } from "./ui/button"
 const ModalDialog = ({
 	title,
 	description = "",
@@ -81,14 +81,15 @@ const ModalDialog = ({
 						</button>
 					)}
 					{/* MODIFIED: Replaced ShiningButton with standard button */}
-					<button
+					<Button
 						onClick={onConfirm}
 						disabled={confirmButtonLoading}
-						className={cn(
-							// Confirm button with dynamic styling
-							"py-2 px-4 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-60",
-							getConfirmButtonStyle() // Apply dynamic style
-						)}
+						variant={
+							confirmButtonType === "danger"
+								? "destructive"
+								: "default"
+						}
+						className={cn(getConfirmButtonStyle())}
 					>
 						{confirmButtonLoading && (
 							<IconLoader size={16} className="animate-spin" />
@@ -96,12 +97,10 @@ const ModalDialog = ({
 						{ConfirmIcon && !confirmButtonLoading && (
 							<ConfirmIcon size={16} />
 						)}
-						<span>
-							{confirmButtonLoading
-								? "Processing..."
-								: confirmButtonText}
-						</span>
-					</button>
+						{confirmButtonLoading
+							? "Processing..."
+							: confirmButtonText}
+					</Button>
 				</div>
 			</div>
 		</div>

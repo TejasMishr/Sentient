@@ -38,6 +38,7 @@ import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
 import { useTour } from "@components/LayoutWrapper"
+import { Button } from "./ui/button"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -115,18 +116,20 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
+								size="lg"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
+							</Button>
+							<Button
 								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 text-sm font-medium text-neutral-400"
+								variant="ghost"
+								className="w-full text-neutral-400"
 							>
 								Not now
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -225,12 +228,9 @@ const ComingSoonModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end">
-							<button
-								onClick={onClose}
-								className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-							>
+							<Button onClick={onClose} variant="secondary">
 								Close
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -521,13 +521,13 @@ const SidebarContent = ({
 		{
 			title: "Memories",
 			href: "/memories",
-			icon: <IconBrain size={20} />,
+			icon: <IconBrain size={20} />
 		},
 		{
 			title: "Integrations",
 			href: "/integrations",
 			icon: <IconPlugConnected size={20} />,
-			tourId: "sidebar-integrations-icon",
+			tourId: "sidebar-integrations-icon"
 		},
 		{
 			title: "Settings",
@@ -685,7 +685,9 @@ const SidebarContent = ({
 							key={link.title}
 							data-tour-id={link.tourId}
 							onClick={
-								isMobile && !isTourActive ? onMobileClose : undefined
+								isMobile && !isTourActive
+									? onMobileClose
+									: undefined
 							}
 							className={cn(
 								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",

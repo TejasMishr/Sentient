@@ -25,6 +25,7 @@ import { cn } from "@utils/cn"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import CollapsibleSection from "@components/tasks/CollapsibleSection"
 import { sendNotificationToCurrentUser } from "@app/actions"
+import { Button } from "@components/ui/button"
 
 const handleTestPush = async () => {
 	const toastId = toast.loading("Sending test push notification...")
@@ -365,13 +366,13 @@ const WhatsAppSettings = () => {
 									/>
 								</div>
 								<div className="flex gap-2 justify-end">
-									<button
+									<Button
 										onClick={handleSaveNotifNumber}
 										disabled={
 											isSaving ||
 											!notificationNumber.trim()
 										}
-										className="flex items-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+										className="gap-2 bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 									>
 										{isSaving ? (
 											<IconLoader className="w-4 h-4 mr-2 animate-spin" />
@@ -379,7 +380,7 @@ const WhatsAppSettings = () => {
 											<IconPlus className="w-4 h-4 mr-2" />
 										)}{" "}
 										{hasNotifNumber ? "Update" : "Save"}
-									</button>
+									</Button>
 								</div>
 							</div>
 						</div>
@@ -695,17 +696,17 @@ const TestingTools = () => {
 						/>
 					</div>
 					<div className="flex justify-end">
-						<button
+						<Button
 							type="submit"
 							disabled={isSubmitting}
-							className="flex items-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 						>
 							{isSubmitting ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Inject Event"
 							)}
-						</button>
+						</Button>
 					</div>
 				</form>
 			</div>
@@ -721,10 +722,10 @@ const TestingTools = () => {
 					re-onboarding.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleReprocessOnboarding}
 						disabled={isReprocessing}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="gap-2 bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isReprocessing ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
@@ -732,7 +733,7 @@ const TestingTools = () => {
 							<IconRefresh className="w-5 h-5" />
 						)}{" "}
 						Run Reprocessing
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* WhatsApp Test Tools */}
@@ -766,28 +767,28 @@ const TestingTools = () => {
 						/>
 					</div>
 					<div className="flex gap-2 justify-end">
-						<button
+						<Button
 							onClick={handleVerifyWhatsApp}
 							disabled={isVerifying || isSending}
-							className="flex items-center justify-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 						>
 							{isVerifying ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Verify"
 							)}
-						</button>
-						<button
+						</Button>
+						<Button
 							onClick={handleSendTestWhatsApp}
 							disabled={isSending || isVerifying}
-							className="flex items-center justify-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 						>
 							{isSending ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Send Test"
 							)}
-						</button>
+						</Button>
 					</div>
 				</div>
 				{verificationResult.message && (
@@ -814,18 +815,18 @@ const TestingTools = () => {
 					sent to your subscribed devices.
 				</p>
 				<div className="flex flex-col sm:flex-row gap-4">
-					<button
+					<Button
 						onClick={handleTestInApp}
-						className="flex items-center justify-center py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+						className="justify-center bg-blue-600 hover:bg-blue-500"
 					>
 						Test In-App Notification
-					</button>
-					<button
+					</Button>
+					<Button
 						onClick={handleTestPush}
-						className="flex items-center justify-center py-2 px-4 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors"
+						className="justify-center bg-green-600 hover:bg-green-500"
 					>
 						Test Push Notification
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* Poller Test Tool */}
@@ -841,17 +842,17 @@ const TestingTools = () => {
 					for the hourly interval.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleTriggerPoller}
 						disabled={isTriggeringPoller}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isTriggeringPoller ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
 						) : (
 							"Run Poller Now"
 						)}
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* Scheduler Test Tool */}
@@ -866,17 +867,17 @@ const TestingTools = () => {
 					without waiting for the 5-minute interval.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleTriggerScheduler}
 						disabled={isTriggeringScheduler}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isTriggeringScheduler ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
 						) : (
 							"Run Scheduler Now"
 						)}
-					</button>
+					</Button>
 				</div>
 			</div>
 		</section>
@@ -907,17 +908,17 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 						actions for you.
 					</p>
 				</div>
-				<button
+				<Button
 					onClick={() => onSave(formData)}
 					disabled={isSaving}
-					className="mt-4 sm:mt-0 py-2 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+					className="mt-4 sm:mt-0 gap-2 bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 				>
 					{isSaving ? (
 						<IconLoader className="w-5 h-5 animate-spin" />
 					) : (
 						"Save Profile"
 					)}
-				</button>
+				</Button>
 			</div>
 
 			<div className="space-y-10 bg-neutral-900/50 p-3 rounded-2xl border border-neutral-800">

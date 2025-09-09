@@ -24,6 +24,7 @@ import ConnectToolButton from "./ConnectToolButton"
 import { cn } from "@utils/cn"
 import TaskDetailsContent from "./TaskDetailsContent"
 import TriggeredTaskDetails from "./TriggeredTaskDetails"
+import { Button } from "@components/ui/button"
 
 const TaskDetailsPanel = ({
 	task,
@@ -174,7 +175,7 @@ const TaskDetailsPanel = ({
 		className = "",
 		disabled = false
 	}) => (
-		<button
+		<Button
 			onClick={onClick}
 			disabled={disabled}
 			className={cn(
@@ -184,7 +185,7 @@ const TaskDetailsPanel = ({
 		>
 			{icon}
 			{children}
-		</button>
+		</Button>
 	)
 
 	return (
@@ -330,20 +331,26 @@ const TaskDetailsPanel = ({
 									{/* Empty div for spacing */}
 								</div>
 								<div className="flex items-center gap-2">
-									<ActionButton
+									<Button
 										onClick={() => setIsEditing(false)}
-										icon={<IconSquareX size={16} />}
-										className="bg-neutral-700 text-neutral-200 hover:bg-neutral-600"
+										variant="secondary"
 									>
+										<IconSquareX
+											size={16}
+											className="mr-2"
+										/>
 										Cancel
-									</ActionButton>
-									<ActionButton
+									</Button>
+									<Button
 										onClick={handleSaveEdit}
-										icon={<IconDeviceFloppy size={16} />}
 										className="bg-brand-orange text-brand-black font-semibold hover:bg-brand-orange/90"
 									>
+										<IconDeviceFloppy
+											size={16}
+											className="mr-2"
+										/>
 										Save
-									</ActionButton>
+									</Button>
 								</div>
 							</>
 						) : (
@@ -351,31 +358,46 @@ const TaskDetailsPanel = ({
 								{/* Top section with minor actions and warnings */}
 								<div className="flex justify-between items-start gap-2">
 									<div className="flex items-center gap-2">
-										<ActionButton
+										<Button
 											onClick={handleStartEditing}
-											icon={<IconPencil size={16} />}
-											className="text-neutral-400 hover:bg-neutral-700 hover:text-white"
+											variant="ghost"
+											size="sm"
+											className="text-neutral-400"
 										>
+											<IconPencil
+												size={16}
+												className="mr-2"
+											/>
 											Edit
-										</ActionButton>
-										<ActionButton
+										</Button>
+										<Button
 											onClick={() =>
 												onDelete(task.task_id)
 											}
-											icon={<IconTrash size={16} />} // prettier-ignore
-											className="text-neutral-400 hover:bg-red-500/20 hover:text-red-400"
+											variant="ghost"
+											size="sm"
+											className="text-neutral-400 hover:text-red-400"
 										>
+											<IconTrash
+												size={16}
+												className="mr-2"
+											/>
 											Delete
-										</ActionButton>
-										<ActionButton
+										</Button>
+										<Button
 											onClick={() =>
 												onRerun(task.task_id)
 											}
-											icon={<IconRepeat size={16} />}
-											className="text-neutral-400 hover:bg-neutral-700 hover:text-white"
+											variant="ghost"
+											size="sm"
+											className="text-neutral-400"
 										>
+											<IconRepeat
+												size={16}
+												className="mr-2"
+											/>
 											Rerun
-										</ActionButton>
+										</Button>
 									</div>
 									{missingTools.length > 0 && (
 										<div className="text-xs text-red-400 flex flex-col items-end gap-1 text-right flex-shrink min-w-0">
@@ -399,58 +421,65 @@ const TaskDetailsPanel = ({
 								{/* Main action buttons */}
 								<div className="flex flex-col sm:flex-row gap-2 w-full">
 									{task.status === "approval_pending" && (
-										<ActionButton
+										<Button
 											onClick={() =>
 												onApprove(task.task_id)
 											}
-											icon={<IconCircleCheck size={16} />}
-											className="bg-green-600 text-white hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto flex-grow justify-center"
+											className="bg-green-600 text-white hover:bg-green-500 w-full sm:w-auto flex-grow justify-center"
 											disabled={missingTools.length > 0}
 										>
+											<IconCircleCheck
+												size={16}
+												className="mr-2"
+											/>
 											Approve & Run
-										</ActionButton>
+										</Button>
 									)}
 									{task.task_type === "long_form" &&
 										task.orchestrator_state
 											?.current_state === "WAITING" && (
-											<ActionButton
+											<Button
 												onClick={() =>
 													onResumeTask(task.task_id)
 												}
-												icon={
-													<IconPlayerPlay size={16} />
-												}
 												className="bg-blue-600 text-white hover:bg-blue-500 w-full sm:w-auto flex-grow justify-center"
 											>
+												<IconPlayerPlay
+													size={16}
+													className="mr-2"
+												/>
 												Resume Now
-											</ActionButton>
+											</Button>
 										)}
 									{task.task_type === "long_form" &&
 										task.orchestrator_state
 											?.current_state === "ACTIVE" && (
-											<ActionButton
+											<Button
 												onClick={() =>
 													onPauseTask(task.task_id)
 												}
-												icon={
-													<IconPlayerPause
-														size={16}
-													/>
-												}
 												className="bg-yellow-600 text-white hover:bg-yellow-500 w-full sm:w-auto flex-grow justify-center"
 											>
+												<IconPlayerPause
+													size={16}
+													className="mr-2"
+												/>
 												Pause
-											</ActionButton>
+											</Button>
 										)}
-									<ActionButton
+									<Button
 										onClick={() =>
 											onArchiveTask(task.task_id)
 										}
-										icon={<IconArchive size={16} />}
-										className="bg-neutral-700 text-neutral-200 hover:bg-neutral-600 w-full sm:w-auto justify-center"
+										variant="secondary"
+										className="w-full sm:w-auto justify-center"
 									>
+										<IconArchive
+											size={16}
+											className="mr-2"
+										/>
 										Archive
-									</ActionButton>
+									</Button>
 								</div>
 							</div>
 						)}

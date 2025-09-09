@@ -20,6 +20,7 @@ import ProgressBar from "@components/onboarding/ProgressBar"
 import SparkleEffect from "@components/ui/SparkleEffect"
 import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
+import { Button } from "@components/ui/button"
 
 const countryData = [
 	{ name: "United States", code: "US", dial_code: "+1", flag: "🇺🇸" },
@@ -700,18 +701,19 @@ const OnboardingPage = () => {
 								{/* Navigation */}
 								{currentQuestion.type !== "yes-no" && (
 									<div className="mt-4 md:mt-6">
-										<button
+										<Button
 											onClick={handleNext}
 											disabled={
 												!isCurrentQuestionAnswered()
 											}
-											className="px-8 md:px-12 py-3 md:py-4 rounded-xl bg-brand-orange text-brand-black text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:bg-brand-orange/90 hover:scale-105 shadow-lg shadow-brand-orange/25"
+											size="lg"
+											className="rounded-xl bg-brand-orange text-brand-black text-base md:text-lg font-semibold transition-all duration-300 hover:bg-brand-orange/90 hover:scale-105 shadow-lg shadow-brand-orange/25"
 										>
 											{currentQuestionIndex ===
 											questions.length - 1
 												? "Finish"
 												: "Next"}
-										</button>
+										</Button>
 									</div>
 								)}
 							</motion.div>
@@ -1004,49 +1006,52 @@ const OnboardingPage = () => {
 						<span className="sm:hidden text-neutral-400 text-base">
 							or
 						</span>
-						<button
+						<Button
 							type="button"
 							onClick={handleGetLocation}
 							disabled={locationState.loading}
-							className="px-6 py-3 md:py-4 bg-brand-orange/10 border border-brand-orange/30 rounded-xl text-brand-orange hover:bg-brand-orange/20 transition-all duration-300 whitespace-nowrap disabled:opacity-50 font-medium"
+							variant="outline"
+							className="px-6 py-3 md:py-4 rounded-xl transition-all duration-300 whitespace-nowrap disabled:opacity-50 font-medium border-brand-orange/30 text-brand-orange hover:bg-brand-orange/10"
 						>
 							{locationState.loading
 								? "Detecting..."
 								: "Detect Current Location"}
-						</button>
+						</Button>
 					</div>
 				)
 			case "yes-no":
 				return (
 					<div className="flex gap-4 md:gap-6 justify-center w-full max-w-lg mx-auto">
-						<button
+						<Button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "yes")
 								setTimeout(handleNext, 150)
 							}}
+							size="lg"
 							className={cn(
-								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
+								"flex-1 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "yes"
 									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
-									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50 text-white"
 							)}
 						>
 							Yes
-						</button>
-						<button
+						</Button>
+						<Button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "no")
 								setTimeout(handleNext, 150)
 							}}
+							size="lg"
 							className={cn(
-								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
+								"flex-1 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "no"
 									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
-									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50 text-white"
 							)}
 						>
 							No
-						</button>
+						</Button>
 					</div>
 				)
 

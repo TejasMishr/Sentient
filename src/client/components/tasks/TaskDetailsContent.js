@@ -27,6 +27,7 @@ import ReactMarkdown from "react-markdown"
 import ExecutionUpdate from "./ExecutionUpdate"
 import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
+import { Button } from "@components/ui/button"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
 const WaitingNodeDetails = ({
@@ -154,13 +155,14 @@ const WaitingNodeDetails = ({
 				Time remaining:{" "}
 				<span className="font-mono font-semibold">{timeLeft}</span>
 			</p>
-			<button
+			<Button
 				onClick={() => onResumeTask(taskId)}
-				className="text-sm flex items-center gap-2 px-3 py-1.5 mt-2 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-500"
+				className="mt-2 gap-2 bg-blue-600 hover:bg-blue-500"
+				size="sm"
 			>
 				<IconPlayerPlay size={16} />
 				Resume Now
-			</button>
+			</Button>
 		</div>
 	)
 }
@@ -582,10 +584,11 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 				))}
 				{isInputMode && (
 					<div className="flex justify-end">
-						<button
+						<Button
 							onClick={handleSubmit}
 							disabled={isSubmitting}
-							className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+							className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+							size="sm"
 						>
 							{isSubmitting && (
 								<IconLoader
@@ -594,7 +597,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 								/>
 							)}
 							{isSubmitting ? "Submitting..." : "Submit Answers"}
-						</button>
+						</Button>
 					</div>
 				)}
 			</div>
@@ -711,10 +714,11 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 							placeholder="Your answer..."
 						/>
 						<div className="flex justify-end mt-2">
-							<button
+							<Button
 								onClick={() => handleSubmit(req.request_id)}
 								disabled={isSubmitting === req.request_id}
-								className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+								className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+								size="sm"
 							>
 								{isSubmitting === req.request_id && (
 									<IconLoader
@@ -725,7 +729,7 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 								{isSubmitting === req.request_id
 									? "Submitting..."
 									: "Submit Answer"}
-							</button>
+							</Button>
 						</div>
 					</div>
 				))}
@@ -883,13 +887,14 @@ const TaskChatSection = ({ task, onSendChatMessage }) => {
 					placeholder="Describe the changes you need..."
 					className="flex-grow p-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm"
 				/>
-				<button
+				<Button
 					onClick={handleSend}
-					className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-500 disabled:opacity-50"
+					className="bg-blue-600 hover:bg-blue-500"
+					size="icon"
 					disabled={!message.trim()}
 				>
 					<IconSend size={16} />
-				</button>
+				</Button>
 			</div>
 		</div>
 	)

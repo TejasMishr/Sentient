@@ -3,6 +3,7 @@
 import React from "react"
 import { cn } from "@utils/cn"
 import { Tooltip } from "react-tooltip"
+import { Button } from "@components/ui/button"
 
 const ScheduleEditor = ({ schedule, setSchedule }) => {
 	const handleTypeChange = (type) => {
@@ -61,19 +62,23 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 					{ label: "Recurring", value: "recurring" },
 					{ label: "Triggered", value: "triggered" }
 				].map(({ label, value }) => (
-					<button
+					<Button
 						key={value}
 						type="button"
 						onClick={() => handleTypeChange(value)}
-						className={cn(
-							"px-4 py-1.5 rounded-full text-sm font-medium transition-colors",
+						variant={
 							(schedule.type || "once") === value
-								? "bg-brand-orange text-brand-black font-semibold"
-								: "bg-neutral-700 hover:bg-neutral-600"
+								? "default"
+								: "secondary"
+						}
+						className={cn(
+							"rounded-full",
+							(schedule.type || "once") === value &&
+								"bg-brand-orange text-brand-black font-semibold"
 						)}
 					>
 						{label}
-					</button>
+					</Button>
 				))}
 			</div>
 
@@ -213,19 +218,25 @@ const ScheduleEditor = ({ schedule, setSchedule }) => {
 									"Saturday",
 									"Sunday"
 								].map((day) => (
-									<button
+									<Button
 										type="button"
 										key={day}
 										onClick={() => handleDayToggle(day)}
-										className={cn(
-											"px-3 py-1.5 rounded-full text-xs font-semibold transition-colors",
+										variant={
 											(schedule.days || []).includes(day)
-												? "bg-brand-orange text-brand-black"
-												: "bg-neutral-700 hover:bg-neutral-600"
+												? "default"
+												: "secondary"
+										}
+										className={cn(
+											"rounded-full text-xs font-semibold",
+											(schedule.days || []).includes(
+												day
+											) &&
+												"bg-brand-orange text-brand-black"
 										)}
 									>
 										{day.substring(0, 3)}
-									</button>
+									</Button>
 								))}
 							</div>
 						</div>

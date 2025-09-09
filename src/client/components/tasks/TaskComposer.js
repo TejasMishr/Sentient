@@ -16,6 +16,7 @@ import toast from "react-hot-toast"
 import useClickOutside from "@hooks/useClickOutside"
 import { TextLoop } from "@components/ui/TextLoop"
 
+import { Button } from "@components/ui/button"
 const workflowTabs = [
 	{
 		id: "recurring",
@@ -212,13 +213,13 @@ const TaskComposer = ({
 									</div>
 								)}
 							</div>
-							<button
+							<Button
 								onClick={handleCreateTask}
 								data-tour-id="task-composer-create-button"
-								className="w-full sm:w-auto py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full sm:w-auto bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Create Task
-							</button>
+							</Button>
 						</div>
 						<div className="flex items-center gap-2 text-xs text-neutral-400 pl-1">
 							<Switch
@@ -373,15 +374,15 @@ const TaskComposer = ({
 							</motion.div>
 						</AnimatePresence>
 						<div className="flex justify-end pt-2">
-							<button
+							<Button
 								onClick={handleCreateTask}
 								data-tour-id="task-composer-create-button"
-								className="py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors text-sm"
+								className="bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm"
 							>
 								{view === "workflows"
 									? "Create Workflow"
 									: "Create Task"}
-							</button>
+							</Button>
 						</div>
 					</div>
 				)}

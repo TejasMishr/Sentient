@@ -32,12 +32,11 @@ import {
 	IconBulb
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
-import { usePlan } from "@hooks/usePlan"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
-import { useTour } from "@components/LayoutWrapper"
+import { useTourStore, useUserStore, useUIStore } from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -242,7 +241,7 @@ const ComingSoonModal = ({ isOpen, onClose }) => {
 const UserProfileSection = ({ isCollapsed, user }) => {
 	const [isUserMenuOpen, setUserMenuOpen] = useState(false)
 	const userMenuRef = useRef(null)
-	const { isPro, plan } = usePlan()
+	const { isPro } = useUserStore()
 	const posthog = usePostHog()
 	useClickOutside(userMenuRef, () => setUserMenuOpen(false))
 
@@ -488,9 +487,11 @@ const SidebarContent = ({
 	const [isHelpMenuOpen, setHelpMenuOpen] = useState(false)
 	const [isVideoModalOpen, setVideoModalOpen] = useState(false)
 	const [isComingSoonModalOpen, setComingSoonModalOpen] = useState(false)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
+	const { startTour } = useTourStore()
 	const router = useRouter()
-	const tour = useTour()
 
 	const fadeInUp = {
 		hidden: { opacity: 0, y: 10 },
@@ -498,11 +499,10 @@ const SidebarContent = ({
 	}
 
 	// CHANGED: Use the environment variable for the namespace
-	const { isPro } = usePlan()
 
 	const handleStartDemo = () => {
 		setHelpMenuOpen(false)
-		tour.startTour()
+		startTour()
 	}
 
 	const handleShowVideo = () => {
@@ -541,7 +541,7 @@ const SidebarContent = ({
 			<Tooltip id="sidebar-tooltip" />
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<ComingSoonModal
 				isOpen={isComingSoonModalOpen}
@@ -645,7 +645,7 @@ const SidebarContent = ({
 
 			{!isPro && (
 				<button
-					onClick={() => setUpgradeModalOpen(true)}
+					onClick={openUpgradeModal}
 					className={cn(
 						"w-full bg-neutral-800/40 border border-neutral-700/80 rounded-lg p-2.5 text-left mb-2 hover:bg-neutral-800/80 transition-colors",
 						isCollapsed && "flex justify-center"

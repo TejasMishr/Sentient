@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo, useRef, useCallback } from "react" // eslint-disable-line
+import React, { useState, useMemo, useRef, useCallback } from "react"
 import toast from "react-hot-toast"
 import {
 	IconLoader,
@@ -26,11 +26,11 @@ import { motion, AnimatePresence } from "framer-motion"
 import { formatDistanceToNow, parseISO } from "date-fns"
 import { cn } from "@utils/cn"
 import dynamic from "next/dynamic"
-import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import ModalDialog from "@components/ModalDialog"
 import useClickOutside from "@hooks/useClickOutside"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useUIStore, useUserStore, useMemoryStore } from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -621,13 +621,23 @@ const memoryTabs = [
 ]
 
 export default function MemoriesPage() {
-	const [view, setView] = useState("graph")
-	const [activeTopic, setActiveTopic] = useState("All")
-	const [selectedMemory, setSelectedMemory] = useState(null)
-	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
-	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
-	const { isPro } = usePlan()
+	const {
+		view,
+		activeTopic,
+		selectedMemory,
+		isInfoPanelOpen,
+		isCreateModalOpen,
+		setView,
+		setActiveTopic,
+		setSelectedMemory,
+		openInfoPanel,
+		closeInfoPanel,
+		openCreateModal,
+		closeCreateModal
+	} = useMemoryStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
 	const router = useRouter()
 	const searchParams = useSearchParams()
 
@@ -700,7 +710,7 @@ export default function MemoriesPage() {
 				router.replace("/memories", { scroll: false })
 			}
 		}
-	}, [searchParams, memories, router])
+	}, [searchParams, memories, router, setSelectedMemory])
 
 	const createMemoryMutation = useMutation({
 		mutationFn: (content) =>
@@ -721,7 +731,7 @@ export default function MemoriesPage() {
 			}),
 		onSuccess: () => {
 			toast.success("Memory added successfully!")
-			setIsCreateModalOpen(false)
+			closeCreateModal()
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error) => {
@@ -731,8 +741,8 @@ export default function MemoriesPage() {
 						"You've reached your memory limit for the free plan."
 				)
 				if (!isPro) {
-					setUpgradeModalOpen(true)
-					setIsCreateModalOpen(false)
+					openUpgradeModal()
+					closeCreateModal()
 				}
 			} else {
 				toast.error(error.message)
@@ -752,7 +762,7 @@ export default function MemoriesPage() {
 			}),
 		onSuccess: () => {
 			toast.success("Memory updated!")
-			setSelectedMemory(null)
+			setSelectedMemory(null) // This will be handled by the store action
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error) => {
@@ -770,7 +780,7 @@ export default function MemoriesPage() {
 			),
 		onSuccess: () => {
 			toast.success("Memory deleted.")
-			setSelectedMemory(null) // Close panel
+			setSelectedMemory(null)
 			queryClient.invalidateQueries({ queryKey: ["memories"] })
 		},
 		onError: (error) => {
@@ -798,12 +808,12 @@ export default function MemoriesPage() {
 		<div className="flex-1 flex h-screen text-white overflow-hidden">
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<AnimatePresence>
 				{isInfoPanelOpen && (
 					<InfoPanel
-						onClose={() => setIsInfoPanelOpen(false)}
+						onClose={closeInfoPanel}
 						title={
 							<div className="flex items-center gap-2">
 								<IconSparkles /> About Memories
@@ -884,7 +894,7 @@ export default function MemoriesPage() {
 						<div className="w-px h-8 bg-neutral-700 hidden sm:block"></div>
 						<ViewSwitcher />
 						<button
-							onClick={() => setIsInfoPanelOpen(true)}
+							onClick={openInfoPanel}
 							className="p-2 rounded-full bg-neutral-800/50 hover:bg-neutral-700/80 text-white"
 							aria-label="About memories"
 						>
@@ -973,7 +983,7 @@ export default function MemoriesPage() {
 				)}
 			</AnimatePresence>
 			<button
-				onClick={() => setIsCreateModalOpen(true)}
+				onClick={openCreateModal}
 				className="fixed bottom-6 right-6 z-40 p-4 bg-brand-orange text-black rounded-full shadow-lg hover:bg-brand-orange/90 transition-transform hover:scale-105"
 				aria-label="Add new memory"
 			>
@@ -982,7 +992,7 @@ export default function MemoriesPage() {
 			<AnimatePresence>
 				{isCreateModalOpen && (
 					<CreateMemoryModal
-						onClose={() => setIsCreateModalOpen(false)}
+						onClose={closeCreateModal}
 						onCreate={(content) =>
 							createMemoryMutation.mutate(content)
 						}

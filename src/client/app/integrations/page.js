@@ -45,8 +45,6 @@ import {
 	IconListCheck
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
-import { usePostHog } from "posthog-js/react"
-import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -64,6 +62,12 @@ import ModalDialog from "@components/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import {
+	useUIStore,
+	useUserStore,
+	useIntegrationStore
+} from "@stores/app-stores"
+import { usePostHog } from "posthog-js/react"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -815,23 +819,30 @@ const IntegrationCard = ({
 
 const IntegrationsPage = () => {
 	const queryClient = useQueryClient()
+	const {
+		searchQuery,
+		activeCategory,
+		privacyModalService,
+		disconnectingIntegration,
+		setSearchQuery,
+		setActiveCategory,
+		openPrivacyModal,
+		closePrivacyModal,
+		setDisconnectingIntegration
+	} = useIntegrationStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
 	const [processingIntegration, setProcessingIntegration] = useState(null)
-	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Core")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
 		useState(false)
 	const [isWhatsAppQRModalOpen, setIsWhatsAppQRModalOpen] = useState(false)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
-	const [privacyModalService, setPrivacyModalService] = useState(null)
 	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
-	const [disconnectingIntegration, setDisconnectingIntegration] =
-		useState(null)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const posthog = usePostHog()
 	const router = useRouter()
-	const { isPro } = usePlan()
 
 	const googleServices = [
 		"gmail",
@@ -890,7 +901,7 @@ const IntegrationsPage = () => {
 	}, [integrationsData])
 
 	const handleUpgradeClick = () => {
-		setUpgradeModalOpen(true)
+		openUpgradeModal()
 	}
 
 	const handleConnect = async (integration) => {
@@ -1365,7 +1376,7 @@ const IntegrationsPage = () => {
 			return (
 				<MorphingDialogContent className="pointer-events-auto relative flex h-auto w-full flex-col overflow-hidden border border-neutral-700 bg-neutral-900 sm:w-[600px] rounded-2xl">
 					<BorderTrail className="bg-brand-orange" />
-					<div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
+					<div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar" data-tour-id={integration.name === "gmail" ? "gmail-card-modal" : undefined}>
 						<div className="flex items-center gap-4 mb-4">
 							<div className="w-10 h-10 flex items-center justify-center rounded-lg bg-brand-gray p-1.5 text-brand-orange">
 								<Icon className="w-full h-full" />
@@ -1396,11 +1407,7 @@ const IntegrationsPage = () => {
 							) && (
 								<div className="my-4">
 									<button
-										onClick={() =>
-											setPrivacyModalService(
-												integration.name
-											)
-										}
+										onClick={() => openPrivacyModal(integration.name)}
 										className="w-full text-center text-sm text-neutral-400 hover:text-white hover:bg-neutral-700/50 py-2 rounded-lg transition-colors border border-neutral-700"
 									>
 										Manage Privacy Filters
@@ -1462,8 +1469,6 @@ const IntegrationsPage = () => {
 		},
 		[
 			processingIntegration,
-			setPrivacyModalService,
-			setDisconnectingIntegration,
 			handleComposioConnect,
 			handleConnect
 		]
@@ -1478,7 +1483,7 @@ const IntegrationsPage = () => {
 			/>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<AnimatePresence>
 				{disconnectingIntegration && (
@@ -1561,7 +1566,7 @@ const IntegrationsPage = () => {
 				{privacyModalService && (
 					<PrivacySettingsModal
 						serviceName={privacyModalService}
-						onClose={() => setPrivacyModalService(null)}
+						onClose={closePrivacyModal}
 					/>
 				)}
 			</AnimatePresence>

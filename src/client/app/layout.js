@@ -6,6 +6,7 @@ import React, { Suspense } from "react"
 import ReactQueryProvider from "@lib/ReactQueryProvider"
 import LayoutWrapper from "@components/LayoutWrapper"
 import { PostHogProvider } from "@components/PostHogProvider"
+import { PostHogProvider } from "@components/PostHogProvider"
 
 /**
  * Metadata for the RootLayout component.
@@ -67,18 +68,17 @@ export default function RootLayout({ children }) {
 			</head>
 			<body className="font-sans" suppressHydrationWarning>
 				<Auth0Provider>
-					<PostHogProvider>
-						<ReactQueryProvider>
-							<Toaster position="bottom-right" />
-							<div className="flex h-screen w-full text-white overflow-hidden">
-								<Suspense>
-									<LayoutWrapper>{children}</LayoutWrapper>
-								</Suspense>
-							</div>
-						</ReactQueryProvider>
-					</PostHogProvider>
+					<ReactQueryProvider>
+						<Toaster position="bottom-right" />
+						<div className="flex h-screen w-full text-white overflow-hidden">
+							<Suspense>
+								<LayoutWrapper>{children}</LayoutWrapper>
+							</Suspense>
+						</div>
+					</ReactQueryProvider>
 				</Auth0Provider>
 			</body>
 		</html>
 	)
 }
+

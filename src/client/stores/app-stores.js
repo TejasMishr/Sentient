@@ -1,0 +1,180 @@
+import { create } from "zustand"
+import { taskSubSteps } from "@lib/tour-steps"
+
+// --- UI Store ---
+export const useUIStore = create((set) => ({
+	isSearchOpen: false,
+	isMobileNavOpen: false,
+	isUpgradeModalOpen: false,
+	openSearch: () => set({ isSearchOpen: true }),
+	closeSearch: () => set({ isSearchOpen: false }),
+	openMobileNav: () => set({ isMobileNavOpen: true }),
+	closeMobileNav: () => set({ isMobileNavOpen: false }),
+	openUpgradeModal: () => set({ isUpgradeModalOpen: true }),
+	closeUpgradeModal: () => set({ isUpgradeModalOpen: false })
+}))
+
+// --- User Store ---
+export const useUserStore = create((set) => ({
+	user: null,
+	plan: "free",
+	isPro: false,
+	onboardingComplete: false,
+	isLoading: true,
+	error: null,
+	fetchUserData: async () => {
+		set({ isLoading: true, error: null })
+		try {
+			const res = await fetch("/api/user/data", { method: "POST" })
+			if (!res.ok) throw new Error("Could not verify user status.")
+			const data = await res.json()
+
+			const profileRes = await fetch("/api/user/profile")
+			if (!profileRes.ok) throw new Error("Could not fetch user profile.")
+			const profileData = await profileRes.json()
+
+			const userData = { ...data.data, ...profileData }
+
+			set({
+				user: userData,
+				plan: userData.pricing || "free",
+				isPro: userData.pricing === "pro",
+				onboardingComplete: userData.onboardingComplete,
+				isLoading: false
+			})
+			return userData
+		} catch (error) {
+			console.error("Error fetching user data:", error)
+			set({ error: error.message, isLoading: false })
+			return null
+		}
+	}
+}))
+
+// --- Notification Store ---
+export const useNotificationStore = create((set) => ({
+	unreadCount: 0,
+	isNotificationsOpen: false,
+	notifRefreshKey: 0,
+	incrementUnreadCount: () =>
+		set((state) => ({ unreadCount: state.unreadCount + 1 })),
+	refreshNotifications: () =>
+		set((state) => ({ notifRefreshKey: state.notifRefreshKey + 1 })),
+	openNotifications: () => set({ isNotificationsOpen: true, unreadCount: 0 }),
+	closeNotifications: () => set({ isNotificationsOpen: false })
+}))
+
+// --- Tour Store ---
+const tourInitialState = {
+	isActive: false,
+	step: 0,
+	subStep: 0,
+	phase: null,
+	isWaitingForAction: false,
+	isHighlightPaused: false
+}
+export const useTourStore = create((set, get) => ({
+	...tourInitialState,
+	chatActionsRef: { current: null },
+	startTour: () => set({ ...tourInitialState, isActive: true }),
+	skipTour: () => set(tourInitialState),
+	finishTour: () => set(tourInitialState),
+	nextStep: () =>
+		set((state) => {
+			const newStep = state.step + 1
+			return {
+				...state,
+				step: newStep,
+				subStep: 0,
+				phase: newStep === 5 ? "list" : null,
+				isWaitingForAction: false,
+				isHighlightPaused: false
+			}
+		}),
+	nextSubStep: () => set((state) => ({ subStep: state.subStep + 1 })),
+	setHighlightPaused: (isPaused) => set({ isHighlightPaused: isPaused }),
+	setPhase: (phase) => set({ phase }),
+	handleCustomAction: () => {
+		set((state) => {
+			get().setHighlightPaused(true)
+			if (state.step === 5) {
+				const isMobile = () =>
+					typeof window !== "undefined" && window.innerWidth < 768
+				if (isMobile()) {
+					if (state.phase === "list") return { ...state, phase: "panel" }
+					const isLastSubStep = state.subStep >= taskSubSteps.length - 1
+					if (isLastSubStep) {
+						const newStep = state.step + 1
+						return { ...state, step: newStep, subStep: 0, phase: null }
+					}
+					return {
+						...state,
+						subStep: state.subStep + 1,
+						phase: "list"
+					}
+				} else {
+					const isLastSubStep = state.subStep >= taskSubSteps.length - 1
+					if (isLastSubStep) {
+						const newStep = state.step + 1
+						return { ...state, step: newStep, subStep: 0, phase: null }
+					}
+					return { ...state, subStep: state.subStep + 1 }
+				}
+			}
+			const newStep = state.step + 1
+			return { ...state, step: newStep }
+		})
+		setTimeout(() => get().setHighlightPaused(false), 500)
+	},
+	setChatActionsRef: (ref) => set({ chatActionsRef: ref })
+}))
+
+// --- Chat Store ---
+export const useChatStore = create((set) => ({
+	isVoiceMode: false,
+	connectionStatus: "disconnected",
+	isMuted: false,
+	voiceStatusText: "Click to start call",
+	audioLevel: 0,
+	setVoiceMode: (isVoiceMode) => set({ isVoiceMode }),
+	setConnectionStatus: (status) => set({ connectionStatus: status }),
+	setIsMuted: (muted) => set({ isMuted: muted }),
+	setVoiceStatusText: (text) => set({ voiceStatusText: text }),
+	setAudioLevel: (level) => set({ audioLevel: level }),
+	endVoiceCall: () =>
+		set({
+			connectionStatus: "disconnected",
+			voiceStatusText: "Click to start call",
+			isMuted: false,
+			isVoiceMode: false
+		})
+}))
+
+// --- Task Store ---
+export const useTaskStore = create((set) => ({
+	view: "tasks",
+	searchQuery: "",
+	isComposerOpen: false,
+	composerInitialData: null,
+	setView: (view) => set({ view }),
+	setSearchQuery: (query) => set({ searchQuery: query }),
+	openComposer: (initialData = null) =>
+		set({ isComposerOpen: true, composerInitialData: initialData }),
+	closeComposer: () => set({ isComposerOpen: false, composerInitialData: null })
+}))
+
+// --- Memory Store ---
+export const useMemoryStore = create((set) => ({
+	view: "graph",
+	activeTopic: "All",
+	selectedMemory: null,
+	isInfoPanelOpen: false,
+	isCreateModalOpen: false,
+	setView: (view) => set({ view }),
+	setActiveTopic: (topic) => set({ activeTopic: topic }),
+	setSelectedMemory: (memory) => set({ selectedMemory: memory }),
+	openInfoPanel: () => set({ isInfoPanelOpen: true }),
+	closeInfoPanel: () => set({ isInfoPanelOpen: false }),
+	openCreateModal: () => set({ isCreateModalOpen: true }),
+	closeCreateModal: () => set({ isCreateModalOpen: false })
+}))

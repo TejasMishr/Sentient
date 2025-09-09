@@ -24,6 +24,7 @@ import { useState, useCallback } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Tooltip } from "react-tooltip"
 import { cn } from "@utils/cn"
+import { useUserStore } from "@stores/app-stores"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import CollapsibleSection from "@components/tasks/CollapsibleSection"
 import { sendNotificationToCurrentUser } from "@app/actions"
@@ -1142,21 +1143,13 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 export default function SettingsPage() {
 	const queryClient = useQueryClient()
 
-	const { data: profileData, isLoading: isProfileLoading } = useQuery({
-		queryKey: ["userProfileData"],
-		queryFn: async () => {
-			const [response, profileResponse] = await Promise.all([
-				fetch("/api/user/data", { method: "POST" }),
-				fetch("/api/user/profile")
-			])
-			if (!response.ok || !profileResponse.ok) {
-				throw new Error("Failed to fetch user data")
-			}
-			const result = await response.json()
-			const profile = await profileResponse.json()
-			return { ...profile, ...result.data }
-		}
-	})
+	const {
+		user: profileData,
+		isLoading: isProfileLoading,
+		fetchUserData
+	} = useUserStore()
+
+	useEffect(() => { fetchUserData() }, [fetchUserData])
 
 	const saveProfileMutation = useMutation({
 		mutationFn: (newOnboardingData) => {

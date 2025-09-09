@@ -72,6 +72,12 @@ import {
 	useMutation,
 	useQueryClient
 } from "@tanstack/react-query"
+import {
+	useUIStore,
+	useUserStore,
+	useTourStore,
+	useChatStore
+} from "@tanstack/react-query"
 import { useTour } from "@components/LayoutWrapper"
 
 const toolIcons = {
@@ -202,6 +208,8 @@ function usePrevious(value) {
 
 export default function ChatPage() {
 	const [input, setInput] = useState("")
+	const [statusText, setStatusText] = useState("")
+
 	const textareaRef = useRef(null)
 	const chatEndRef = useRef(null)
 	const abortControllerRef = useRef(null)
@@ -226,36 +234,44 @@ export default function ChatPage() {
 	const toolsMenuRef = useRef(null)
 	const toolsButtonRef = useRef(null)
 
+	// Zustand stores
+	const { isPro } = useUserStore()
+	const { openUpgradeModal, isUpgradeModalOpen, closeUpgradeModal } =
+		useUIStore()
+	const tourStore = useTourStore()
+	const {
+		tourState,
+		prevTourState,
+		chatActionsRef,
+		startTour,
+		nextStep,
+		nextSubStep,
+		setHighlightPaused
+	} = useTour() // Keep using the context hook for simplicity in this component
+	const {
+		isVoiceMode,
+		connectionStatus,
+		isMuted,
+		voiceStatusText,
+		audioLevel,
+		setVoiceMode,
+		setConnectionStatus,
+		setIsMuted,
+		setVoiceStatusText,
+		setAudioLevel,
+		endVoiceCall
+	} = useChatStore()
+
 	const searchParams = useSearchParams()
 	const router = useRouter()
-	const { isPro } = usePlan()
-	const {
-		startTour,
-		tourState,
-		setHighlightPaused,
-		nextSubStep,
-		nextStep,
-		chatActionsRef
-	} = useTour()
-	const prevTourState = usePrevious(tourState)
 
 	// --- File Upload State ---
 	const [selectedFile, setSelectedFile] = useState(null)
 	const [uploadedFilename, setUploadedFilename] = useState(null)
 
-	// --- Pro Feature Modal ---
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	// --- Voice Mode State ---
-	const [isMuted, setIsMuted] = useState(false)
-	const [isVoiceMode, setIsVoiceMode] = useState(false)
-	const [connectionStatus, setConnectionStatus] = useState("disconnected")
 	const [audioInputDevices, setAudioInputDevices] = useState([])
 	const [selectedAudioInputDevice, setSelectedAudioInputDevice] = useState("")
-	const [voiceStatusText, setVoiceStatusText] = useState(
-		"Click to start call"
-	)
-	const [statusText, setStatusText] = useState("")
-	const [audioLevel, setAudioLevel] = useState(0)
 	const webrtcClientRef = useRef(null)
 	const ringtoneAudioRef = useRef(null)
 	const connectedAudioRef = useRef(null)
@@ -646,9 +662,7 @@ export default function ChatPage() {
 				toast.info("Message generation stopped.")
 			} else if (error.status === 429) {
 				toast.error(error.message || "You've reached a usage limit.")
-				if (!isPro) {
-					setUpgradeModalOpen(true)
-				}
+				if (!isPro) openUpgradeModal()
 			} else {
 				toast.error(`Error: ${error.message}`)
 			}
@@ -1185,9 +1199,7 @@ export default function ChatPage() {
 					error.message ||
 						"You've used all your voice minutes for today on the free plan."
 				)
-				if (!isPro) {
-					setUpgradeModalOpen(true)
-				}
+				if (!isPro) openUpgradeModal()
 			} else {
 				toast.error(
 					`Failed to connect: ${error.message || "Unknown error"}`
@@ -1328,12 +1340,13 @@ export default function ChatPage() {
 
 	const toggleVoiceMode = async () => {
 		if (!isPro) {
-			setUpgradeModalOpen(true)
+			openUpgradeModal()
 			return
 		}
 
 		if (isVoiceMode) {
 			console.log("[ChatPage] Toggling voice mode OFF.")
+			setVoiceMode(false)
 			handleStopVoice()
 			setIsVoiceMode(false) // This will trigger refetch via useEffect
 			queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
@@ -1345,7 +1358,7 @@ export default function ChatPage() {
 				console.log(
 					"[ChatPage] Permissions granted, activating voice mode."
 				)
-				setIsVoiceMode(true)
+				setVoiceMode(true)
 			} else {
 				console.warn(
 					"[ChatPage] Permissions not granted, voice mode not activated."
@@ -1787,7 +1800,7 @@ export default function ChatPage() {
 			></audio>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			></UpgradeToProModal>
 			{renderWelcomeModal()}
 			<audio ref={remoteAudioRef} autoPlay playsInline />

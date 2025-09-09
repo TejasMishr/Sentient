@@ -17,7 +17,8 @@ import {
 } from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { useMutation } from "@tanstack/react-query"
-import ProgressBar from "@components/onboarding/ProgressBar"
+import { useUserStore } from "@stores/app-stores"
+import ProgressBar from "@components/onboarding/ProgressBar" // Assuming this component exists
 import SparkleEffect from "@components/ui/SparkleEffect"
 import SiriSpheres from "@components/voice-visualization/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
@@ -234,6 +235,7 @@ const OnboardingPage = () => {
 	const [score, setScore] = useState(0)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
 	const posthog = usePostHog()
+	const { fetchUserData } = useUserStore()
 	const router = useRouter()
 	const statusChecked = useRef(false)
 	const [whatsappStatus, setWhatsappStatus] = useState("idle") // idle, checking, valid, invalid
@@ -460,6 +462,7 @@ const OnboardingPage = () => {
 			)
 			posthog?.capture("user_signed_up", { signup_method: "auth0" })
 			posthog?.capture("onboarding_completed")
+			await fetchUserData() // Refresh user data in the store
 			router.push("/chat?show_demo=true")
 		},
 		onError: (error) => {

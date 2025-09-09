@@ -20,8 +20,12 @@ import TaskViewSwitcher from "@components/tasks/TaskViewSwitcher"
 import ListView from "@components/tasks/ListView"
 import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import { usePlan } from "@hooks/usePlan"
-import { useTour } from "@components/LayoutWrapper"
+import {
+	useUIStore,
+	useUserStore,
+	useTaskStore,
+	useTourStore
+} from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -133,18 +137,22 @@ function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
 	const queryClient = useQueryClient()
-
-	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
+	const {
+		view,
+		searchQuery,
+		isComposerOpen,
+		composerInitialData,
+		setView,
+		setSearchQuery,
+		openComposer,
+		closeComposer
+	} = useTaskStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
+	const { tourState, nextStep } = useTourStore()
 	const [isMobile, setIsMobile] = useState(false)
-
 	const [isModalOpen, setIsModalOpen] = useState(false)
-	const [searchQuery, setSearchQuery] = useState("")
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
-	const [isComposerOpen, setIsComposerOpen] = useState(false)
-	const [composerInitialData, setComposerInitialData] = useState(null)
-	const { isPro } = usePlan()
-	const tour = useTour()
-	const { tourState, setTourState } = tour
 	const prevTourState = usePrevious(tourState)
 
 	const { data, isLoading, isError } = useQuery({
@@ -279,33 +287,32 @@ function TasksPageContent() {
 				// This is the "Create Task" button step.
 				if (isComposerOpen) {
 					// If user clicks the button, composer opens, and we advance.
-					tour.nextStep()
+					nextStep()
 				} else {
 					// Otherwise, ensure composer is closed.
-					setIsComposerOpen(false)
+					closeComposer()
 				}
 			} else if (tourState.step === 4) {
 				// This is the composer step. If it's not open or doesn't have the
 				// initial data yet, set it up. This prevents re-render loops.
 				if (!isComposerOpen || !composerInitialData) {
-					setIsComposerOpen(true)
-					setComposerInitialData({
+					openComposer({
 						prompt: "Coordinate with Kabeer to set up a meeting next week."
 					})
 				}
 			}
 			// For subsequent steps, ensure composer is closed.
 			else if (tourState.step > 4 && isComposerOpen) {
-				setIsComposerOpen(false)
+				closeComposer()
 			}
 		}
 	}, [
 		tourState.isActive,
 		tourState.step,
 		isComposerOpen,
-		tour,
-		setComposerInitialData,
-		setIsComposerOpen
+		nextStep,
+		openComposer,
+		closeComposer
 	])
 
 	useEffect(() => {
@@ -459,7 +466,7 @@ function TasksPageContent() {
 				toast.error(
 					error.message || "You've reached your daily task limit."
 				)
-				if (!isPro) setUpgradeModalOpen(true)
+				if (!isPro) openUpgradeModal()
 			} else {
 				toast.error(`Error: ${error.message}`)
 			}
@@ -649,8 +656,7 @@ function TasksPageContent() {
 		} else {
 			setView("tasks")
 		}
-		setComposerInitialData(example)
-		setIsComposerOpen(true)
+		openComposer(example)
 	}
 
 	const renderTaskDetails = (task) => (
@@ -681,7 +687,7 @@ function TasksPageContent() {
 			/>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<div className="flex-1 flex overflow-hidden relative">
 				<div className="absolute inset-0 z-[-1] network-grid-background">
@@ -741,28 +747,25 @@ function TasksPageContent() {
 										tourState.isActive &&
 										tourState.step === 4
 									) {
-										setIsComposerOpen(false)
-										setComposerInitialData(null)
-										tour.nextStep() // Advance the tour
+										closeComposer()
+										nextStep() // Advance the tour
 										return
 									}
 									// Otherwise, proceed with normal task creation.
 									handleCreateTask(payload)
-									setIsComposerOpen(false)
-									setComposerInitialData(null)
+									closeComposer()
 								}}
 								isPro={isPro}
-								onUpgradeClick={() => setUpgradeModalOpen(true)}
+								onUpgradeClick={openUpgradeModal}
 								onClose={() => {
 									if (
 										tourState.isActive &&
 										tourState.step === 4
 									) {
 										// If user closes manually, also advance the tour.
-										tour.nextStep()
+										nextStep()
 									}
-									setIsComposerOpen(false)
-									setComposerInitialData(null)
+									closeComposer()
 								}}
 								initialData={composerInitialData}
 							/>
@@ -783,7 +786,7 @@ function TasksPageContent() {
 								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
 							>
 								<button
-									onClick={() => setIsComposerOpen(true)}
+									onClick={() => openComposer()}
 									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
 									aria-label={
 										view === "workflows"

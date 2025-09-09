@@ -60,7 +60,13 @@ import {
 	MorphingDialogContainer
 } from "@components/ui/morphing-dialog"
 import { Tooltip } from "react-tooltip"
-import ModalDialog from "@components/ModalDialog"
+import {
+	ModalDialog,
+	ModalHeader,
+	ModalTitle,
+	ModalBody,
+	ModalFooter
+} from "@components/ui/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
 import { Button } from "@components/ui/button"
@@ -204,19 +210,21 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 	if (!isOpen) return null
 
 	return (
-		<ModalDialog
-			title={
-				<div className="flex items-center gap-2">
-					<IconBrandWhatsapp />
-					<span>WhatsApp Disclaimer</span>
-				</div>
-			}
-			description="Please review the following before connecting your WhatsApp account."
-			onCancel={onClose}
-			onConfirm={onAgree}
-			confirmButtonText="Agree and Connect"
-			extraContent={
-				<div className="text-sm text-neutral-300 space-y-3 pt-2">
+		<ModalDialog isOpen={isOpen} onClose={onClose}>
+			<ModalHeader>
+				<ModalTitle>
+					<div className="flex items-center gap-2">
+						<IconBrandWhatsapp />
+						<span>WhatsApp Disclaimer</span>
+					</div>
+				</ModalTitle>
+			</ModalHeader>
+			<ModalBody>
+				<p>
+					Please review the following before connecting your WhatsApp
+					account.
+				</p>
+				<div className="text-sm text-neutral-300 space-y-3 pt-4">
 					<p>
 						By proceeding, you acknowledge that you have read and
 						agree to the{" "}
@@ -236,8 +244,19 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 						manage your chats and contacts.
 					</p>
 				</div>
-			}
-		/>
+			</ModalBody>
+			<ModalFooter>
+				<Button variant="secondary" onClick={onClose}>
+					Cancel
+				</Button>
+				<Button
+					onClick={onAgree}
+					className="bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
+				>
+					Agree and Connect
+				</Button>
+			</ModalFooter>
+		</ModalDialog>
 	)
 }
 
@@ -1509,22 +1528,52 @@ const IntegrationsPage = () => {
 					// and other modals.
 					<div className="isolate z-[120]">
 						<ModalDialog
-							title={
-								<div className="flex items-center gap-2">
-									<IconAlertTriangle className="text-yellow-400" />
-									<span>{`Disconnect ${disconnectingIntegration.display_name}?`}</span>
-								</div>
-							}
-							description="This will permanently delete all tasks that use this tool and any related polling data. This action cannot be undone."
-							confirmButtonText="Disconnect"
-							confirmButtonType="danger"
-							onConfirm={handleDisconnect}
-							onCancel={() => setDisconnectingIntegration(null)}
-							confirmButtonLoading={
-								processingIntegration ===
-								disconnectingIntegration.name
-							}
-						/>
+							isOpen={!!disconnectingIntegration}
+							onClose={() => setDisconnectingIntegration(null)}
+						>
+							<ModalHeader>
+								<ModalTitle>
+									<div className="flex items-center gap-2">
+										<IconAlertTriangle className="text-yellow-400" />
+										<span>{`Disconnect ${disconnectingIntegration.display_name}?`}</span>
+									</div>
+								</ModalTitle>
+							</ModalHeader>
+							<ModalBody>
+								<p>
+									This will permanently delete all tasks that
+									use this tool and any related polling data.
+									This action cannot be undone.
+								</p>
+							</ModalBody>
+							<ModalFooter>
+								<Button
+									variant="secondary"
+									onClick={() =>
+										setDisconnectingIntegration(null)
+									}
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={handleDisconnect}
+									disabled={
+										processingIntegration ===
+										disconnectingIntegration.name
+									}
+								>
+									{processingIntegration ===
+										disconnectingIntegration.name && (
+										<IconLoader
+											size={16}
+											className="animate-spin mr-2"
+										/>
+									)}
+									Disconnect
+								</Button>
+							</ModalFooter>
+						</ModalDialog>
 					</div>
 				)}
 			</AnimatePresence>

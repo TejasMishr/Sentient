@@ -27,9 +27,17 @@ import { cn } from "@utils/cn"
 import dynamic from "next/dynamic"
 import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import ModalDialog from "@components/ModalDialog"
+import {
+	ModalDialog,
+	ModalHeader,
+	ModalTitle,
+	ModalBody,
+	ModalFooter,
+	ModalCloseButton
+} from "@components/ui/ModalDialog"
 import useClickOutside from "@hooks/useClickOutside"
 import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@components/ui/button"
 import { Card, CardContent, CardFooter } from "@components/ui/card"
 
 const proPlanFeatures = [
@@ -343,14 +351,43 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }) => {
 			<AnimatePresence>
 				{showDeleteConfirm && (
 					<ModalDialog
-						title="Delete Memory"
-						description="Are you sure you want to permanently delete this memory? This action cannot be undone."
-						confirmButtonText="Delete"
-						confirmButtonType="danger"
-						onConfirm={handleDeleteConfirm}
-						onCancel={() => setShowDeleteConfirm(false)}
-						isConfirmDisabled={isDeleting}
-					/>
+						isOpen={showDeleteConfirm}
+						onClose={() => setShowDeleteConfirm(false)}
+					>
+						<ModalHeader>
+							<ModalTitle>Delete Memory</ModalTitle>
+							<ModalCloseButton
+								onClose={() => setShowDeleteConfirm(false)}
+							/>
+						</ModalHeader>
+						<ModalBody>
+							<p>
+								Are you sure you want to permanently delete this
+								memory? This action cannot be undone.
+							</p>
+						</ModalBody>
+						<ModalFooter>
+							<Button
+								variant="secondary"
+								onClick={() => setShowDeleteConfirm(false)}
+							>
+								Cancel
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={handleDeleteConfirm}
+								disabled={isDeleting}
+							>
+								{isDeleting && (
+									<IconLoader
+										size={16}
+										className="animate-spin mr-2"
+									/>
+								)}
+								Delete
+							</Button>
+						</ModalFooter>
+					</ModalDialog>
 				)}
 			</AnimatePresence>
 		</>
@@ -360,9 +397,6 @@ const MemoryDetailPanel = ({ memory, onClose, onUpdate, onDelete }) => {
 const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 	const [content, setContent] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
-	const modalRef = useRef(null)
-
-	useClickOutside(modalRef, onClose)
 
 	const handleCreate = async () => {
 		if (!content.trim()) {
@@ -376,72 +410,49 @@ const CreateMemoryModal = ({ onClose, onCreate, userDetails }) => {
 	}
 
 	return (
-		<motion.div
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
-			className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-			onClick={onClose}
+		<ModalDialog
+			isOpen={true}
+			onClose={onClose}
+			className="max-w-lg bg-neutral-900/90 backdrop-blur-xl p-0"
 		>
-			<motion.div
-				ref={modalRef}
-				initial={{ opacity: 0, y: 20, scale: 0.95 }}
-				animate={{ opacity: 1, y: 0, scale: 1 }}
-				exit={{ opacity: 0, y: 20, scale: 0.95 }}
-				transition={{ duration: 0.2, ease: "easeInOut" }}
-				className="relative flex w-full max-w-lg flex-col rounded-2xl border border-neutral-700 bg-neutral-900/90 p-6 shadow-2xl backdrop-blur-xl"
-				onClick={(e) => e.stopPropagation()}
-			>
-				<header className="flex flex-shrink-0 items-center justify-between mb-4">
-					<h2 className="text-lg font-semibold text-white">
-						Add a New Memory
-					</h2>
-					<button
-						onClick={onClose}
-						className="p-1.5 rounded-full hover:bg-neutral-700"
-					>
-						<IconX size={18} />
-					</button>
-				</header>
-				<main className="flex-1">
-					<textarea
-						value={content}
-						onChange={(e) => setContent(e.target.value)}
-						placeholder="Enter a fact or piece of information to remember..."
-						className="w-full h-40 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
-						autoFocus
-					/>
-					<p className="text-xs text-neutral-500 mt-2 px-1">
-						Note: All memories should be in the third person. e.g.,
-						"
-						<span className="font-semibold text-neutral-400">
-							{userDetails?.given_name || "User"} likes football
-						</span>
-						" instead of "I like football".
-					</p>
-				</main>
-				<footer className="mt-6 flex justify-end gap-2 border-t border-neutral-800 pt-4">
-					<button
-						onClick={onClose}
-						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-					>
-						Cancel
-					</button>
-					<button
-						onClick={handleCreate}
-						disabled={isSaving}
-						className="py-2 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm flex items-center gap-2"
-					>
-						{isSaving ? (
-							<IconLoader size={16} className="animate-spin" />
-						) : (
-							<IconPlus size={16} />
-						)}
-						{isSaving ? "Saving..." : "Add Memory"}
-					</button>
-				</footer>
-			</motion.div>
-		</motion.div>
+			<ModalHeader className="p-6">
+				<ModalTitle>Add a New Memory</ModalTitle>
+				<ModalCloseButton onClose={onClose} />
+			</ModalHeader>
+			<ModalBody className="p-6 pt-0">
+				<textarea
+					value={content}
+					onChange={(e) => setContent(e.target.value)}
+					placeholder="Enter a fact or piece of information to remember..."
+					className="w-full h-40 bg-neutral-800 border border-neutral-700 rounded-lg p-3 text-base text-neutral-200 focus:ring-2 focus:ring-brand-orange"
+					autoFocus
+				/>
+				<p className="text-xs text-neutral-500 mt-2 px-1">
+					Note: All memories should be in the third person. e.g., "
+					<span className="font-semibold text-neutral-400">
+						{userDetails?.given_name || "User"} likes football
+					</span>
+					" instead of "I like football".
+				</p>
+			</ModalBody>
+			<ModalFooter className="p-6">
+				<Button onClick={onClose} variant="secondary">
+					Cancel
+				</Button>
+				<Button
+					onClick={handleCreate}
+					disabled={isSaving}
+					className="gap-2 bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
+				>
+					{isSaving ? (
+						<IconLoader size={16} className="animate-spin" />
+					) : (
+						<IconPlus size={16} />
+					)}
+					{isSaving ? "Saving..." : "Add Memory"}
+				</Button>
+			</ModalFooter>
+		</ModalDialog>
 	)
 }
 

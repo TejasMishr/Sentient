@@ -61,6 +61,7 @@ import useClickOutside from "@hooks/useClickOutside"
 import { usePlan } from "@hooks/usePlan"
 import { useTour } from "@components/LayoutWrapper"
 import { Button } from "@components/ui/button"
+import { ModalDialog } from "@components/ui/ModalDialog"
 
 const toolIcons = {
 	gmail: IconGoogleMail,
@@ -112,72 +113,59 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 	}
 
 	return (
-		<AnimatePresence>
-			{isOpen && (
-				<motion.div
-					initial={{ opacity: 0 }}
-					animate={{ opacity: 1 }}
-					exit={{ opacity: 0 }}
-					className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
-					onClick={onClose}
-				>
-					<motion.div
-						initial={{ scale: 0.95, y: 20 }}
-						animate={{ scale: 1, y: 0 }}
-						exit={{ scale: 0.95, y: -20 }}
-						transition={{ duration: 0.2, ease: "easeInOut" }}
-						onClick={(e) => e.stopPropagation()}
-						className="relative bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-neutral-700 flex flex-col"
+		<ModalDialog
+			isOpen={isOpen}
+			onClose={onClose}
+			className="max-w-lg bg-neutral-900/90 backdrop-blur-xl p-0 rounded-2xl"
+		>
+			<div className="p-6">
+				<header className="text-center mb-4">
+					<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
+						<IconBolt className="text-yellow-400" />
+						Unlock Pro Features
+					</h2>
+					<p className="text-neutral-400 mt-2">
+						Unlock Voice Mode and other powerful features.
+					</p>
+				</header>
+				<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
+					{proPlanFeatures.map((feature) => (
+						<div
+							key={feature.name}
+							className="flex items-start gap-2.5"
+						>
+							<IconCheck
+								size={18}
+								className="text-green-400 flex-shrink-0 mt-0.5"
+							/>
+							<div>
+								<p className="text-white text-sm font-medium">
+									{feature.name}
+								</p>
+								<p className="text-neutral-400 text-xs">
+									{feature.limit}
+								</p>
+							</div>
+						</div>
+					))}
+				</main>
+				<footer className="mt-4 flex flex-col gap-2">
+					<Button
+						onClick={handleUpgrade}
+						className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 					>
-						<header className="text-center mb-4">
-							<h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
-								<IconBolt className="text-yellow-400" />
-								Unlock Pro Features
-							</h2>
-							<p className="text-neutral-400 mt-2">
-								Unlock Voice Mode and other powerful features.
-							</p>
-						</header>
-						<main className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-4">
-							{proPlanFeatures.map((feature) => (
-								<div
-									key={feature.name}
-									className="flex items-start gap-2.5"
-								>
-									<IconCheck
-										size={18}
-										className="text-green-400 flex-shrink-0 mt-0.5"
-									/>
-									<div>
-										<p className="text-white text-sm font-medium">
-											{feature.name}
-										</p>
-										<p className="text-neutral-400 text-xs">
-											{feature.limit}
-										</p>
-									</div>
-								</div>
-							))}
-						</main>
-						<footer className="mt-4 flex flex-col gap-2">
-							<Button
-								onClick={handleUpgrade}
-								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
-							>
-								Upgrade Now - $9/month
-							</Button>
-							<Button
-								onClick={onClose}
-								variant="ghost"
-								className="w-full text-neutral-400"
-							>
-								Not now
-							</Button>
-						</footer>
-					</motion.div>
-				</motion.div>
-			)}
-		</AnimatePresence>
+						Upgrade Now - $9/month
+					</Button>
+					<Button
+						onClick={onClose}
+						variant="ghost"
+						className="w-full text-neutral-400"
+					>
+						Not now
+					</Button>
+				</footer>
+			</div>
+		</ModalDialog>
 	)
 }
 

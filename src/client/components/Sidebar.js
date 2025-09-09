@@ -39,6 +39,12 @@ import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
 import { useTour } from "@components/LayoutWrapper"
 import { Button } from "./ui/button"
+import {
+	ModalDialog,
+	ModalHeader,
+	ModalTitle,
+	ModalCloseButton
+} from "./ui/ModalDialog"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -238,7 +244,6 @@ const ComingSoonModal = ({ isOpen, onClose }) => {
 		</AnimatePresence>
 	)
 }
-
 const UserProfileSection = ({ isCollapsed, user }) => {
 	const [isUserMenuOpen, setUserMenuOpen] = useState(false)
 	const userMenuRef = useRef(null)
@@ -344,35 +349,18 @@ const UserProfileSection = ({ isCollapsed, user }) => {
 		</div>
 	)
 }
-
 const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 	return (
-		<motion.div
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
-			className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
-			onClick={onClose}
+		<ModalDialog
+			isOpen={true}
+			onClose={onClose}
+			className="max-w-lg bg-neutral-900/90 backdrop-blur-xl p-0"
 		>
-			<motion.div
-				initial={{ scale: 0.95, y: 20 }}
-				animate={{ scale: 1, y: 0 }}
-				exit={{ scale: 0.95, y: -20 }}
-				transition={{ duration: 0.2, ease: "easeInOut" }}
-				onClick={(e) => e.stopPropagation()}
-				className="relative bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-neutral-700 flex flex-col"
-			>
-				<header className="flex justify-between items-center mb-6 flex-shrink-0">
-					<h2 className="text-lg font-semibold text-white">
-						Need Help?
-					</h2>
-					<button
-						onClick={onClose}
-						className="p-1.5 rounded-full hover:bg-neutral-700"
-					>
-						<IconX size={18} />
-					</button>
-				</header>
+			<div className="p-6">
+				<ModalHeader className="p-0 border-none mb-6">
+					<ModalTitle>Need Help?</ModalTitle>
+					<ModalCloseButton onClose={onClose} />
+				</ModalHeader>
 				<main className="space-y-4">
 					<button
 						onClick={onShowDemo}
@@ -467,11 +455,10 @@ const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 						</div>
 					</a>
 				</main>
-			</motion.div>
-		</motion.div>
+			</div>
+		</ModalDialog>
 	)
 }
-
 const SidebarContent = ({
 	isCollapsed,
 	onNotificationsOpen,
@@ -813,7 +800,6 @@ const SidebarContent = ({
 		</div>
 	)
 }
-
 const Sidebar = ({
 	onNotificationsOpen,
 	onSearchOpen,

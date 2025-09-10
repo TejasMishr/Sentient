@@ -21,7 +21,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
 
-import TaskDetailsPanel from "@components/tasks/TaskDetailsPanel"
+import TaskDetails from "@components/tasks/TaskDetails"
 import TaskViewSwitcher from "@components/tasks/TaskViewSwitcher"
 import ListView from "@components/tasks/ListView"
 import TaskComposer from "@components/tasks/TaskComposer"
@@ -546,7 +546,7 @@ function TasksPageContent() {
 	}
 
 	const renderTaskDetails = (task) => (
-		<TaskDetailsPanel
+		<TaskDetails
 			task={task}
 			allTools={allTools}
 			integrations={integrations}
@@ -750,8 +750,12 @@ function TasksPageContent() {
 				</main>
 
 				{/* Desktop Drawer */}
-				<Drawer isOpen={!isMobile && !!selectedTaskOrDemo} onClose={handleClosePanel}>
-					{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
+				<Drawer
+					isOpen={!isMobile && !!selectedTaskOrDemo}
+					onClose={handleClosePanel}
+				>
+					{selectedTaskOrDemo &&
+						renderTaskDetails(selectedTaskOrDemo)}
 				</Drawer>
 			</div>
 

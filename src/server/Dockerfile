@@ -1,7 +1,6 @@
 # Use a slim Python base image
 FROM python:3.11-slim
 
-# Set working directory early
 WORKDIR /app
 
 # Install system dependencies first, as they change infrequently
@@ -13,6 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     gnupg \
     python3-pip \
+    # Build tools for Python C/C++ extensions
+    build-essential \
+    gcc \
+    g++ \
+    python3-dev \
     # Add textract dependencies
     antiword \
     poppler-utils \
@@ -20,28 +24,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unrtf \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install Python dependencies to a separate layer
-# This layer will be cached unless requirements.txt changes.
+# Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
 # --- Build Arguments ---
-# These arguments are passed from docker-compose.yaml or the `docker build` command.
 ARG OPENAI_API_KEY
 ARG OPENAI_MODEL_NAME
 
-# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    DEBIAN_FRONTEND=noninteractive
-# Set Ollama to listen on all interfaces within the container
-ENV OLLAMA_HOST=0.0.0.0
+    DEBIAN_FRONTEND=noninteractive \
+    OLLAMA_HOST=0.0.0.0
 
-# --- Conditional Ollama Installation ---
-# This checks if the API key is set to 'ollama'. If so, install Ollama and pull the specified model.
-# This is checked during the 'docker build' process.
+# Conditional Ollama installation
 RUN if [ "$OPENAI_API_KEY" = "ollama" ]; then \
     echo "Ollama API key detected. Installing Ollama..."; \
     curl -fsSL https://ollama.com/install.sh | sh; \
@@ -51,27 +49,19 @@ RUN if [ "$OPENAI_API_KEY" = "ollama" ]; then \
     echo "Ollama configuration not detected. Skipping installation."; \
     fi
 
-# Create required directories
 RUN mkdir -p /etc/supervisor/conf.d /var/log/supervisor
 
-# Copy configuration files and server code
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY nginx.conf /etc/nginx/sites-available/sentient
 COPY . .
 
-# Fix line endings for .env and start.sh (if present)
 RUN if [ -f /app/.env ]; then dos2unix /app/.env; fi \
     && dos2unix /app/start.sh \
     && chmod +x /app/start.sh
 
-# Remove default Nginx site configuration and enable our custom one
-RUN rm -f /etc/nginx/sites-enabled/default
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && ln -s /etc/nginx/sites-available/sentient /etc/nginx/sites-enabled/sentient
 
-# Enable custom Nginx site
-RUN ln -s /etc/nginx/sites-available/sentient /etc/nginx/sites-enabled/sentient
-
-# Expose port
 EXPOSE 5000
 
-# Start our processes using supervisord
 CMD ["/app/start.sh"]

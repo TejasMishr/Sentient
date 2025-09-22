@@ -550,6 +550,7 @@ export default function LayoutWrapper({ children }) {
 	const [isSearchOpen, setSearchOpen] = useState(false)
 	const [isMobileNavOpen, setMobileNavOpen] = useState(false)
 	const [unreadCount, setUnreadCount] = useState(0)
+	const [user, setUser] = useState(null) // Unified user state
 	const [notifRefreshKey, setNotifRefreshKey] = useState(0)
 	const [userDetails, setUserDetails] = useState(null)
 	const wsRef = useRef(null)
@@ -566,7 +567,7 @@ export default function LayoutWrapper({ children }) {
 		isHighlightPaused: false
 	})
 	const chatActionsRef = useRef(null)
-	const pathname = usePathname()
+	const pathname = usePathname() // eslint-disable-line
 	const router = useRouter()
 
 	const skipTour = useCallback(() => {
@@ -820,7 +821,11 @@ export default function LayoutWrapper({ children }) {
 		}
 	]
 
-	const { user, error: authError, isLoading: isAuthLoading } = useUser()
+	const {
+		user: auth0User,
+		error: authError,
+		isLoading: isAuthLoading
+	} = useUser()
 
 	const [isLoading, setIsLoading] = useState(true)
 	const [isAllowed, setIsAllowed] = useState(false)
@@ -912,10 +917,10 @@ export default function LayoutWrapper({ children }) {
 	const showNav = !["/", "/onboarding"].includes(pathname)
 
 	useEffect(() => {
-		if (user && posthog) {
-			posthog.identify(user.sub, {
-				name: user.name,
-				email: user.email
+		if (auth0User && posthog) {
+			posthog.identify(auth0User.sub, {
+				name: auth0User.name,
+				email: auth0User.email
 			})
 
 			// --- NEW: Fetch custom properties and set PostHog groups ---
@@ -967,7 +972,7 @@ export default function LayoutWrapper({ children }) {
 			fetchAndSetUserGroups()
 			// --- END NEW ---
 		}
-	}, [user, posthog])
+	}, [auth0User, posthog])
 
 	useEffect(() => {
 		const paymentStatus = searchParams.get("payment_status")
@@ -1031,39 +1036,55 @@ export default function LayoutWrapper({ children }) {
 			return
 		}
 
-		if (isAuthLoading) return
-
-		if (authError) {
-			toast.error("Session error. Redirecting to login.", {
-				id: "auth-error"
-			})
-			router.push("/auth/login")
-			return
-		}
-
-		if (!user) {
-			// This handles the case where the user logs out.
-			router.push("/auth/login")
-			return
-		}
-
 		const checkStatus = async () => {
-			// No need to set isLoading(true) here, it's already true by default.
+			// --- SELF-HOST AUTH LOGIC ---
+			if (process.env.NEXT_PUBLIC_ENVIRONMENT === "selfhost") {
+				try {
+					const res = await fetch("/api/user/profile")
+					if (res.ok) {
+						const selfHostUser = await res.json()
+						setUser(selfHostUser) // Set the unified user state
+						setIsAllowed(true)
+					} else {
+						throw new Error(
+							"Failed to fetch self-host user profile."
+						)
+					}
+				} catch (error) {
+					toast.error(error.message)
+					setIsAllowed(false)
+				} finally {
+					setIsLoading(false)
+				}
+				return
+			}
+
+			// --- AUTH0 AUTH LOGIC ---
+			if (isAuthLoading) return
+
+			if (authError) {
+				toast.error(
+					`Session error: ${authError.message}. Redirecting to login.`,
+					{ id: "auth-error" }
+				)
+				router.push("/api/auth/login")
+				return
+			}
+
+			if (!auth0User) {
+				router.push("/api/auth/login")
+				return
+			}
+
+			setUser(auth0User) // Set the unified user state
+
 			try {
 				const res = await fetch("/api/user/data", { method: "POST" })
 				if (!res.ok) throw new Error("Could not verify user status.")
 				const result = await res.json()
-				const data = result?.data || {}
-
-				const onboardingComplete = data.onboardingComplete
-
-				if (!onboardingComplete) {
-					toast.error("Please complete onboarding first.", {
-						id: "onboarding-check"
-					})
+				if (!result?.data?.onboardingComplete) {
 					router.push("/onboarding")
 				} else {
-					// User is fully onboarded and profile is complete.
 					setIsAllowed(true)
 				}
 			} catch (error) {
@@ -1075,7 +1096,7 @@ export default function LayoutWrapper({ children }) {
 		}
 
 		checkStatus()
-	}, [pathname, router, showNav, user, authError, isAuthLoading]) // Reruns on navigation
+	}, [showNav, auth0User, isAuthLoading, authError, router])
 
 	const handleNotificationsOpen = useCallback(() => {
 		setNotificationsOpen(true)
@@ -1294,8 +1315,8 @@ export default function LayoutWrapper({ children }) {
 	}, [])
 
 	useEffect(() => {
-		if (showNav && userDetails?.sub) subscribeToPushNotifications()
-	}, [showNav, userDetails, subscribeToPushNotifications])
+		if (showNav && user?.sub) subscribeToPushNotifications()
+	}, [showNav, user, subscribeToPushNotifications])
 
 	// Define shortcuts after all their callback dependencies are defined
 	useGlobalShortcuts(
@@ -1325,14 +1346,14 @@ export default function LayoutWrapper({ children }) {
 		<PlanContext.Provider
 			value={{
 				plan: (
-					user?.[
+					auth0User?.[
 						`${process.env.NEXT_PUBLIC_AUTH0_NAMESPACE}/roles`
 					] || []
 				).includes("Pro")
 					? "pro"
 					: "free",
 				isPro: (
-					user?.[
+					auth0User?.[
 						`${process.env.NEXT_PUBLIC_AUTH0_NAMESPACE}/roles`
 					] || []
 				).includes("Pro"),

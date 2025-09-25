@@ -25,18 +25,6 @@ import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackg
 import CollapsibleSection from "@components/tasks/CollapsibleSection"
 import { sendNotificationToCurrentUser } from "@app/actions"
 
-const HelpTooltip = ({ content }) => (
-	<div className="fixed bottom-6 left-6 z-40">
-		<button
-			data-tooltip-id="page-help-tooltip"
-			data-tooltip-content={content}
-			className="p-1.5 rounded-full text-neutral-500 hover:text-white hover:bg-neutral-800/50 pulse-glow-animation"
-		>
-			<IconHelpCircle size={22} />
-		</button>
-	</div>
-)
-
 const handleTestPush = async () => {
 	const toastId = toast.loading("Sending test push notification...")
 	try {
@@ -241,9 +229,11 @@ const WhatsAppSettings = () => {
 			<div className="bg-neutral-900/50 p-6 rounded-2xl border border-neutral-800">
 				<div className="space-y-4">
 					<p className="text-neutral-400 text-sm">
-						Receive important system notifications (e.g., task
-						completions) on WhatsApp. Enter your number including
-						the country code (e.g., +14155552671).
+						Receive important notifications on WhatsApp. We are in
+						the process of getting an official number for Sentient.
+						Until then, notifications will be sent via our
+						co-founder Sarthak's number (+91827507823). Please enter
+						your number with the country code.
 					</p>
 					{isNotifLoading ? (
 						<div className="flex justify-center mt-4">
@@ -1107,7 +1097,6 @@ export default function SettingsPage() {
 				</header>
 
 				<main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pb-4 sm:pb-6 md:pb-10 custom-scrollbar">
-					<HelpTooltip content="Customize your experience here." />
 					<div className="w-full max-w-4xl mx-auto space-y-12 pt-8">
 						<ProfileSettings
 							initialData={profileData?.onboardingAnswers}
@@ -1116,9 +1105,10 @@ export default function SettingsPage() {
 						/>
 						<WhatsAppSettings />
 						<ShortcutsSettings />
-						{process.env.NEXT_PUBLIC_ENVIRONMENT !== "prod" && (
-							<TestingTools />
-						)}
+						{process.env.NEXT_PUBLIC_ENVIRONMENT !== "prod" &&
+							process.env.NEXT_PUBLIC_ENVIRONMENT !== "stag" && (
+								<TestingTools />
+							)}
 					</div>
 				</main>
 			</div>

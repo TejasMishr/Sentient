@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import toast from "react-hot-toast"
 import {
 	// ICONS
@@ -19,12 +20,21 @@ import {
 	IconRefresh,
 	IconUsers
 } from "@tabler/icons-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useCallback } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Tooltip } from "react-tooltip"
 import { cn } from "@utils/cn"
+import { useUserStore } from "@stores/app-stores"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import CollapsibleSection from "@components/tasks/CollapsibleSection"
 import { sendNotificationToCurrentUser } from "@app/actions"
+import { Button } from "@components/ui/button"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
+import apiClient from "@lib/apiClient"
 
 const handleTestPush = async () => {
 	const toastId = toast.loading("Sending test push notification...")
@@ -61,15 +71,10 @@ const questionSections = {
 const handleTestInApp = async () => {
 	const toastId = toast.loading("Sending test in-app notification...")
 	try {
-		const response = await fetch("/api/testing/notification", {
+		await apiClient("/api/testing/notification", {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ type: "in-app" })
 		})
-		const result = await response.json()
-		if (!response.ok) {
-			throw new Error(result.detail || "Failed to send notification.")
-		}
 		// The notification will arrive via WebSocket, so no success toast here.
 		// The LayoutWrapper will show the toast. I'll just dismiss the loading one.
 		toast.dismiss(toastId)
@@ -205,83 +210,78 @@ const questions = [
 ]
 
 const WhatsAppSettings = () => {
-	// State for System Notifications
+	const queryClient = useQueryClient()
 	const [notificationNumber, setNotificationNumber] = useState("")
-	const [isNotifLoading, setIsNotifLoading] = useState(true)
-	const [isSaving, setIsSaving] = useState(false)
-	const [notificationsEnabled, setNotificationsEnabled] = useState(false)
 
-	const fetchNotificationSettings = useCallback(async () => {
-		setIsNotifLoading(true)
-		try {
-			const response = await fetch("/api/settings/whatsapp-notifications") // prettier-ignore
+	const { data: settings, isLoading: isNotifLoading } = useQuery({
+		queryKey: ["whatsappNotificationSettings"],
+		queryFn: async () => {
+			const response = await fetch("/api/settings/whatsapp-notifications")
 			if (!response.ok)
 				throw new Error(
 					"Failed to fetch WhatsApp notification settings."
 				)
 			const data = await response.json()
 			setNotificationNumber(data.whatsapp_notifications_number || "")
-			setNotificationsEnabled(data.notifications_enabled || false)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsNotifLoading(false)
+			return data
 		}
-	}, [])
+	})
 
-	useEffect(() => {
-		fetchNotificationSettings()
-	}, [fetchNotificationSettings])
+	const notificationsEnabled = settings?.notifications_enabled || false
 
-	const handleSaveNotifNumber = async () => {
-		setIsSaving(true)
-		try {
-			const response = await fetch(
-				"/api/settings/whatsapp-notifications",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						whatsapp_notifications_number: notificationNumber
-					})
+	const saveNumberMutation = useMutation({
+		mutationFn: (number) =>
+			fetch("/api/settings/whatsapp-notifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					whatsapp_notifications_number: number
+				})
+			}).then(async (res) => {
+				if (!res.ok) {
+					const data = await res.json()
+					throw new Error(data.detail || "Failed to save number.")
 				}
-			)
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.detail || "Failed to save number.")
+				return res.json()
+			}),
+		onSuccess: () => {
 			toast.success("Notifications enabled for this number!")
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsSaving(false)
-		}
-	}
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
+		},
+		onError: (error) => toast.error(error.message)
+	})
 
-	const handleToggleNotifications = async (enabled) => {
-		setNotificationsEnabled(enabled)
-		const toastId = toast.loading(
-			enabled ? "Enabling notifications..." : "Disabling notifications..."
-		)
-		try {
-			const response = await fetch(
-				"/api/settings/whatsapp-notifications/toggle",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ enabled })
+	const toggleNotificationsMutation = useMutation({
+		mutationFn: (enabled) =>
+			fetch("/api/settings/whatsapp-notifications/toggle", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ enabled })
+			}).then(async (res) => {
+				if (!res.ok) {
+					const data = await res.json()
+					throw new Error(
+						data.detail || "Failed to update preference."
+					)
 				}
-			)
-			const data = await response.json()
-			if (!response.ok) {
-				setNotificationsEnabled(!enabled)
-				throw new Error(data.detail || "Failed to update preference.")
-			}
-			toast.success(data.message, { id: toastId })
-		} catch (error) {
-			setNotificationsEnabled(!enabled)
+				return res.json()
+			}),
+		onSuccess: (data) => {
+			toast.success(data.message)
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
+		},
+		onError: (error) => {
 			toast.error(error.message)
+			// Revert optimistic update on error by invalidating
+			queryClient.invalidateQueries({
+				queryKey: ["whatsappNotificationSettings"]
+			})
 		}
-	}
+	})
 
 	const hasNotifNumber =
 		notificationNumber && notificationNumber.trim() !== ""
@@ -322,7 +322,7 @@ const WhatsAppSettings = () => {
 								<button
 									id="whatsapp-toggle"
 									onClick={() =>
-										handleToggleNotifications(
+										toggleNotificationsMutation.mutate(
 											!notificationsEnabled
 										)
 									}
@@ -365,21 +365,25 @@ const WhatsAppSettings = () => {
 									/>
 								</div>
 								<div className="flex gap-2 justify-end">
-									<button
-										onClick={handleSaveNotifNumber}
+									<Button
+										onClick={() =>
+											saveNumberMutation.mutate(
+												notificationNumber
+											)
+										}
 										disabled={
-											isSaving ||
+											saveNumberMutation.isPending ||
 											!notificationNumber.trim()
 										}
-										className="flex items-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+										className="gap-2 bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 									>
-										{isSaving ? (
+										{saveNumberMutation.isPending ? (
 											<IconLoader className="w-4 h-4 mr-2 animate-spin" />
 										) : (
 											<IconPlus className="w-4 h-4 mr-2" />
 										)}{" "}
 										{hasNotifNumber ? "Update" : "Save"}
-									</button>
+									</Button>
 								</div>
 							</div>
 						</div>
@@ -474,18 +478,13 @@ const TestingTools = () => {
 		}
 
 		try {
-			const response = await fetch("/api/testing/inject-context", {
+			const result = await apiClient("/api/testing/inject-context", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					service_name: serviceName,
 					event_data: parsedData
 				})
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.error || "Failed to inject event.")
-			}
 			toast.success(
 				`Event injected successfully! Event ID: ${result.event_id}`
 			)
@@ -516,15 +515,12 @@ const TestingTools = () => {
 			"Queueing onboarding data for memory reprocessing..."
 		)
 		try {
-			const response = await fetch("/api/testing/reprocess-onboarding", {
-				method: "POST"
-			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(
-					result.detail || "Failed to trigger reprocessing."
-				)
-			}
+			const result = await apiClient(
+				"/api/testing/reprocess-onboarding",
+				{
+					method: "POST"
+				}
+			)
 			toast.success(result.message, { id: toastId })
 		} catch (error) {
 			toast.error(`Error: ${error.message}`, { id: toastId })
@@ -546,13 +542,9 @@ const TestingTools = () => {
 	const handleTriggerScheduler = async () => {
 		setIsTriggeringScheduler(true)
 		try {
-			const response = await fetch("/api/testing/trigger-scheduler", {
+			const result = await apiClient("/api/testing/trigger-scheduler", {
 				method: "POST"
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Failed to trigger scheduler.")
-			}
 			toast.success(result.message)
 		} catch (error) {
 			toast.error(error.message)
@@ -563,13 +555,9 @@ const TestingTools = () => {
 	const handleTriggerPoller = async () => {
 		setIsTriggeringPoller(true)
 		try {
-			const response = await fetch("/api/testing/trigger-poller", {
+			const result = await apiClient("/api/testing/trigger-poller", {
 				method: "POST"
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Failed to trigger poller.")
-			}
 			toast.success(result.message)
 		} catch (error) {
 			toast.error(error.message)
@@ -586,15 +574,10 @@ const TestingTools = () => {
 		setIsVerifying(true)
 		setVerificationResult({ status: null, message: "Verifying..." })
 		try {
-			const response = await fetch("/api/testing/whatsapp/verify", {
+			const result = await apiClient("/api/testing/whatsapp/verify", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ phone_number: whatsAppNumber })
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Verification request failed.")
-			}
 
 			if (result.numberExists) {
 				toast.success("Verification successful!")
@@ -625,17 +608,10 @@ const TestingTools = () => {
 		}
 		setIsSending(true)
 		try {
-			const response = await fetch("/api/testing/whatsapp", {
+			await apiClient("/api/testing/whatsapp", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ phone_number: whatsAppNumber })
 			})
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(
-					result.detail || "Failed to send test notification."
-				)
-			}
 			toast.success("Test notification sent successfully!")
 		} catch (error) {
 			toast.error(`Send failed: ${error.message}`)
@@ -695,17 +671,17 @@ const TestingTools = () => {
 						/>
 					</div>
 					<div className="flex justify-end">
-						<button
+						<Button
 							type="submit"
 							disabled={isSubmitting}
-							className="flex items-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 						>
 							{isSubmitting ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Inject Event"
 							)}
-						</button>
+						</Button>
 					</div>
 				</form>
 			</div>
@@ -721,10 +697,10 @@ const TestingTools = () => {
 					re-onboarding.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleReprocessOnboarding}
 						disabled={isReprocessing}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="gap-2 bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isReprocessing ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
@@ -732,7 +708,7 @@ const TestingTools = () => {
 							<IconRefresh className="w-5 h-5" />
 						)}{" "}
 						Run Reprocessing
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* WhatsApp Test Tools */}
@@ -766,28 +742,28 @@ const TestingTools = () => {
 						/>
 					</div>
 					<div className="flex gap-2 justify-end">
-						<button
+						<Button
 							onClick={handleVerifyWhatsApp}
 							disabled={isVerifying || isSending}
-							className="flex items-center justify-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 						>
 							{isVerifying ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Verify"
 							)}
-						</button>
-						<button
+						</Button>
+						<Button
 							onClick={handleSendTestWhatsApp}
 							disabled={isSending || isVerifying}
-							className="flex items-center justify-center py-2 px-4 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors disabled:opacity-50"
+							className="bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 						>
 							{isSending ? (
 								<IconLoader className="w-5 h-5 animate-spin" />
 							) : (
 								"Send Test"
 							)}
-						</button>
+						</Button>
 					</div>
 				</div>
 				{verificationResult.message && (
@@ -814,18 +790,18 @@ const TestingTools = () => {
 					sent to your subscribed devices.
 				</p>
 				<div className="flex flex-col sm:flex-row gap-4">
-					<button
+					<Button
 						onClick={handleTestInApp}
-						className="flex items-center justify-center py-2 px-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+						className="justify-center bg-blue-600 hover:bg-blue-500"
 					>
 						Test In-App Notification
-					</button>
-					<button
+					</Button>
+					<Button
 						onClick={handleTestPush}
-						className="flex items-center justify-center py-2 px-4 rounded-lg bg-green-600 hover:bg-green-500 text-white font-medium transition-colors"
+						className="justify-center bg-green-600 hover:bg-green-500"
 					>
 						Test Push Notification
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* Poller Test Tool */}
@@ -841,17 +817,17 @@ const TestingTools = () => {
 					for the hourly interval.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleTriggerPoller}
 						disabled={isTriggeringPoller}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isTriggeringPoller ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
 						) : (
 							"Run Poller Now"
 						)}
-					</button>
+					</Button>
 				</div>
 			</div>
 			{/* Scheduler Test Tool */}
@@ -866,17 +842,17 @@ const TestingTools = () => {
 					without waiting for the 5-minute interval.
 				</p>
 				<div className="flex justify-end">
-					<button
+					<Button
 						onClick={handleTriggerScheduler}
 						disabled={isTriggeringScheduler}
-						className="flex items-center py-2 px-4 rounded-md bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors disabled:opacity-50"
+						className="bg-purple-600 hover:bg-purple-500 text-white font-medium"
 					>
 						{isTriggeringScheduler ? (
 							<IconLoader className="w-5 h-5 animate-spin" />
 						) : (
 							"Run Scheduler Now"
 						)}
-					</button>
+					</Button>
 				</div>
 			</div>
 		</section>
@@ -884,9 +860,10 @@ const TestingTools = () => {
 }
 
 const ProfileSettings = ({ initialData, onSave, isSaving }) => {
-	const [formData, setFormData] = useState(initialData || {})
+	const [formData, setFormData] = useState({})
 
-	useEffect(() => {
+	// biome-ignore lint/correctness/useExhaustiveDependencies: We only want this to run when initialData changes
+	React.useEffect(() => {
 		setFormData(initialData || {})
 	}, [initialData])
 
@@ -907,229 +884,265 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 						actions for you.
 					</p>
 				</div>
-				<button
+				<Button
 					onClick={() => onSave(formData)}
 					disabled={isSaving}
-					className="mt-4 sm:mt-0 py-2 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/70 text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+					className="mt-4 sm:mt-0 gap-2 bg-brand-orange hover:bg-brand-orange/70 text-white font-medium"
 				>
 					{isSaving ? (
 						<IconLoader className="w-5 h-5 animate-spin" />
 					) : (
 						"Save Profile"
 					)}
-				</button>
+				</Button>
 			</div>
 
 			<div className="space-y-10 bg-neutral-900/50 p-3 rounded-2xl border border-neutral-800">
 				{Object.entries(questionSections).map(
-					([key, { title, icon }]) => (
-						<CollapsibleSection
+					([key, { title, icon }], index) => (
+						<Accordion
 							key={key}
-							title={
-								<h3 className="text-lg font-semibold text-neutral-200 flex items-center gap-3">
-									{icon} {title}
-								</h3>
-							}
-							defaultOpen={true}
+							type="single"
+							collapsible
+							defaultValue={`item-${index}`}
 						>
-							<div className="space-y-6 mt-4">
-								{questions
-									.filter((q) => q.section === key)
-									.map((q) => (
-										<div
-											key={q.id}
-											className="min-h-[68px]"
-										>
-											<label className="block text-sm font-medium text-neutral-300 mb-2 font-sans">
-												{q.question}
-											</label>
-											{(() => {
-												switch (q.type) {
-													case "text-input":
-														return (
-															// eslint-disable-line
-															<input
-																type="text"
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder={
-																	q.placeholder
-																}
-															/>
-														)
-													case "textarea":
-														return (
-															// eslint-disable-line
-															<textarea
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																rows={4}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder={
-																	q.placeholder
-																}
-															/>
-														)
-													case "select": {
-														let options = q.options
-														if (
-															q.id === "timezone"
-														) {
-															const savedTimezone =
-																formData[q.id]
-															const isTimezoneInOptions =
-																q.options.some(
-																	(opt) =>
-																		opt.value ===
-																		savedTimezone
-																)
-															if (
-																savedTimezone &&
-																!isTimezoneInOptions
-															) {
-																// Clone to avoid mutating the original questions array
-																options = [
-																	...q.options
-																]
-																options.unshift(
-																	{
-																		value: savedTimezone,
-																		label: savedTimezone.replace(
-																			/_/g,
-																			" "
-																		)
-																	}
-																)
-															}
-														}
-
-														return (
-															// eslint-disable-line
-															<select
-																value={
-																	formData[
-																		q.id
-																	] || ""
-																}
-																onChange={(e) =>
-																	handleAnswer(
-																		q.id,
-																		e.target
-																			.value
-																	)
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
-															>
-																{options.map(
-																	(opt) => (
-																		<option
-																			key={
-																				opt.value
-																			}
-																			value={
-																				opt.value
-																			}
-																		>
-																			{
-																				opt.label
-																			}
-																		</option>
-																	)
-																)}
-															</select>
-														)
-													}
-													case "location": // Simplified for now
-														const locationValue =
-															formData[q.id]
-														const isGpsLocation =
-															typeof locationValue ===
-																"object" &&
-															locationValue !==
-																null &&
-															locationValue.latitude
-
-														if (isGpsLocation) {
-															return (
-																<div className="flex items-center gap-2 font-mono">
-																	<p className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-300">
-																		{`Lat: ${locationValue.latitude?.toFixed(
-																			4
-																		)}, Lon: ${locationValue.longitude?.toFixed(
-																			4
-																		)} (Detected)`}
-																	</p>
-																	<button
-																		onClick={() =>
+							<AccordionItem value={`item-${index}`}>
+								<AccordionTrigger>
+									<h3 className="text-lg font-semibold text-neutral-200 flex items-center gap-3">
+										{icon} {title}
+									</h3>
+								</AccordionTrigger>
+								<AccordionContent>
+									<div className="space-y-6 mt-4">
+										{questions
+											.filter((q) => q.section === key)
+											.map((q) => (
+												<div
+													key={q.id}
+													className="min-h-[68px]"
+												>
+													<label className="block text-sm font-medium text-neutral-300 mb-2 font-sans">
+														{q.question}
+													</label>
+													{(() => {
+														switch (q.type) {
+															case "text-input":
+																return (
+																	// eslint-disable-line
+																	<input
+																		type="text"
+																		value={
+																			formData[
+																				q
+																					.id
+																			] ||
+																			""
+																		}
+																		onChange={(
+																			e
+																		) =>
 																			handleAnswer(
 																				q.id,
-																				""
+																				e
+																					.target
+																					.value
 																			)
 																		}
-																		className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-700 rounded-md"
-																		title="Clear and enter manually"
-																	>
-																		<IconX
-																			size={
-																				18
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder={
+																			q.placeholder
+																		}
+																	/>
+																)
+															case "textarea":
+																return (
+																	// eslint-disable-line
+																	<textarea
+																		value={
+																			formData[
+																				q
+																					.id
+																			] ||
+																			""
+																		}
+																		onChange={(
+																			e
+																		) =>
+																			handleAnswer(
+																				q.id,
+																				e
+																					.target
+																					.value
+																			)
+																		}
+																		rows={4}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder={
+																			q.placeholder
+																		}
+																	/>
+																)
+															case "select": {
+																let options =
+																	q.options
+																if (
+																	q.id ===
+																	"timezone"
+																) {
+																	const savedTimezone =
+																		formData[
+																			q.id
+																		]
+																	const isTimezoneInOptions =
+																		q.options.some(
+																			(
+																				opt
+																			) =>
+																				opt.value ===
+																				savedTimezone
+																		)
+																	if (
+																		savedTimezone &&
+																		!isTimezoneInOptions
+																	) {
+																		// Clone to avoid mutating the original questions array
+																		options =
+																			[
+																				...q.options
+																			]
+																		options.unshift(
+																			{
+																				value: savedTimezone,
+																				label: savedTimezone.replace(
+																					/_/g,
+																					" "
+																				)
 																			}
-																		/>
-																	</button>
-																</div>
-															)
-														}
-														return (
-															<input
-																type="text"
-																value={
+																		)
+																	}
+																}
+
+																return (
+																	// eslint-disable-line
+																	<select
+																		value={
+																			formData[
+																				q
+																					.id
+																			] ||
+																			""
+																		}
+																		onChange={(
+																			e
+																		) =>
+																			handleAnswer(
+																				q.id,
+																				e
+																					.target
+																					.value
+																			)
+																		}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-brand-orange appearance-none"
+																	>
+																		{options.map(
+																			(
+																				opt
+																			) => (
+																				<option
+																					key={
+																						opt.value
+																					}
+																					value={
+																						opt.value
+																					}
+																				>
+																					{
+																						opt.label
+																					}
+																				</option>
+																			)
+																		)}
+																	</select>
+																)
+															}
+															case "location": // Simplified for now
+																const locationValue =
 																	formData[
 																		q.id
-																	] || ""
+																	]
+																const isGpsLocation =
+																	typeof locationValue ===
+																		"object" &&
+																	locationValue !==
+																		null &&
+																	locationValue.latitude
+
+																if (
+																	isGpsLocation
+																) {
+																	return (
+																		<div className="flex items-center gap-2 font-mono">
+																			<p className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg px-3 py-2 text-neutral-300">
+																				{`Lat: ${locationValue.latitude?.toFixed(
+																					4
+																				)}, Lon: ${locationValue.longitude?.toFixed(
+																					4
+																				)} (Detected)`}
+																			</p>
+																			<button
+																				onClick={() =>
+																					handleAnswer(
+																						q.id,
+																						""
+																					)
+																				}
+																				className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-700 rounded-md"
+																				title="Clear and enter manually"
+																			>
+																				<IconX
+																					size={
+																						18
+																					}
+																				/>
+																			</button>
+																		</div>
+																	)
 																}
-																onChange={
-																	(
-																		e
-																	) =>
-																		handleAnswer(
-																			q.id,
-																			e
-																				.target
-																				.value
-																		) // prettier-ignore
-																}
-																className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
-																placeholder="City, Country"
-															/>
-														)
-													default:
-														return null
-												}
-											})()}
-										</div>
-									))}
-							</div>
-						</CollapsibleSection>
+																return (
+																	<input
+																		type="text"
+																		value={
+																			formData[
+																				q
+																					.id
+																			] ||
+																			""
+																		}
+																		onChange={
+																			(
+																				e
+																			) =>
+																				handleAnswer(
+																					q.id,
+																					e
+																						.target
+																						.value
+																				) // prettier-ignore
+																		}
+																		className="w-full bg-neutral-800/50 border font-mono border-neutral-700 rounded-lg px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+																		placeholder="City, Country"
+																	/>
+																)
+															default:
+																return null
+														}
+													})()}
+												</div>
+											))}
+									</div>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 					)
 				)}
 			</div>
@@ -1138,68 +1151,43 @@ const ProfileSettings = ({ initialData, onSave, isSaving }) => {
 }
 
 export default function SettingsPage() {
-	const [profileData, setProfileData] = useState(null)
-	const [isSavingProfile, setIsSavingProfile] = useState(false)
+	const queryClient = useQueryClient()
 
-	const handleSaveProfile = async (newOnboardingData) => {
-		setIsSavingProfile(true)
-		try {
-			const payload = {
-				onboardingAnswers: newOnboardingData,
-				personalInfo: {
-					name: newOnboardingData["user-name"],
-					location: newOnboardingData["location"],
-					timezone: newOnboardingData["timezone"]
-				},
-				preferences: {}
-			}
+	const {
+		user: profileData,
+		isLoading: isProfileLoading,
+		fetchUserData
+	} = useUserStore()
 
-			const response = await fetch("/api/settings/profile", {
+	const saveProfileMutation = useMutation({
+		mutationFn: (newOnboardingData) => {
+			return fetch("/api/settings/profile", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(payload)
+				body: JSON.stringify({
+					onboardingAnswers: newOnboardingData,
+					personalInfo: {
+						name: newOnboardingData["user-name"],
+						location: newOnboardingData["location"],
+						timezone: newOnboardingData["timezone"]
+					},
+					preferences: {}
+				})
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json()
+					throw new Error(errorData.error || "Failed to save profile")
+				}
+				return res.json()
 			})
-
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.error || "Failed to save profile")
-			}
+		},
+		onSuccess: () => {
 			toast.success("Profile updated successfully!")
-			fetchData() // Refresh data to show changes
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["userProfileData"] })
+		},
+		onError: (error) =>
 			toast.error(`Error saving profile: ${error.message}`)
-		} finally {
-			setIsSavingProfile(false)
-		}
-	}
-
-	const fetchData = useCallback(async () => {
-		try {
-			const [response, profileResponse] = await Promise.all([
-				fetch("/api/user/data", { method: "POST" }),
-				fetch("/api/user/profile")
-			])
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(
-					errorData.message || "Failed to fetch user data"
-				)
-			}
-			if (!profileResponse.ok)
-				throw new Error("Failed to fetch user profile")
-			const result = await response.json()
-			const profile = await profileResponse.json()
-			if (result.data) {
-				setProfileData({ ...profile, ...result.data })
-			}
-		} catch (error) {
-			toast.error(`Failed to fetch user data: ${error.message}`)
-		}
-	}, [])
-
-	useEffect(() => {
-		fetchData()
-	}, [fetchData])
+	})
 
 	return (
 		<div className="flex-1 flex h-screen text-white overflow-x-hidden">
@@ -1224,11 +1212,19 @@ export default function SettingsPage() {
 
 				<main className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-10 pb-4 sm:pb-6 md:pb-10 custom-scrollbar">
 					<div className="w-full max-w-4xl mx-auto space-y-12">
-						<ProfileSettings
-							initialData={profileData?.onboardingAnswers}
-							onSave={handleSaveProfile}
-							isSaving={isSavingProfile}
-						/>
+						{isProfileLoading ? (
+							<div className="flex justify-center items-center h-64">
+								<IconLoader className="animate-spin text-brand-orange" />
+							</div>
+						) : (
+							<ProfileSettings
+								initialData={profileData?.onboardingAnswers}
+								onSave={(data) =>
+									saveProfileMutation.mutate(data)
+								}
+								isSaving={saveProfileMutation.isPending}
+							/>
+						)}
 						<div data-tour-id="notifications-section">
 							<WhatsAppSettings />
 						</div>

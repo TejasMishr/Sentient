@@ -32,15 +32,15 @@ import {
 import { AnimatePresence, motion } from "framer-motion"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import IconGoogleDocs from "./icons/IconGoogleDocs"
-import IconGoogleSheets from "./icons/IconGoogleSheets"
-import IconGoogleCalendar from "./icons/IconGoogleCalendar"
-import IconGoogleSlides from "./icons/IconGoogleSlides" // This is a custom one, not from tabler
-import IconGoogleMail from "./icons/IconGoogleMail"
-import IconGoogleDrive from "./icons/IconGoogleMail"
+import IconGoogleDocs from "@components/icons/IconGoogleDocs"
+import IconGoogleSheets from "@components/icons/IconGoogleSheets"
+import IconGoogleCalendar from "@components/icons/IconGoogleCalendar"
+import IconGoogleSlides from "@components/icons/IconGoogleSlides" // This is a custom one, not from tabler
+import IconGoogleMail from "@components/icons/IconGoogleMail"
+import IconGoogleDrive from "@components/icons/IconGoogleMail"
 import { Tooltip } from "react-tooltip"
 import toast from "react-hot-toast"
-import FileCard from "./FileCard"
+import FileCard from "@components/ui/FileCard"
 
 const toolIcons = {
 	gmail: IconGoogleMail,

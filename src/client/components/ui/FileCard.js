@@ -1,36 +1,36 @@
 "use client"
 
 import React from "react"
-import { IconFile, IconDownload } from "@tabler/icons-react"
+import { IconFile, IconDownload, IconLoader } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
 import toast from "react-hot-toast"
+import { useMutation } from "@tanstack/react-query"
 
 const FileCard = ({ filename }) => {
-	const handleDownload = async () => {
-		const toastId = toast.loading(`Downloading ${filename}...`)
-		try {
+	const downloadFileMutation = useMutation({
+		mutationFn: async (fname) => {
 			const response = await fetch(
-				`/api/files/download/${encodeURIComponent(filename)}`
+				`/api/files/download/${encodeURIComponent(fname)}`
 			)
-
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(errorData.error || "Download failed")
-			}
-
-			const blob = await response.blob()
 			const url = window.URL.createObjectURL(blob)
 			const a = document.createElement("a")
 			a.href = url
-			a.download = filename
+			a.download = fname
 			document.body.appendChild(a)
 			a.click()
 			a.remove()
 			window.URL.revokeObjectURL(url)
-			toast.success(`${filename} downloaded.`, { id: toastId })
-		} catch (error) {
-			toast.error(`Error: ${error.message}`, { id: toastId })
+		},
+		onSuccess: () => {
+			toast.success(`${filename} downloaded.`)
+		},
+		onError: (error) => {
+			toast.error(`Error: ${error.message}`)
 		}
+	})
+
+	const handleDownload = () => {
+		downloadFileMutation.mutate(filename)
 	}
 
 	return (
@@ -53,10 +53,15 @@ const FileCard = ({ filename }) => {
 			</div>
 			<button
 				onClick={handleDownload}
-				className="flex-shrink-0 rounded-md bg-blue-600 p-2 text-white hover:bg-blue-500"
+				disabled={downloadFileMutation.isPending}
+				className="flex-shrink-0 rounded-md bg-blue-600 p-2 text-white hover:bg-blue-500 disabled:bg-blue-800 disabled:cursor-not-allowed"
 				title={`Download ${filename}`}
 			>
-				<IconDownload size={16} />
+				{downloadFileMutation.isPending ? (
+					<IconLoader size={16} className="animate-spin" />
+				) : (
+					<IconDownload size={16} />
+				)}
 			</button>
 		</div>
 	)

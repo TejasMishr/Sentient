@@ -3,7 +3,8 @@ import { Auth0Provider } from "@auth0/nextjs-auth0"
 import "@styles/globals.css" // Import global styles for the application
 import { Toaster } from "react-hot-toast"
 import React, { Suspense } from "react"
-import LayoutWrapper from "@components/LayoutWrapper"
+import ReactQueryProvider from "@lib/ReactQueryProvider"
+import LayoutWrapper from "@components/layout/LayoutWrapper"
 import { PostHogProvider } from "@components/PostHogProvider"
 
 /**
@@ -66,14 +67,14 @@ export default function RootLayout({ children }) {
 			</head>
 			<body className="font-sans" suppressHydrationWarning>
 				<Auth0Provider>
-					<PostHogProvider>
+					<ReactQueryProvider>
 						<Toaster position="bottom-right" />
 						<div className="flex h-screen w-full text-white overflow-hidden">
 							<Suspense>
 								<LayoutWrapper>{children}</LayoutWrapper>
 							</Suspense>
 						</div>
-					</PostHogProvider>
+					</ReactQueryProvider>
 				</Auth0Provider>
 			</body>
 		</html>

@@ -4,9 +4,14 @@ import React, { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { taskStatusColors, priorityMap } from "./constants"
 import { cn } from "@utils/cn"
-import CollapsibleSection from "./CollapsibleSection"
 import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
 
 const TriggeredTaskDetails = ({ task, userTimezone }) => {
 	if (!task) return null
@@ -103,7 +108,11 @@ const TriggeredTaskDetails = ({ task, userTimezone }) => {
 					<h4 className="font-semibold text-neutral-300 mb-2">
 						Run History
 					</h4>
-					<div className="space-y-3">
+					<Accordion
+						type="single"
+						collapsible
+						defaultValue={task.runs[task.runs.length - 1]?.run_id}
+					>
 						{task.runs
 							.slice()
 							.reverse()
@@ -160,12 +169,14 @@ const TriggeredTaskDetails = ({ task, userTimezone }) => {
 									</div>
 								)
 								return (
-									<CollapsibleSection
+									<AccordionItem
 										key={run.run_id}
-										title={title}
-										defaultOpen={index === 0}
+										value={run.run_id}
 									>
-										<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4 mt-2">
+										<AccordionTrigger>
+											{title}
+										</AccordionTrigger>
+										<AccordionContent>
 											{run.trigger_event_data && (
 												<div>
 													<h5 className="text-xs font-semibold text-neutral-400 mb-1">
@@ -196,11 +207,11 @@ const TriggeredTaskDetails = ({ task, userTimezone }) => {
 													run.
 												</p>
 											)}
-										</div>
-									</CollapsibleSection>
+										</AccordionContent>
+									</AccordionItem>
 								)
 							})}
-					</div>
+					</Accordion>
 				</div>
 			)}
 		</div>

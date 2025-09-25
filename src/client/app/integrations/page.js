@@ -1,7 +1,6 @@
-// src/client/app/integrations/page.js
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import React, { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import SparkleEffect from "@components/ui/SparkleEffect"
 import { BorderTrail } from "@components/ui/border-trail"
 import toast from "react-hot-toast"
@@ -45,8 +44,6 @@ import {
 	IconListCheck
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
-import { usePostHog } from "posthog-js/react"
-import { usePlan } from "@hooks/usePlan"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -60,9 +57,25 @@ import {
 	MorphingDialogContainer
 } from "@components/ui/morphing-dialog"
 import { Tooltip } from "react-tooltip"
-import ModalDialog from "@components/ModalDialog"
+import {
+	ModalDialog,
+	ModalHeader,
+	ModalTitle,
+	ModalBody,
+	ModalFooter
+} from "@components/ui/ModalDialog"
 import { useRouter } from "next/navigation"
 import { INTEGRATION_CAPABILITIES } from "@utils/integration-capabilities"
+import { Button } from "@components/ui/button"
+import { Card, CardContent, CardFooter, CardHeader } from "@components/ui/card"
+import apiClient from "@lib/apiClient"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import {
+	useUIStore,
+	useUserStore,
+	useIntegrationStore
+} from "@stores/app-stores"
+import { usePostHog } from "posthog-js/react"
 
 const integrationColorIcons = {
 	gmail: IconMail,
@@ -179,18 +192,15 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
-								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 transition-colors"
-							>
+							</Button>
+							<Button onClick={onClose} variant="ghost">
 								Cancel
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -205,19 +215,21 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 	if (!isOpen) return null
 
 	return (
-		<ModalDialog
-			title={
-				<div className="flex items-center gap-2">
-					<IconBrandWhatsapp />
-					<span>WhatsApp Disclaimer</span>
-				</div>
-			}
-			description="Please review the following before connecting your WhatsApp account."
-			onCancel={onClose}
-			onConfirm={onAgree}
-			confirmButtonText="Agree and Connect"
-			extraContent={
-				<div className="text-sm text-neutral-300 space-y-3 pt-2">
+		<ModalDialog isOpen={isOpen} onClose={onClose}>
+			<ModalHeader>
+				<ModalTitle>
+					<div className="flex items-center gap-2">
+						<IconBrandWhatsapp />
+						<span>WhatsApp Disclaimer</span>
+					</div>
+				</ModalTitle>
+			</ModalHeader>
+			<ModalBody>
+				<p>
+					Please review the following before connecting your WhatsApp
+					account.
+				</p>
+				<div className="text-sm text-neutral-300 space-y-3 pt-4">
 					<p>
 						By proceeding, you acknowledge that you have read and
 						agree to the{" "}
@@ -237,12 +249,21 @@ const WhatsAppDisclaimerModal = ({ isOpen, onAgree, onClose }) => {
 						manage your chats and contacts.
 					</p>
 				</div>
-			}
-		/>
+			</ModalBody>
+			<ModalFooter>
+				<Button variant="secondary" onClick={onClose}>
+					Cancel
+				</Button>
+				<Button
+					onClick={onAgree}
+					className="bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
+				>
+					Agree and Connect
+				</Button>
+			</ModalFooter>
+		</ModalDialog>
 	)
 }
-
-const MANUAL_INTEGRATION_CONFIGS = {} // Manual integrations removed for Slack and Notion
 
 const WhatsAppQRCodeModal = ({ onClose }) => {
 	const [qrCode, setQrCode] = useState(null)
@@ -259,13 +280,9 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 
 	const pollStatus = useCallback(async () => {
 		try {
-			const res = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/whatsapp/status"
 			)
-			const data = await res.json()
-			if (!res.ok) {
-				throw new Error(data.error || "Failed to get status")
-			}
 			if (data.status === "WORKING") {
 				setStatus("working")
 				toast.success("WhatsApp connected successfully!")
@@ -289,14 +306,10 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 		setStatus("initiating")
 		setError("")
 		try {
-			const res = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/whatsapp/connect/initiate",
 				{ method: "POST" }
 			)
-			const data = await res.json()
-			if (!res.ok) {
-				throw new Error(data.error || "Failed to get QR code")
-			}
 			setQrCode(data.data)
 			setStatus("scanning")
 
@@ -368,12 +381,9 @@ const WhatsAppQRCodeModal = ({ onClose }) => {
 					)}
 				</main>
 				<footer className="mt-6 text-center">
-					<button
-						onClick={onClose}
-						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-					>
+					<Button onClick={onClose} variant="secondary">
 						Cancel
-					</button>
+					</Button>
 				</footer>
 			</motion.div>
 		</motion.div>
@@ -414,12 +424,12 @@ const FilterInputSection = ({
 					placeholder={placeholder}
 					className="flex-grow bg-[var(--color-primary-surface-elevated)] border border-neutral-600 rounded-md px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] w-full"
 				/>
-				<button
+				<Button
 					onClick={handleAdd}
-					className="flex flex-row items-center justify-center py-2 px-4 rounded-md bg-brand-orange hover:bg-brand-orange/80 text-brand-black font-semibold transition-colors"
+					className="gap-2 bg-brand-orange hover:bg-brand-orange/80 text-brand-black font-semibold"
 				>
-					<IconPlus className="w-4 h-4 mr-2" /> Add
-				</button>
+					<IconPlus size={16} /> Add
+				</Button>
 			</div>
 			<div className="flex flex-wrap gap-2">
 				{items.length > 0 ? (
@@ -448,53 +458,63 @@ const FilterInputSection = ({
 }
 
 const PrivacySettings = ({ serviceName }) => {
-	const [filters, setFilters] = useState({
-		keywords: [],
-		emails: [],
-		labels: []
-	})
-	const [isLoading, setIsLoading] = useState(true)
+	const queryClient = useQueryClient()
 
-	const fetchFilters = useCallback(async () => {
-		setIsLoading(true)
-		try {
+	const { data: filters, isLoading } = useQuery({
+		queryKey: ["privacyFilters", serviceName],
+		queryFn: async () => {
 			const response = await fetch(
 				`/api/settings/privacy-filters?service=${serviceName}`
 			)
 			if (!response.ok) throw new Error("Failed to fetch filters.")
 			const data = await response.json()
-			setFilters(data.filters)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [serviceName])
+			return data.filters
+		},
+		initialData: { keywords: [], emails: [], labels: [] }
+	})
 
-	useEffect(() => {
-		fetchFilters()
-	}, [fetchFilters])
-
-	const handleSaveFilters = async (updatedFilters) => {
-		setIsLoading(true)
-		try {
-			const response = await fetch("/api/settings/privacy-filters", {
+	const updateFiltersMutation = useMutation({
+		mutationFn: (updatedFilters) =>
+			fetch("/api/settings/privacy-filters", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
 					service: serviceName,
 					filters: updatedFilters
 				})
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to save filters.")
+				return res.json()
+			}),
+		onMutate: async (updatedFilters) => {
+			await queryClient.cancelQueries({
+				queryKey: ["privacyFilters", serviceName]
 			})
-			if (!response.ok) throw new Error("Failed to save filters.")
+			const previousFilters = queryClient.getQueryData([
+				"privacyFilters",
+				serviceName
+			])
+			queryClient.setQueryData(
+				["privacyFilters", serviceName],
+				updatedFilters
+			)
+			return { previousFilters }
+		},
+		onError: (err, newFilters, context) => {
+			queryClient.setQueryData(
+				["privacyFilters", serviceName],
+				context.previousFilters
+			)
+			toast.error(err.message)
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["privacyFilters", serviceName]
+			})
+		},
+		onSuccess: () => {
 			toast.success("Privacy filters updated.")
-			setFilters(updatedFilters)
-		} catch (error) {
-			toast.error(error.message)
-		} finally {
-			setIsLoading(false)
 		}
-	}
+	})
 
 	const handleAddItem = (type, value) => {
 		if (!filters[type].includes(value)) {
@@ -502,7 +522,7 @@ const PrivacySettings = ({ serviceName }) => {
 				...filters,
 				[type]: [...filters[type], value]
 			}
-			handleSaveFilters(updatedFilters)
+			updateFiltersMutation.mutate(updatedFilters)
 		}
 	}
 
@@ -511,7 +531,7 @@ const PrivacySettings = ({ serviceName }) => {
 			...filters,
 			[type]: filters[type].filter((item) => item !== value)
 		}
-		handleSaveFilters(updatedFilters)
+		updateFiltersMutation.mutate(updatedFilters)
 	}
 
 	if (isLoading) {
@@ -600,12 +620,9 @@ const PrivacySettingsModal = ({ serviceName, onClose }) => {
 					<PrivacySettings serviceName={serviceName} />
 				</main>
 				<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end">
-					<button
-						onClick={onClose}
-						className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-					>
+					<Button onClick={onClose} variant="secondary">
 						Done
-					</button>
+					</Button>
 				</footer>
 			</motion.div>
 		</motion.div>
@@ -673,18 +690,23 @@ const IntegrationHeader = ({
 			{/* Filter Pills */}
 			<div className="mt-4 flex flex-wrap gap-2">
 				{categoriesToShow.map((category) => (
-					<button
+					<Button
 						key={category}
 						onClick={() => onCategoryChange(category)}
-						className={cn(
-							"px-4 py-2 rounded-full text-sm font-medium transition-colors",
+						variant={
 							activeCategory === category
-								? "bg-brand-orange text-black"
-								: "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+								? "default"
+								: "secondary"
+						}
+						className={cn(
+							"rounded-full",
+							activeCategory === category &&
+								"bg-brand-orange text-black hover:bg-brand-orange/90",
+							activeCategory !== category && "text-neutral-300"
 						)}
 					>
 						{category}
-					</button>
+					</Button>
 				))}
 			</div>
 		</div>
@@ -734,15 +756,15 @@ const IntegrationCard = ({
 	const isDisabledForFree = isProFeature && !isProUser
 
 	return (
-		<div className="bg-neutral-900/50 p-4 sm:p-5 rounded-xl transition-all duration-300 border border-neutral-800/70 hover:border-brand-orange hover:-translate-y-1 flex flex-col text-left h-full">
+		<Card className="transition-all duration-300 hover:border-brand-orange hover:-translate-y-1 flex flex-col text-left h-full">
 			{/* Top Section */}
-			<div className="flex items-start justify-between mb-4">
+			<CardHeader className="flex-row items-start justify-between pb-4">
 				<div className="flex items-center gap-3">
 					<div className="w-10 h-10 flex items-center justify-center rounded-lg bg-brand-gray p-1.5 text-brand-orange">
 						<Icon className="w-full h-full" />
 					</div>
 					<div>
-						<h3 className="font-semibold text-white text-base sm:text-lg">
+						<h3 className="font-semibold text-white text-base">
 							{integration.display_name}
 						</h3>
 						<span
@@ -770,63 +792,67 @@ const IntegrationCard = ({
 						</div>
 					)}
 				</div>
-			</div>
+			</CardHeader>
 
 			{/* Middle Section */}
-			<div className="flex-grow">
+			<CardContent className="flex-grow pt-0">
 				<p className="text-sm text-gray-400 mt-1 line-clamp-3">
 					{integration.description}
 				</p>
-			</div>
+			</CardContent>
 
 			{/* Bottom Section */}
 			{isConnectable && (
-				<div className="mt-4 pt-4 border-t border-neutral-800 flex justify-end">
+				<CardFooter className="pt-4 border-t border-neutral-800 flex justify-end">
 					{isDisabledForFree ? (
-						<button
+						<Button
 							onClick={onUpgradeClick}
-							className="text-sm font-medium text-brand-orange group-hover:text-yellow-300 transition-colors flex items-center gap-1.5"
+							variant="link"
+							className="text-brand-orange group-hover:text-yellow-300"
 						>
-							<IconArrowUpCircle size={16} />
+							<IconArrowUpCircle size={16} className="mr-1.5" />
 							Upgrade to Unlock
-						</button>
+						</Button>
 					) : (
 						<span className="text-sm font-medium text-neutral-400 group-hover:text-white transition-colors">
 							View Details →
 						</span>
 					)}
-				</div>
+				</CardFooter>
 			)}
-		</div>
+		</Card>
 	)
 }
 
+// Define the missing constant to prevent reference errors.
+const MANUAL_INTEGRATION_CONFIGS = {}
+
 const IntegrationsPage = () => {
-	const [userIntegrations, setUserIntegrations] = useState([])
-	const [defaultTools, setDefaultTools] = useState([])
-	const [loading, setLoading] = useState(true)
+	const queryClient = useQueryClient()
+	const {
+		searchQuery,
+		activeCategory,
+		privacyModalService,
+		disconnectingIntegration,
+		setSearchQuery,
+		setActiveCategory,
+		openPrivacyModal,
+		closePrivacyModal,
+		setDisconnectingIntegration
+	} = useIntegrationStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
 	const [processingIntegration, setProcessingIntegration] = useState(null)
-	const [searchQuery, setSearchQuery] = useState("")
-	const [activeCategory, setActiveCategory] = useState("Core")
 	const [selectedIntegration, setSelectedIntegration] = useState(null)
 	const [activeManualIntegration, setActiveManualIntegration] = useState(null)
 	const [isWhatsAppDisclaimerOpen, setIsWhatsAppDisclaimerOpen] =
 		useState(false)
 	const [isWhatsAppQRModalOpen, setIsWhatsAppQRModalOpen] = useState(false)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
-	const [privacyModalService, setPrivacyModalService] = useState(null)
 	const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false)
-	const [disconnectingIntegration, setDisconnectingIntegration] =
-		useState(null)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
 	const posthog = usePostHog()
 	const router = useRouter()
-	const { isPro } = usePlan()
-
-	const handleWhatsAppModalClose = useCallback(() => {
-		setIsWhatsAppQRModalOpen(false)
-		fetchIntegrations() // Always refetch on close to ensure UI is up-to-date
-	}, [])
 
 	const googleServices = [
 		"gmail",
@@ -839,52 +865,53 @@ const IntegrationsPage = () => {
 		"gpeople"
 	]
 
-	const fetchIntegrations = useCallback(async () => {
-		setLoading(true)
-		try {
+	const {
+		data: integrationsData,
+		isLoading: loading,
+		isError
+	} = useQuery({
+		queryKey: ["integrations"],
+		queryFn: async () => {
 			const response = await fetch("/api/settings/integrations", {
 				method: "POST",
 				cache: "no-store"
 			})
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.error || "Failed to fetch integrations")
-
-			const integrationsWithIcons = (data.integrations || []).map(
-				(ds) => ({
-					...ds,
-					icon: integrationColorIcons[ds.name] || IconSettingsCog
-				})
-			)
-
-			const hiddenTools = [
-				"google_search",
-				"progress_updater",
-				"chat_tools",
-				"tasks"
-			]
-			const connectable = integrationsWithIcons.filter(
-				(i) =>
-					(i.auth_type === "oauth" ||
-						i.auth_type === "manual" ||
-						i.auth_type === "composio") &&
-					!hiddenTools.includes(i.name)
-			)
-			const builtIn = integrationsWithIcons.filter(
-				(i) =>
-					i.auth_type === "builtin" && !hiddenTools.includes(i.name)
-			)
-			setUserIntegrations(connectable)
-			setDefaultTools(builtIn)
-		} catch (error) {
-			toast.error(`Error fetching integrations: ${error.message}`)
-		} finally {
-			setLoading(false)
+			if (!response.ok) throw new Error("Failed to fetch integrations")
+			return response.json()
 		}
-	}, [])
+	})
+
+	const { userIntegrations, defaultTools } = useMemo(() => {
+		if (!integrationsData) return { userIntegrations: [], defaultTools: [] }
+
+		const integrationsWithIcons = (integrationsData.integrations || []).map(
+			(ds) => ({
+				...ds,
+				icon: integrationColorIcons[ds.name] || IconSettingsCog
+			})
+		)
+
+		const hiddenTools = [
+			"google_search",
+			"progress_updater",
+			"chat_tools",
+			"tasks"
+		]
+		const connectable = integrationsWithIcons.filter(
+			(i) =>
+				(i.auth_type === "oauth" ||
+					i.auth_type === "manual" ||
+					i.auth_type === "composio") &&
+				!hiddenTools.includes(i.name)
+		)
+		const builtIn = integrationsWithIcons.filter(
+			(i) => i.auth_type === "builtin" && !hiddenTools.includes(i.name)
+		)
+		return { userIntegrations: connectable, defaultTools: builtIn }
+	}, [integrationsData])
 
 	const handleUpgradeClick = () => {
-		setUpgradeModalOpen(true)
+		openUpgradeModal()
 	}
 
 	const handleConnect = async (integration) => {
@@ -899,8 +926,7 @@ const IntegrationsPage = () => {
 		if (isProFeature) {
 			const toastId = toast.loading("Preparing secure connection...")
 			try {
-				const res = await fetch("/api/auth/refresh-session")
-				if (!res.ok) throw new Error("Session refresh failed")
+				await apiClient("/api/auth/refresh-session")
 				toast.dismiss(toastId)
 			} catch (e) {
 				toast.error("Could not prepare connection. Please try again.", {
@@ -1005,17 +1031,13 @@ const IntegrationsPage = () => {
 			// Store service name for callback handling
 			localStorage.setItem("composio_pending_service", serviceName)
 
-			const response = await fetch(
+			const data = await apiClient(
 				"/api/settings/integrations/connect/composio/initiate",
 				{
 					method: "POST",
-					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ service_name: serviceName })
 				}
 			)
-			const data = await response.json()
-			if (!response.ok)
-				throw new Error(data.error || "Failed to start connection.")
 			window.location.href = data.redirect_url
 		} catch (error) {
 			toast.error(`Connection failed: ${error.message}`)
@@ -1024,15 +1046,8 @@ const IntegrationsPage = () => {
 		}
 	}
 
-	const handleDisconnect = async () => {
-		if (!disconnectingIntegration) return
-
-		const { name: integrationName, display_name: displayName } =
-			disconnectingIntegration
-
-		setProcessingIntegration(integrationName)
-
-		try {
+	const disconnectMutation = useMutation({
+		mutationFn: ({ integrationName }) => {
 			const apiEndpoint =
 				integrationName === "whatsapp"
 					? "/api/settings/integrations/whatsapp/disconnect"
@@ -1043,26 +1058,29 @@ const IntegrationsPage = () => {
 					? {}
 					: { service_name: integrationName }
 
-			const response = await fetch(apiEndpoint, {
+			return fetch(apiEndpoint, {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(bodyPayload)
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to disconnect")
+				return res.json()
 			})
-
-			if (!response.ok)
-				throw new Error(`Failed to disconnect ${displayName}`)
+		},
+		onSuccess: (data, { displayName, integrationName }) => {
+			toast.success(`${displayName} disconnected.`)
 			posthog?.capture("integration_disconnected", {
 				integration_name: integrationName
 			})
-			toast.success(`${displayName} disconnected.`)
-			fetchIntegrations()
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["integrations"] })
+		},
+		onError: (error) => {
 			toast.error(error.message)
-		} finally {
+		},
+		onSettled: () => {
 			setProcessingIntegration(null)
 			setDisconnectingIntegration(null) // Close modal
 		}
-	}
+	})
 
 	useEffect(() => {
 		// --- Handle Composio OAuth Callback ---
@@ -1070,16 +1088,6 @@ const IntegrationsPage = () => {
 		const composioStatus = urlParams.get("status")
 		const connectedAccountId = urlParams.get("connectedAccountId")
 		const pendingService = localStorage.getItem("composio_pending_service")
-
-		// If it's not a callback from an integration attempt, fetch normally.
-		if (
-			!composioStatus &&
-			!urlParams.get("integration_success") &&
-			!urlParams.get("integration_error") &&
-			!window.location.hash.includes("#token=")
-		) {
-			fetchIntegrations()
-		}
 
 		if (
 			composioStatus === "success" &&
@@ -1092,30 +1100,25 @@ const IntegrationsPage = () => {
 				)
 				localStorage.removeItem("composio_pending_service") // Clean up immediately
 				try {
-					const response = await fetch(
+					const data = await apiClient(
 						"/api/settings/integrations/connect/composio/finalize",
 						{
 							method: "POST",
-							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({
 								service_name: pendingService,
 								connectedAccountId: connectedAccountId
 							})
 						}
 					)
-					const data = await response.json()
-					if (!response.ok) {
-						throw new Error(
-							data.error || "Failed to finalize connection."
-						)
-					}
 
 					toast.success(data.message, { id: toastId })
 					posthog?.capture("integration_connected", {
 						integration_name: pendingService,
 						auth_type: "composio"
 					})
-					fetchIntegrations() // Refresh the list
+					queryClient.invalidateQueries({
+						queryKey: ["integrations"]
+					}) // Refresh the list
 				} catch (error) {
 					toast.error(`Error: ${error.message}`, { id: toastId })
 				} finally {
@@ -1150,24 +1153,16 @@ const IntegrationsPage = () => {
 					)
 					try {
 						// Use the manual connection endpoint to save the user's token
-						const response = await fetch(
+						await apiClient(
 							"/api/settings/integrations/connect/manual",
 							{
 								method: "POST",
-								headers: { "Content-Type": "application/json" },
 								body: JSON.stringify({
 									service_name: "trello",
 									credentials: { token: t } // Trello returns a single token
 								})
 							}
 						)
-						if (!response.ok) {
-							const errorData = await response.json()
-							throw new Error(
-								errorData.error ||
-									"Failed to save Trello token."
-							)
-						}
 						// This will trigger the success toast and state refresh below
 						router.replace(
 							"/integrations?integration_success=trello",
@@ -1194,15 +1189,15 @@ const IntegrationsPage = () => {
 			})
 			toast.success(`Successfully connected to ${capitalized}!`)
 			setSparkleTrigger((c) => c + 1)
-			fetchIntegrations()
+			queryClient.invalidateQueries({ queryKey: ["integrations"] })
 			window.history.replaceState({}, document.title, "/integrations")
 		} else if (error && !composioStatus) {
 			// Avoid showing generic error on composio callback
 			toast.error(`Connection failed: ${error}`)
-			fetchIntegrations() // Fetch to show current state even on error
+			queryClient.invalidateQueries({ queryKey: ["integrations"] }) // Fetch to show current state even on error
 			window.history.replaceState({}, document.title, "/integrations")
 		}
-	}, [fetchIntegrations, posthog, router])
+	}, [posthog, router, queryClient])
 
 	const renderIntegrationGrid = (integrations) => (
 		<motion.div
@@ -1321,15 +1316,15 @@ const IntegrationsPage = () => {
 			return (
 				integration.display_name
 					.toLowerCase()
-					.includes(searchQuery.toLowerCase()) ||
+					.includes(searchQuery?.toLowerCase()) ||
 				integration.description
 					.toLowerCase()
-					.includes(searchQuery.toLowerCase())
+					.includes(searchQuery?.toLowerCase())
 			)
 		}
 
 		// If there's a search query, ignore category filters and search everything.
-		if (searchQuery.trim() !== "") {
+		if (searchQuery?.trim() !== "") {
 			return allIntegrations.filter(searchFilter)
 		}
 
@@ -1370,7 +1365,14 @@ const IntegrationsPage = () => {
 			return (
 				<MorphingDialogContent className="pointer-events-auto relative flex h-auto w-full flex-col overflow-hidden border border-neutral-700 bg-neutral-900 sm:w-[600px] rounded-2xl">
 					<BorderTrail className="bg-brand-orange" />
-					<div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
+					<div
+						className="p-4 sm:p-6 overflow-y-auto custom-scrollbar"
+						data-tour-id={
+							integration.name === "gmail"
+								? "gmail-card-modal"
+								: undefined
+						}
+					>
 						<div className="flex items-center gap-4 mb-4">
 							<div className="w-10 h-10 flex items-center justify-center rounded-lg bg-brand-gray p-1.5 text-brand-orange">
 								<Icon className="w-full h-full" />
@@ -1402,9 +1404,7 @@ const IntegrationsPage = () => {
 								<div className="my-4">
 									<button
 										onClick={() =>
-											setPrivacyModalService(
-												integration.name
-											)
+											openPrivacyModal(integration.name)
 										}
 										className="w-full text-center text-sm text-neutral-400 hover:text-white hover:bg-neutral-700/50 py-2 rounded-lg transition-colors border border-neutral-700"
 									>
@@ -1425,13 +1425,13 @@ const IntegrationsPage = () => {
 												integration
 											)
 										}}
-										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-[var(--color-accent-red)]/20 hover:bg-[var(--color-accent-red)]/40 text-[var(--color-accent-red)] text-sm font-medium transition-colors"
+										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-red-600/20 hover:bg-red-600/40 text-red-300 text-sm font-medium transition-colors"
 									>
 										<IconPlugOff size={16} />
 										<span>Disconnect</span>
 									</button>
 								) : (
-									<button
+									<Button
 										onClick={async (e) => {
 											e.stopPropagation()
 											if (
@@ -1452,11 +1452,11 @@ const IntegrationsPage = () => {
 												await handleConnect(integration)
 											}
 										}}
-										className="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-md bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold text-sm transition-colors"
+										className="w-full gap-2 bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 									>
 										<IconSparkles size={16} />
 										<span>Connect</span>
-									</button>
+									</Button>
 								)}
 							</div>
 						</MorphingDialogDescription>
@@ -1465,13 +1465,7 @@ const IntegrationsPage = () => {
 				</MorphingDialogContent>
 			)
 		},
-		[
-			processingIntegration,
-			setPrivacyModalService,
-			setDisconnectingIntegration,
-			handleComposioConnect,
-			handleConnect
-		]
+		[processingIntegration, handleComposioConnect, handleConnect]
 	)
 
 	return (
@@ -1481,27 +1475,9 @@ const IntegrationsPage = () => {
 				place="right-start"
 				style={{ zIndex: 9999 }}
 			/>
-			<AnimatePresence>
-				{isWhatsAppDisclaimerOpen && (
-					<div className="isolate z-[120]">
-						<WhatsAppDisclaimerModal
-							isOpen={isWhatsAppDisclaimerOpen}
-							onClose={() => setIsWhatsAppDisclaimerOpen(false)}
-							onAgree={() => {
-								setIsWhatsAppDisclaimerOpen(false)
-								setIsWhatsAppQRModalOpen(true)
-							}}
-						/>
-					</div>
-				)}
-			</AnimatePresence>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
-			/>
-			<UpgradeToProModal
-				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<AnimatePresence>
 				{disconnectingIntegration && (
@@ -1519,7 +1495,13 @@ const IntegrationsPage = () => {
 							description="This will permanently delete all tasks that use this tool and any related polling data. This action cannot be undone."
 							confirmButtonText="Disconnect"
 							confirmButtonType="danger"
-							onConfirm={handleDisconnect}
+							onConfirm={() => {
+								if (disconnectingIntegration) {
+									disconnectMutation.mutate(
+										disconnectingIntegration
+									)
+								}
+							}}
 							onCancel={() => setDisconnectingIntegration(null)}
 							confirmButtonLoading={
 								processingIntegration ===
@@ -1564,15 +1546,36 @@ const IntegrationsPage = () => {
 			</div>
 			<AnimatePresence>
 				{isWhatsAppQRModalOpen && (
-					<WhatsAppQRCodeModal onClose={handleWhatsAppModalClose} />
+					<WhatsAppQRCodeModal
+						onClose={() => {
+							setIsWhatsAppQRModalOpen(false)
+							queryClient.invalidateQueries({
+								queryKey: ["integrations"]
+							})
+						}}
+					/>
 				)}
 			</AnimatePresence>
 			<AnimatePresence>
 				{privacyModalService && (
 					<PrivacySettingsModal
 						serviceName={privacyModalService}
-						onClose={() => setPrivacyModalService(null)}
+						onClose={closePrivacyModal}
 					/>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{isWhatsAppDisclaimerOpen && (
+					<div className="isolate z-[120]">
+						<WhatsAppDisclaimerModal
+							isOpen={isWhatsAppDisclaimerOpen}
+							onClose={() => setIsWhatsAppDisclaimerOpen(false)}
+							onAgree={() => {
+								setIsWhatsAppDisclaimerOpen(false)
+								setIsWhatsAppQRModalOpen(true)
+							}}
+						/>
+					</div>
 				)}
 			</AnimatePresence>
 		</div>

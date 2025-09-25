@@ -13,6 +13,7 @@ import { taskStatusColors, priorityMap } from "./constants"
 import { format, isToday } from "date-fns"
 import { BorderTrail } from "@components/ui/border-trail"
 import { getDisplayName } from "@utils/taskUtils"
+import { Card } from "@components/ui/card"
 
 const StatusBadge = ({ status, taskType, orchestratorState }) => {
 	let displayStatus = status
@@ -94,6 +95,8 @@ const SubTaskItem = ({ task, onSelectTask }) => {
 	)
 }
 
+const MotionCard = motion(Card)
+
 const TaskCardList = ({ task, onSelectTask }) => {
 	const [isExpanded, setIsExpanded] = useState(false)
 	const subTasks = task.subTasks || []
@@ -121,7 +124,7 @@ const TaskCardList = ({ task, onSelectTask }) => {
 	}
 
 	return (
-		<motion.div
+		<MotionCard
 			layout
 			variants={cardVariants}
 			exit={{ opacity: 0, transition: { duration: 0.1 } }}
@@ -221,7 +224,7 @@ const TaskCardList = ({ task, onSelectTask }) => {
 					)}
 				</AnimatePresence>
 			</div>
-		</motion.div>
+		</MotionCard>
 	)
 }
 

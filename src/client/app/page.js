@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import AnimatedLogo from "@components/AnimatedLogo"
+import AnimatedLogo from "@components/ui/AnimatedLogo"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
 import React from "react"
 

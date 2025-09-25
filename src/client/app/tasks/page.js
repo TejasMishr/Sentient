@@ -1,14 +1,7 @@
 "use client"
 
 import { cn } from "@utils/cn"
-import React, {
-	useRef,
-	useState,
-	useMemo,
-	useEffect,
-	useCallback, // eslint-disable-line
-	Suspense
-} from "react"
+import React, { useRef, useState, useMemo, useEffect, Suspense } from "react" // eslint-disable-line
 import { useRouter, useSearchParams } from "next/navigation"
 import {
 	IconLoader,
@@ -17,17 +10,25 @@ import {
 	IconPlus,
 	IconBolt // Added IconBolt
 } from "@tabler/icons-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence, motion } from "framer-motion"
 import toast from "react-hot-toast"
 import { Tooltip } from "react-tooltip"
 
-import TaskDetailsPanel from "@components/tasks/TaskDetailsPanel"
+import TaskDetails from "@components/tasks/TaskDetails"
 import TaskViewSwitcher from "@components/tasks/TaskViewSwitcher"
 import ListView from "@components/tasks/ListView"
 import TaskComposer from "@components/tasks/TaskComposer"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import { usePlan } from "@hooks/usePlan"
-import { useTour } from "@components/LayoutWrapper"
+import { Drawer } from "@components/ui/drawer"
+import { Button } from "@components/ui/button"
+import apiClient from "@lib/apiClient"
+import {
+	useUIStore,
+	useUserStore,
+	useTaskStore,
+	useTourStore
+} from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -107,18 +108,19 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-2.5 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
+							</Button>
+							<Button
 								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 text-sm font-medium text-neutral-400"
+								variant="ghost"
+								className="w-full text-neutral-400"
 							>
 								Not now
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -138,31 +140,58 @@ function usePrevious(value) {
 function TasksPageContent() {
 	const router = useRouter()
 	const searchParams = useSearchParams()
-
-	const [allTasks, setAllTasks] = useState([])
-	const [allTools, setAllTools] = useState([])
-	const [integrations, setIntegrations] = useState([])
-	const [isLoading, setIsLoading] = useState(true)
-	const [view, setView] = useState("tasks") // 'tasks' or 'workflows'
+	const queryClient = useQueryClient()
+	const {
+		view,
+		searchQuery,
+		isComposerOpen,
+		composerInitialData,
+		setView,
+		setSearchQuery,
+		openComposer,
+		closeComposer
+	} = useTaskStore()
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
+	const { isActive: isTourActive, step, subStep, phase, nextStep } = useTourStore()
 	const [isMobile, setIsMobile] = useState(false)
-
-	const selectedTaskId = searchParams.get("taskId")
-	const selectedTask = useMemo(() => {
-		return allTasks.find((t) => t.task_id === selectedTaskId) || null
-	}, [allTasks, selectedTaskId])
-
 	const [isModalOpen, setIsModalOpen] = useState(false)
-	const [searchQuery, setSearchQuery] = useState("")
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
-	const [isComposerOpen, setIsComposerOpen] = useState(false)
-	const [composerInitialData, setComposerInitialData] = useState(null)
-	const { isPro } = usePlan()
-	const tour = useTour()
-	const { tourState, setTourState } = tour
-	const prevTourState = usePrevious(tourState)
+	const prevTourState = usePrevious({ isActive: isTourActive, step, subStep })
+
+	const { data, isLoading, isError } = useQuery({
+		queryKey: ["tasksPageData"],
+		queryFn: async () => {
+			if (isTourActive) {
+				return { tasks: [], integrations: [] }
+			}
+			const [tasksRes, integrationsRes] = await Promise.all([
+				fetch("/api/tasks", { method: "POST" }),
+				fetch("/api/settings/integrations", { method: "POST" })
+			])
+			if (!tasksRes.ok) throw new Error("Failed to fetch tasks")
+			if (!integrationsRes.ok)
+				throw new Error("Failed to fetch integrations")
+			const tasksData = await tasksRes.json()
+			const integrationsData = await integrationsRes.json()
+			return {
+				tasks: Array.isArray(tasksData.tasks) ? tasksData.tasks : [],
+				integrations: integrationsData.integrations || []
+			}
+		},
+		staleTime: 1000 * 60 // 1 minute
+	})
+
+	const allTasks = data?.tasks || []
+	const integrations = data?.integrations || []
+	const allTools = integrations.map((i) => ({
+		name: i.name,
+		display_name: i.display_name
+	}))
+	const selectedTaskId = searchParams.get("taskId")
 
 	const demoWorkflow = useMemo(() => {
-		if (!tourState.isActive || tourState.step < 6) return null
+		if (!isTourActive || step < 6) return null
 
 		return {
 			task_id: "demo-workflow-123",
@@ -174,12 +203,11 @@ function TasksPageContent() {
 			isDemoWorkflow: true,
 			created_at: new Date().toISOString()
 		}
-	}, [tourState.isActive, tourState.step])
+	}, [isTourActive, step])
 
 	const demoTask = useMemo(() => {
-		if (!tourState.isActive || tourState.step < 5) return null
+		if (!isTourActive || step < 5) return null
 
-		const subStep = tourState.subStep
 		let status = "planning"
 		let subTasks = []
 
@@ -244,51 +272,50 @@ function TasksPageContent() {
 				}
 			]
 		}
-	}, [tourState.isActive, tourState.step, tourState.subStep])
+	}, [isTourActive, step, subStep])
 
-	const handleClosePanel = useCallback(() => {
-		if (tourState.isActive && tourState.step >= 3) {
+	const handleClosePanel = () => {
+		if (isTourActive && step >= 3) {
 			// Don't close panel during tour simulation
 		} else {
 			router.push("/tasks", { scroll: false }) // Clear URL param
 		}
 		setIsModalOpen(false)
-	}, [router, tourState])
+	}
 
 	// Effect to sync UI state with the tour state
 	useEffect(() => {
-		if (tourState.isActive) {
-			if (tourState.step === 3) {
+		if (isTourActive) {
+			if (step === 3) {
 				// This is the "Create Task" button step.
 				if (isComposerOpen) {
 					// If user clicks the button, composer opens, and we advance.
-					tour.nextStep()
+					nextStep()
 				} else {
 					// Otherwise, ensure composer is closed.
-					setIsComposerOpen(false)
+					closeComposer()
 				}
-			} else if (tourState.step === 4) {
+			} else if (step === 4) {
 				// This is the composer step. If it's not open or doesn't have the
 				// initial data yet, set it up. This prevents re-render loops.
 				if (!isComposerOpen || !composerInitialData) {
-					setIsComposerOpen(true)
-					setComposerInitialData({
+					openComposer({
 						prompt: "Coordinate with Kabeer to set up a meeting next week."
 					})
 				}
 			}
 			// For subsequent steps, ensure composer is closed.
-			else if (tourState.step > 4 && isComposerOpen) {
-				setIsComposerOpen(false)
+			else if (step > 4 && isComposerOpen) {
+				closeComposer()
 			}
 		}
 	}, [
-		tourState.isActive,
-		tourState.step,
+		isTourActive,
+		step,
 		isComposerOpen,
-		tour,
-		setComposerInitialData,
-		setIsComposerOpen
+		nextStep,
+		openComposer,
+		closeComposer
 	])
 
 	useEffect(() => {
@@ -311,13 +338,17 @@ function TasksPageContent() {
 		return () => window.removeEventListener("resize", handleResize)
 	}, [isMobile, selectedTaskId])
 
+	const selectedTask = useMemo(() => {
+		return allTasks.find((t) => t.task_id === selectedTaskId) || null
+	}, [allTasks, selectedTaskId])
+
 	useEffect(() => {
 		const taskId = searchParams.get("taskId")
 
 		if (isMobile) {
 			// Tour logic: Modal is open ONLY during step 5 AND when the phase is 'panel'.
-			if (tourState.isActive && tourState.step === 5) {
-				setIsModalOpen(tourState.phase === "panel")
+			if (isTourActive && step === 5) {
+				setIsModalOpen(phase === "panel")
 			}
 			// Regular logic: Open modal if a task is selected via URL and it exists.
 			else if (taskId && selectedTask) {
@@ -331,66 +362,19 @@ function TasksPageContent() {
 			// On desktop, the modal is never used.
 			setIsModalOpen(false)
 		}
-	}, [searchParams, isMobile, tourState, selectedTask, handleClosePanel])
+	}, [searchParams, isMobile, isTourActive, step, phase, selectedTask, handleClosePanel])
 
 	const tasksWithDemo = useMemo(() => {
 		// Filter(Boolean) removes null/undefined demo tasks
 		return [demoTask, demoWorkflow, ...allTasks].filter(Boolean)
 	}, [allTasks, demoTask, demoWorkflow])
 
-	const selectedTaskOrDemo = useMemo(() => {
-		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
-		if (tourState.isActive && tourState.step >= 5) {
-			return demoTask
-		}
-		// Otherwise, use the task selected via the URL parameter for regular use.
-		return selectedTask
-	}, [tourState, demoTask, selectedTask])
-
-	const fetchTasks = useCallback(async () => {
-		if (tourState.isActive) {
-			setIsLoading(false)
-			return
-		}
-		setIsLoading(true)
-		try {
-			const tasksRes = await fetch("/api/tasks", { method: "POST" })
-			if (!tasksRes.ok) throw new Error("Failed to fetch tasks")
-			const tasksData = await tasksRes.json()
-			const rawTasks = Array.isArray(tasksData.tasks)
-				? tasksData.tasks
-				: []
-			setAllTasks(rawTasks)
-
-			const integrationsRes = await fetch("/api/settings/integrations", {
-				method: "POST"
-			})
-			if (!integrationsRes.ok)
-				throw new Error("Failed to fetch integrations")
-			const integrationsData = await integrationsRes.json()
-			setIntegrations(integrationsData.integrations || [])
-			const tools = integrationsData.integrations.map((i) => ({
-				name: i.name,
-				display_name: i.display_name
-			}))
-			setAllTools(tools)
-		} catch (error) {
-			toast.error(`Error fetching data: ${error.message}`)
-		} finally {
-			setIsLoading(false)
-		}
-	}, [tourState.isActive])
-
 	useEffect(() => {
 		// When tour ends, refetch tasks
-		if (!tourState.isActive && prevTourState?.isActive) {
-			fetchTasks()
+		if (!isTourActive && prevTourState?.isActive) {
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
 		}
-	}, [tourState.isActive, prevTourState?.isActive, fetchTasks])
-
-	useEffect(() => {
-		fetchTasks()
-	}, [fetchTasks])
+	}, [isTourActive, prevTourState?.isActive, queryClient])
 
 	useEffect(() => {
 		const handleBackendUpdate = () => {
@@ -398,7 +382,7 @@ function TasksPageContent() {
 				"Received tasksUpdatedFromBackend event, fetching tasks..."
 			)
 			toast.success("Task list updated from backend.")
-			fetchTasks()
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
 		}
 		window.addEventListener("tasksUpdatedFromBackend", handleBackendUpdate)
 		return () => {
@@ -407,121 +391,258 @@ function TasksPageContent() {
 				handleBackendUpdate
 			)
 		}
-	}, [fetchTasks])
+	}, [queryClient])
 
-	const handleAction = useCallback(
-		async (actionFn, successMessage, ...args) => {
-			const toastId = toast.loading("Processing...")
-			try {
-				const response = await actionFn(...args)
-				if (!response.ok) {
-					const errorData = await response.json()
-					throw new Error(errorData.error || "Action failed")
-				}
-				toast.success(successMessage, { id: toastId })
-				await fetchTasks()
-			} catch (error) {
-				toast.error(`Error: ${error.message}`, { id: toastId })
+	const useTaskMutation = (mutationFn, { successMessage, errorMessage }) => {
+		return useMutation({
+			mutationFn,
+			onSuccess: () => {
+				toast.success(successMessage)
+				queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+			},
+			onError: (error) => {
+				toast.error(error.message || errorMessage)
 			}
-		},
-		[fetchTasks]
+		})
+	}
+
+	const answerClarificationsMutation = useTaskMutation(
+		({ taskId, answers }) =>
+			fetch("/api/tasks/answer-clarifications", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId, answers })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answers.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answers submitted. The task will now resume.",
+			errorMessage: "Failed to submit answers."
+		}
 	)
 
-	const handleAnswerClarifications = async (taskId, answers) => {
-		await handleAction(
-			() =>
-				fetch("/api/tasks/answer-clarifications", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ taskId, answers })
-				}),
-			"Answers submitted successfully. The task will now resume."
-		)
-		handleClosePanel()
-	}
+	const answerLongFormClarificationMutation = useTaskMutation(
+		({ taskId, requestId, answer }) =>
+			fetch(`/api/tasks/${taskId}/answer-clarification`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ requestId, answer })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to submit answer.")
+				return res.json()
+			}),
+		{
+			successMessage: "Answer submitted. The task will now resume.",
+			errorMessage: "Failed to submit answer."
+		}
+	)
 
-	const handleAnswerLongFormClarification = async (
-		taskId,
-		requestId,
-		answer
-	) => {
-		await handleAction(
-			() =>
-				fetch(`/api/tasks/${taskId}/answer-clarification`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ requestId, answer })
-				}),
-			"Answer submitted. The task will now resume."
-		)
-	}
-
-	const handleCreateTask = async (payload) => {
-		const toastId = toast.loading(
-			view === "workflows" ? "Creating workflow..." : "Creating task..."
-		)
-		try {
-			const response = await fetch("/api/tasks/add", {
+	const createTaskMutation = useMutation({
+		mutationFn: (payload) =>
+			fetch("/api/tasks/add", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(payload)
-			})
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({}))
-				const error = new Error(errorData.error || "Failed to add task")
-				error.status = response.status
-				throw error
-			}
-			const data = await response.json()
-
+			}).then(async (res) => {
+				if (!res.ok) {
+					const errorData = await res.json().catch(() => ({}))
+					const error = new Error(
+						errorData.error || "Failed to add task"
+					)
+					error.status = res.status
+					throw error
+				}
+				return res.json()
+			}),
+		onSuccess: (data) => {
 			toast.success(
 				data.message ||
 					(view === "workflows"
 						? "Workflow created!"
-						: "Task created!"),
-				{ id: toastId }
+						: "Task created!")
 			)
-			await fetchTasks()
-			// The view is already correct, so no need to set it again.
-			// This fixes the issue of being switched to 'tasks' after creating a workflow.
-		} catch (error) {
+			queryClient.invalidateQueries({ queryKey: ["tasksPageData"] })
+		},
+		onError: (error) => {
 			if (error.status === 429) {
 				toast.error(
-					error.message || "You've reached your daily task limit.",
-					{ id: toastId }
+					error.message || "You've reached your daily task limit."
 				)
-				if (!isPro) setUpgradeModalOpen(true)
+				if (!isPro) openUpgradeModal()
 			} else {
-				toast.error(`Error: ${error.message}`, { id: toastId })
+				toast.error(`Error: ${error.message}`)
 			}
 		}
+	})
+
+	const resumeTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/${taskId}/action`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ action: "resume" })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to resume task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task resumed.",
+			errorMessage: "Failed to resume task."
+		}
+	)
+
+	const updateTaskMutation = useTaskMutation(
+		(updatedTask) =>
+			fetch("/api/tasks/update", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					...updatedTask,
+					taskId: updatedTask.task_id
+				})
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to update task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task updated!",
+			errorMessage: "Failed to update task."
+		}
+	)
+
+	const deleteTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/delete`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to delete task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task deleted.",
+			errorMessage: "Failed to delete task."
+		}
+	)
+
+	const approveTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/approve`, {
+				method: "POST",
+				body: JSON.stringify({ taskId }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to approve task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task approved.",
+			errorMessage: "Failed to approve task."
+		}
+	)
+
+	const rerunTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch("/api/tasks/rerun", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ taskId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to re-run task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task re-run initiated.",
+			errorMessage: "Failed to re-run task."
+		}
+	)
+
+	const archiveTaskMutation = useTaskMutation(
+		(taskId) =>
+			fetch(`/api/tasks/update`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, status: "archived" }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to archive task.")
+				return res.json()
+			}),
+		{
+			successMessage: "Task archived.",
+			errorMessage: "Failed to archive task."
+		}
+	)
+
+	const sendChatMessageMutation = useTaskMutation(
+		({ taskId, message }) =>
+			fetch(`/api/tasks/chat`, {
+				method: "POST",
+				body: JSON.stringify({ taskId, message }),
+				headers: { "Content-Type": "application/json" }
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to send message.")
+				return res.json()
+			}),
+		{
+			successMessage: "Message sent.",
+			errorMessage: "Failed to send message."
+		}
+	)
+
+	const selectedTaskOrDemo = useMemo(() => {
+		// During the tour's task simulation step (step 5+), force the demo task data into the panel.
+		if (isTourActive && step >= 5) {
+			return demoTask
+		}
+		// Otherwise, use the task selected via the URL parameter for regular use.
+		return selectedTask
+	}, [isTourActive, step, demoTask, selectedTask])
+
+	const handleAnswerClarifications = (taskId, answers) => {
+		answerClarificationsMutation.mutate({ taskId, answers })
+		handleClosePanel()
 	}
 
-	const handleResumeTask = async (taskId) => {
-		await handleAction(
-			() =>
-				fetch(`/api/tasks/${taskId}/action`, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ action: "resume" })
-				}),
-			"Task resumed."
-		)
+	const handleAnswerLongFormClarification = (taskId, requestId, answer) => {
+		answerLongFormClarificationMutation.mutate({
+			taskId,
+			requestId,
+			answer
+		})
 	}
 
-	const handleUpdateTask = async (updatedTask) => {
-		await handleAction(
-			() =>
-				fetch("/api/tasks/update", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						...updatedTask,
-						taskId: updatedTask.task_id
-					})
-				}),
-			"Task updated!"
-		)
+	const handleCreateTask = (payload) => {
+		createTaskMutation.mutate(payload)
+	}
+
+	const handleResumeTask = (taskId) => {
+		resumeTaskMutation.mutate(taskId)
+	}
+
+	const handleUpdateTask = (updatedTask) => {
+		updateTaskMutation.mutate(updatedTask)
+	}
+
+	const handleDeleteTask = (taskId) => {
+		deleteTaskMutation.mutate(taskId)
+	}
+
+	const handleApproveTask = (taskId) => {
+		approveTaskMutation.mutate(taskId)
+	}
+
+	const handleRerunTask = (taskId) => {
+		rerunTaskMutation.mutate(taskId)
+	}
+
+	const handleArchiveTask = (taskId) => {
+		archiveTaskMutation.mutate(taskId)
+	}
+
+	const handleSendChatMessage = (taskId, message) => {
+		sendChatMessageMutation.mutate({ taskId, message })
 	}
 
 	const handleSelectItem = (item) => {
@@ -538,12 +659,11 @@ function TasksPageContent() {
 		} else {
 			setView("tasks")
 		}
-		setComposerInitialData(example)
-		setIsComposerOpen(true)
+		openComposer(example)
 	}
 
 	const renderTaskDetails = (task) => (
-		<TaskDetailsPanel
+		<TaskDetails
 			task={task}
 			allTools={allTools}
 			integrations={integrations}
@@ -553,64 +673,11 @@ function TasksPageContent() {
 			onAnswerLongFormClarification={handleAnswerLongFormClarification}
 			onResumeTask={handleResumeTask}
 			onSelectTask={handleSelectItem}
-			onDelete={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/delete`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task deleted."
-				)
-			}
-			onApprove={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/approve`, {
-							method: "POST",
-							body: JSON.stringify({ taskId }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task approved."
-				)
-			}
-			onRerun={(taskId) =>
-				handleAction(
-					() =>
-						fetch("/api/tasks/rerun", {
-							method: "POST",
-							headers: { "Content-Type": "application/json" },
-							body: JSON.stringify({ taskId })
-						}),
-					"Task re-run initiated."
-				)
-			}
-			onArchiveTask={(taskId) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/update`, {
-							method: "POST",
-							body: JSON.stringify({
-								taskId,
-								status: "archived"
-							}),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Task archived."
-				)
-			}
-			onSendChatMessage={(taskId, message) =>
-				handleAction(
-					() =>
-						fetch(`/api/tasks/chat`, {
-							method: "POST",
-							body: JSON.stringify({ taskId, message }),
-							headers: { "Content-Type": "application/json" }
-						}),
-					"Message sent."
-				)
-			}
+			onDelete={handleDeleteTask}
+			onApprove={handleApproveTask}
+			onRerun={handleRerunTask}
+			onArchiveTask={handleArchiveTask}
+			onSendChatMessage={handleSendChatMessage}
 		/>
 	)
 
@@ -623,7 +690,7 @@ function TasksPageContent() {
 			/>
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<div className="flex-1 flex overflow-hidden relative">
 				<div className="absolute inset-0 z-[-1] network-grid-background">
@@ -679,32 +746,23 @@ function TasksPageContent() {
 							<TaskComposer
 								view={view}
 								onTaskCreated={(payload) => {
-									if (
-										tourState.isActive &&
-										tourState.step === 4
-									) {
-										setIsComposerOpen(false)
-										setComposerInitialData(null)
-										tour.nextStep() // Advance the tour
+									if (isTourActive && step === 4) {
+										closeComposer()
+										nextStep() // Advance the tour
 										return
 									}
 									// Otherwise, proceed with normal task creation.
 									handleCreateTask(payload)
-									setIsComposerOpen(false)
-									setComposerInitialData(null)
+									closeComposer()
 								}}
 								isPro={isPro}
-								onUpgradeClick={() => setUpgradeModalOpen(true)}
+								onUpgradeClick={openUpgradeModal}
 								onClose={() => {
-									if (
-										tourState.isActive &&
-										tourState.step === 4
-									) {
+									if (isTourActive && step === 4) {
 										// If user closes manually, also advance the tour.
-										tour.nextStep()
+										nextStep()
 									}
-									setIsComposerOpen(false)
-									setComposerInitialData(null)
+									closeComposer()
 								}}
 								initialData={composerInitialData}
 							/>
@@ -724,15 +782,16 @@ function TasksPageContent() {
 								}}
 								className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40"
 							>
-								<button
-									onClick={() => setIsComposerOpen(true)}
-									className="flex items-center gap-2 rounded-xl bg-brand-orange px-6 py-3 font-semibold text-brand-black shadow-2xl transition-all duration-300 hover:scale-105 hover:bg-brand-orange/90"
+								<Button
+									onClick={() => openComposer()}
+			
 									aria-label={
 										view === "workflows"
 											? "Create new workflow"
 											: "Create new task"
 									}
 									data-tour-id="create-task-button"
+									className="gap-2 rounded-xl px-6 py-3 font-semibold shadow-2xl transition-all duration-300 hover:scale-105 bg-brand-orange text-brand-black hover:bg-brand-orange/90"
 								>
 									<IconPlus size={20} />
 									<span>
@@ -740,59 +799,34 @@ function TasksPageContent() {
 											? "Create Workflow"
 											: "Create Task"}
 									</span>
-								</button>
+								</Button>
 							</motion.div>
 						)}
 					</AnimatePresence>
 				</main>
 
-				<AnimatePresence>
-					{!isMobile && selectedTaskOrDemo && (
-						<motion.div
-							initial={{ width: 0 }}
-							animate={{ width: 550 }}
-							exit={{ width: 0 }}
-							transition={{
-								type: "spring",
-								stiffness: 300,
-								damping: 30
-							}}
-							className="h-full flex-shrink-0 bg-neutral-900/80 backdrop-blur-lg overflow-hidden"
-						>
-							{renderTaskDetails(selectedTaskOrDemo)}
-						</motion.div>
-					)}
-				</AnimatePresence>
+				{/* Desktop Drawer */}
+				<Drawer
+					isOpen={!isMobile && !!selectedTaskOrDemo}
+					onClose={handleClosePanel}
+				>
+					{selectedTaskOrDemo &&
+						renderTaskDetails(selectedTaskOrDemo)}
+				</Drawer>
 			</div>
 
-			<AnimatePresence>
-				{isMobile && isModalOpen && selectedTaskOrDemo && (
-					<motion.div
-						initial={{ opacity: 0 }}
-						animate={{ opacity: 1 }}
-						exit={{ opacity: 0 }}
-						className={cn(
-							"fixed inset-0 z-[70] md:hidden",
-							// Let the tour component control the overlay during the tour
-							!tourState.isActive && "bg-black/70"
-						)}
-					>
-						<motion.div
-							initial={{ y: "100%" }}
-							animate={{ y: "0%" }}
-							exit={{ y: "100%" }}
-							transition={{
-								type: "spring",
-								stiffness: 300,
-								damping: 30
-							}}
-							className="absolute inset-0"
-						>
-							{renderTaskDetails(selectedTaskOrDemo)}
-						</motion.div>
-					</motion.div>
+			{/* Mobile Drawer */}
+			<Drawer
+				isOpen={isMobile && isModalOpen && !!selectedTaskOrDemo}
+				onClose={handleClosePanel}
+				side="bottom"
+				className={cn(
+					// Let the tour component control the overlay during the tour
+					isTourActive && "!bg-transparent"
 				)}
-			</AnimatePresence>
+			>
+				{selectedTaskOrDemo && renderTaskDetails(selectedTaskOrDemo)}
+			</Drawer>
 		</div>
 	)
 }

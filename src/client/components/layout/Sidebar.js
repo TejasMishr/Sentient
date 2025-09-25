@@ -32,12 +32,18 @@ import {
 	IconBulb
 } from "@tabler/icons-react"
 import { cn } from "@utils/cn"
-import { usePlan } from "@hooks/usePlan"
 import { motion, AnimatePresence } from "framer-motion"
 import { usePostHog } from "posthog-js/react"
 import useClickOutside from "@hooks/useClickOutside"
 import { Tooltip } from "react-tooltip"
-import { useTour } from "@components/LayoutWrapper"
+import { Button } from "@components/ui/button"
+import {
+	ModalDialog,
+	ModalHeader,
+	ModalTitle,
+	ModalCloseButton
+} from "@components/ui/ModalDialog"
+import { useTourStore, useUserStore, useUIStore } from "@stores/app-stores"
 
 const proPlanFeatures = [
 	{ name: "Text Chat", limit: "100 messages per day" },
@@ -115,18 +121,20 @@ const UpgradeToProModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-4 flex flex-col gap-2">
-							<button
+							<Button
 								onClick={handleUpgrade}
-								className="w-full py-3 px-5 rounded-lg bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold transition-colors"
+								className="w-full bg-brand-orange hover:bg-brand-orange/90 text-brand-black font-semibold"
+								size="lg"
 							>
 								Upgrade Now - $9/month
-							</button>
-							<button
+							</Button>
+							<Button
 								onClick={onClose}
-								className="w-full py-2 px-5 rounded-lg hover:bg-neutral-800 text-sm font-medium text-neutral-400"
+								variant="ghost"
+								className="w-full text-neutral-400"
 							>
 								Not now
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -225,12 +233,9 @@ const ComingSoonModal = ({ isOpen, onClose }) => {
 							))}
 						</main>
 						<footer className="mt-6 pt-4 border-t border-neutral-800 flex justify-end">
-							<button
-								onClick={onClose}
-								className="py-2 px-5 rounded-lg bg-neutral-700 hover:bg-neutral-600 text-sm font-medium"
-							>
+							<Button onClick={onClose} variant="secondary">
 								Close
-							</button>
+							</Button>
 						</footer>
 					</motion.div>
 				</motion.div>
@@ -238,11 +243,10 @@ const ComingSoonModal = ({ isOpen, onClose }) => {
 		</AnimatePresence>
 	)
 }
-
 const UserProfileSection = ({ isCollapsed, user }) => {
 	const [isUserMenuOpen, setUserMenuOpen] = useState(false)
 	const userMenuRef = useRef(null)
-	const { isPro, plan } = usePlan()
+	const { isPro } = useUserStore()
 	const posthog = usePostHog()
 	useClickOutside(userMenuRef, () => setUserMenuOpen(false))
 
@@ -344,35 +348,18 @@ const UserProfileSection = ({ isCollapsed, user }) => {
 		</div>
 	)
 }
-
 const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 	return (
-		<motion.div
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
-			className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4"
-			onClick={onClose}
+		<ModalDialog
+			isOpen={true}
+			onClose={onClose}
+			className="max-w-lg bg-neutral-900/90 backdrop-blur-xl p-0"
 		>
-			<motion.div
-				initial={{ scale: 0.95, y: 20 }}
-				animate={{ scale: 1, y: 0 }}
-				exit={{ scale: 0.95, y: -20 }}
-				transition={{ duration: 0.2, ease: "easeInOut" }}
-				onClick={(e) => e.stopPropagation()}
-				className="relative bg-neutral-900/90 backdrop-blur-xl p-6 rounded-2xl shadow-2xl w-full max-w-lg border border-neutral-700 flex flex-col"
-			>
-				<header className="flex justify-between items-center mb-6 flex-shrink-0">
-					<h2 className="text-lg font-semibold text-white">
-						Need Help?
-					</h2>
-					<button
-						onClick={onClose}
-						className="p-1.5 rounded-full hover:bg-neutral-700"
-					>
-						<IconX size={18} />
-					</button>
-				</header>
+			<div className="p-6">
+				<ModalHeader className="p-0 border-none mb-6">
+					<ModalTitle>Need Help?</ModalTitle>
+					<ModalCloseButton onClose={onClose} />
+				</ModalHeader>
 				<main className="space-y-4">
 					<button
 						onClick={onShowDemo}
@@ -467,11 +454,10 @@ const HelpMenuModal = ({ onClose, onShowVideo, onShowDemo }) => {
 						</div>
 					</a>
 				</main>
-			</motion.div>
-		</motion.div>
+			</div>
+		</ModalDialog>
 	)
 }
-
 const SidebarContent = ({
 	isCollapsed,
 	onNotificationsOpen,
@@ -488,9 +474,11 @@ const SidebarContent = ({
 	const [isHelpMenuOpen, setHelpMenuOpen] = useState(false)
 	const [isVideoModalOpen, setVideoModalOpen] = useState(false)
 	const [isComingSoonModalOpen, setComingSoonModalOpen] = useState(false)
-	const [isUpgradeModalOpen, setUpgradeModalOpen] = useState(false)
+	const { isUpgradeModalOpen, openUpgradeModal, closeUpgradeModal } =
+		useUIStore()
+	const { isPro } = useUserStore()
+	const { startTour } = useTourStore()
 	const router = useRouter()
-	const tour = useTour()
 
 	const fadeInUp = {
 		hidden: { opacity: 0, y: 10 },
@@ -498,11 +486,10 @@ const SidebarContent = ({
 	}
 
 	// CHANGED: Use the environment variable for the namespace
-	const { isPro } = usePlan()
 
 	const handleStartDemo = () => {
 		setHelpMenuOpen(false)
-		tour.startTour()
+		startTour()
 	}
 
 	const handleShowVideo = () => {
@@ -521,13 +508,13 @@ const SidebarContent = ({
 		{
 			title: "Memories",
 			href: "/memories",
-			icon: <IconBrain size={20} />,
+			icon: <IconBrain size={20} />
 		},
 		{
 			title: "Integrations",
 			href: "/integrations",
 			icon: <IconPlugConnected size={20} />,
-			tourId: "sidebar-integrations-icon",
+			tourId: "sidebar-integrations-icon"
 		},
 		{
 			title: "Settings",
@@ -541,7 +528,7 @@ const SidebarContent = ({
 			<Tooltip id="sidebar-tooltip" />
 			<UpgradeToProModal
 				isOpen={isUpgradeModalOpen}
-				onClose={() => setUpgradeModalOpen(false)}
+				onClose={closeUpgradeModal}
 			/>
 			<ComingSoonModal
 				isOpen={isComingSoonModalOpen}
@@ -645,7 +632,7 @@ const SidebarContent = ({
 
 			{!isPro && (
 				<button
-					onClick={() => setUpgradeModalOpen(true)}
+					onClick={openUpgradeModal}
 					className={cn(
 						"w-full bg-neutral-800/40 border border-neutral-700/80 rounded-lg p-2.5 text-left mb-2 hover:bg-neutral-800/80 transition-colors",
 						isCollapsed && "flex justify-center"
@@ -685,7 +672,9 @@ const SidebarContent = ({
 							key={link.title}
 							data-tour-id={link.tourId}
 							onClick={
-								isMobile && !isTourActive ? onMobileClose : undefined
+								isMobile && !isTourActive
+									? onMobileClose
+									: undefined
 							}
 							className={cn(
 								"flex items-center gap-3 rounded-md p-2 transition-colors duration-200 text-sm",
@@ -811,7 +800,6 @@ const SidebarContent = ({
 		</div>
 	)
 }
-
 const Sidebar = ({
 	onNotificationsOpen,
 	onSearchOpen,

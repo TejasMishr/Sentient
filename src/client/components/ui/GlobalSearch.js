@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
 	IconSearch,
@@ -12,9 +12,11 @@ import {
 	IconFileText,
 	IconArrowRight
 } from "@tabler/icons-react"
+import { useQuery } from "@tanstack/react-query"
 import { cn } from "@utils/cn"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow, parseISO } from "date-fns"
+import { Input } from "@components/ui/input"
 
 const useDebounce = (value, delay) => {
 	const [debouncedValue, setDebouncedValue] = useState(value)
@@ -84,38 +86,24 @@ const ResultItem = ({ item, onClose }) => {
 export default function GlobalSearch({ onClose }) {
 	const [query, setQuery] = useState("")
 	const [activeFilter, setActiveFilter] = useState("All")
-	const [results, setResults] = useState([])
-	const [isLoading, setIsLoading] = useState(false)
 	const debouncedQuery = useDebounce(query, 300)
 
 	const filters = ["All", "Tasks", "Chats", "Memories"]
 
-	const fetchResults = useCallback(async (searchQuery) => {
-		if (searchQuery.length < 3) {
-			setResults([])
-			return
-		}
-		setIsLoading(true)
-		try {
+	const { data: results = [], isLoading } = useQuery({
+		queryKey: ["globalSearch", debouncedQuery],
+		queryFn: async () => {
 			const response = await fetch(
-				`/api/search?q=${encodeURIComponent(searchQuery)}`
+				`/api/search?q=${encodeURIComponent(debouncedQuery)}`
 			)
 			if (!response.ok) {
 				throw new Error("Search failed")
 			}
 			const data = await response.json()
-			setResults(data.results || [])
-		} catch (error) {
-			console.error("Search error:", error)
-			setResults([])
-		} finally {
-			setIsLoading(false)
-		}
-	}, [])
-
-	useEffect(() => {
-		fetchResults(debouncedQuery)
-	}, [debouncedQuery, fetchResults])
+			return data.results || []
+		},
+		enabled: debouncedQuery.length >= 3
+	})
 
 	const filteredResults = useMemo(() => {
 		if (activeFilter === "All") {
@@ -147,12 +135,12 @@ export default function GlobalSearch({ onClose }) {
 						className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"
 						size={20}
 					/>
-					<input
+					<Input
 						type="text"
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						placeholder="Search tasks, chats, and memories..."
-						className="w-full bg-neutral-800/50 border border-neutral-700 rounded-lg pl-12 pr-10 py-3 text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand-orange"
+						className="pl-12 pr-10 py-3 h-auto"
 						autoFocus
 					/>
 					<button

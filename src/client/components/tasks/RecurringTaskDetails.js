@@ -4,11 +4,18 @@ import React, { useState } from "react"
 import { format, parseISO } from "date-fns"
 import { taskStatusColors, priorityMap } from "./constants"
 import { cn } from "@utils/cn"
-import CollapsibleSection from "./CollapsibleSection"
 import ExecutionUpdate from "./ExecutionUpdate"
 import ReactMarkdown from "react-markdown"
 import toast from "react-hot-toast"
 import { IconLoader } from "@tabler/icons-react"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
+import { Textarea } from "@components/ui/textarea"
+import { Button } from "@components/ui/button"
 
 // This component is used to handle clarification questions
 // within recurring task runs. It's modified to use the run's status.
@@ -61,7 +68,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 							{q.text}
 						</label>
 						{isInputMode ? (
-							<textarea
+							<Textarea
 								value={answers[q.question_id] || ""}
 								onChange={(e) =>
 									handleAnswerChange(
@@ -70,7 +77,6 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 									)
 								}
 								rows={2}
-								className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 								placeholder="Your answer..."
 							/>
 						) : (
@@ -86,10 +92,10 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 				))}
 				{isInputMode && (
 					<div className="flex justify-end">
-						<button
+						<Button
 							onClick={handleSubmit}
 							disabled={isSubmitting}
-							className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+							className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
 						>
 							{isSubmitting && (
 								<IconLoader
@@ -98,7 +104,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications, runStatus }) => {
 								/>
 							)}
 							{isSubmitting ? "Submitting..." : "Submit Answers"}
-						</button>
+						</Button>
 					</div>
 				)}
 			</div>
@@ -207,7 +213,11 @@ const RecurringTaskDetails = ({
 					<h4 className="font-semibold text-neutral-300 mb-2">
 						Run History
 					</h4>
-					<div className="space-y-3">
+					<Accordion
+						type="single"
+						collapsible
+						defaultValue={task.runs[task.runs.length - 1]?.run_id}
+					>
 						{task.runs
 							.slice()
 							.reverse()
@@ -264,12 +274,14 @@ const RecurringTaskDetails = ({
 									</div>
 								)
 								return (
-									<CollapsibleSection
+									<AccordionItem
 										key={run.run_id}
-										title={title}
-										defaultOpen={index === 0}
+										value={run.run_id}
 									>
-										<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4 mt-2">
+										<AccordionTrigger>
+											{title}
+										</AccordionTrigger>
+										<AccordionContent>
 											{run.clarifying_questions &&
 												run.clarifying_questions
 													.length > 0 && (
@@ -341,11 +353,11 @@ const RecurringTaskDetails = ({
 													run.
 												</p>
 											)}
-										</div>
-									</CollapsibleSection>
+										</AccordionContent>
+									</AccordionItem>
 								)
 							})}
-					</div>
+					</Accordion>
 				</div>
 			)}
 		</div>

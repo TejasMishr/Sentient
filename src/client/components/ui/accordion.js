@@ -1,149 +1,119 @@
 "use client"
+
+import React, { createContext, useContext, useState } from "react"
 import { motion, AnimatePresence, MotionConfig } from "framer-motion"
 import { cn } from "@utils/cn"
-import React, { createContext, useContext, useState } from "react"
 
-const AccordionContext = createContext(undefined)
+const AccordionContext = createContext({})
 
 function useAccordion() {
 	const context = useContext(AccordionContext)
 	if (!context) {
-		throw new Error("useAccordion must be used within an AccordionProvider")
+		throw new Error("useAccordion must be used within an Accordion")
 	}
 	return context
 }
 
-function AccordionProvider({
+const Accordion = ({
 	children,
-	variants,
-	expandedValue: externalExpandedValue,
-	onValueChange
-}) {
-	const [internalExpandedValue, setInternalExpandedValue] = useState(null)
+	className,
+	collapsible = false,
+	type = "single",
+	defaultValue,
+	...props
+}) => {
+	const [value, setValue] = useState(
+		type === "multiple" ? defaultValue || [] : defaultValue || null
+	)
 
-	const expandedValue =
-		externalExpandedValue !== undefined
-			? externalExpandedValue
-			: internalExpandedValue
-
-	const toggleItem = (value) => {
-		const newValue = expandedValue === value ? null : value
-		if (onValueChange) {
-			onValueChange(newValue)
+	const toggleValue = (itemValue) => {
+		if (type === "multiple") {
+			setValue((prev) =>
+				prev.includes(itemValue)
+					? prev.filter((v) => v !== itemValue)
+					: [...prev, itemValue]
+			)
 		} else {
-			setInternalExpandedValue(newValue)
+			setValue((prev) => (prev === itemValue && collapsible ? null : itemValue))
 		}
 	}
 
 	return (
-		<AccordionContext.Provider
-			value={{ expandedValue, toggleItem, variants }}
-		>
-			{children}
+		<AccordionContext.Provider value={{ value, toggleValue, type }}>
+			<div className={cn("w-full", className)} {...props}>
+				{children}
+			</div>
 		</AccordionContext.Provider>
 	)
 }
 
-function Accordion({
-	children,
-	className,
-	transition,
-	variants,
-	expandedValue,
-	onValueChange
-}) {
-	return (
-		<MotionConfig transition={transition}>
+const AccordionItem = React.forwardRef(
+	({ children, className, value, ...props }, ref) => {
+		const { value: contextValue } = useAccordion()
+		const isExpanded = Array.isArray(contextValue)
+			? contextValue.includes(value)
+			: contextValue === value
+
+		return (
 			<div
-				className={cn("relative", className)}
-				aria-orientation="vertical"
+				ref={ref}
+				className={cn("border-b border-neutral-800", className)}
+				{...props}
 			>
-				<AccordionProvider
-					variants={variants}
-					expandedValue={expandedValue}
-					onValueChange={onValueChange}
-				>
-					{children}
-				</AccordionProvider>
+				{React.Children.map(children, (child) =>
+					React.cloneElement(child, { isExpanded, value })
+				)}
 			</div>
-		</MotionConfig>
-	)
-}
-
-function AccordionItem({ value, children, className }) {
-	const { expandedValue } = useAccordion()
-	const isExpanded = value === expandedValue
-
-	return (
-		<div
-			className={cn(className)}
-			{...(isExpanded ? { "data-expanded": "" } : { "data-closed": "" })}
-		>
-			{React.Children.map(children, (child) => {
-				if (React.isValidElement(child)) {
-					return React.cloneElement(child, {
-						...child.props,
-						value,
-						expanded: isExpanded
-					})
-				}
-				return child
-			})}
-		</div>
-	)
-}
-
-function AccordionTrigger({ children, className, ...props }) {
-	const { toggleItem, expandedValue } = useAccordion()
-	const value = props.value
-	const isExpanded = value === expandedValue
-
-	return (
-		<button
-			onClick={() => value !== undefined && toggleItem(value)}
-			aria-expanded={isExpanded}
-			type="button"
-			className={cn("group", className)}
-			{...(isExpanded ? { "data-expanded": "" } : { "data-closed": "" })}
-		>
-			{children}
-		</button>
-	)
-}
-
-function AccordionContent({ children, className, ...props }) {
-	const { expandedValue, variants } = useAccordion()
-	const value = props.value
-	const isExpanded = value === expandedValue
-
-	const BASE_VARIANTS = {
-		expanded: { height: "auto", opacity: 1 },
-		collapsed: { height: 0, opacity: 0 }
+		)
 	}
+)
+AccordionItem.displayName = "AccordionItem"
 
-	const combinedVariants = {
-		expanded: { ...BASE_VARIANTS.expanded, ...(variants?.expanded || {}) },
-		collapsed: {
-			...BASE_VARIANTS.collapsed,
-			...(variants?.collapsed || {})
-		}
+const AccordionTrigger = React.forwardRef(
+	({ children, className, isExpanded, value, ...props }, ref) => {
+		const { toggleValue } = useAccordion()
+		return (
+			<button
+				ref={ref}
+				onClick={() => toggleValue(value)}
+				className={cn(
+					"flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline",
+					className
+				)}
+				{...props}
+			>
+				{children}
+			</button>
+		)
 	}
+)
+AccordionTrigger.displayName = "AccordionTrigger"
 
-	return (
-		<AnimatePresence initial={false}>
-			{isExpanded && (
-				<motion.div
-					initial="collapsed"
-					animate="expanded"
-					exit="collapsed"
-					variants={combinedVariants}
-					className={cn("overflow-hidden", className)}
-				>
-					{children}
-				</motion.div>
-			)}
-		</AnimatePresence>
-	)
-}
+const AccordionContent = React.forwardRef(
+	({ children, className, isExpanded, ...props }, ref) => {
+		return (
+			<AnimatePresence initial={false}>
+				{isExpanded && (
+					<motion.div
+						ref={ref}
+						initial="collapsed"
+						animate="expanded"
+						exit="collapsed"
+						variants={{
+							expanded: { height: "auto", opacity: 1 },
+							collapsed: { height: 0, opacity: 0 }
+						}}
+						transition={{ duration: 0.3, ease: "easeInOut" }}
+						className={cn("overflow-hidden", className)}
+						{...props}
+					>
+						<div className="pb-4 pt-0">{children}</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+		)
+	}
+)
+AccordionContent.displayName = "AccordionContent"
 
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }

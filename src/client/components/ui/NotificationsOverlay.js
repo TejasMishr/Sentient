@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react" // eslint-disable-line
+import React, { useState, useCallback } from "react" // eslint-disable-line
 import toast from "react-hot-toast"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
@@ -11,9 +11,11 @@ import {
 	IconX,
 	IconArrowRight
 } from "@tabler/icons-react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { formatDistanceToNow, parseISO } from "date-fns"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { Drawer } from "@components/ui/drawer"
 
 const NotificationItem = ({
 	notification,
@@ -89,16 +91,17 @@ const NotificationItem = ({
 }
 
 const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
-	const [notifications, setNotifications] = useState([])
-	const [isLoading, setIsLoading] = useState(true)
-	const [error, setError] = useState(null)
-	const [userTimezone, setUserTimezone] = useState(null)
+	const queryClient = useQueryClient()
 	const router = useRouter()
 
-	const fetchNotifications = useCallback(async () => {
-		setIsLoading(true)
-		setError(null)
-		try {
+	const {
+		data: notifications = [],
+		isLoading,
+		isError,
+		error
+	} = useQuery({
+		queryKey: ["notifications", notifRefreshKey],
+		queryFn: async () => {
 			const response = await fetch("/api/notifications")
 			if (!response.ok) {
 				const errorData = await response.json()
@@ -108,65 +111,62 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 				)
 			}
 			const data = await response.json()
-			if (Array.isArray(data.notifications)) {
-				const sortedNotifications = data.notifications.sort(
-					(a, b) =>
-						new Date(b.timestamp).getTime() -
-						new Date(a.timestamp).getTime()
-				)
-				setNotifications(sortedNotifications)
-			} else {
-				throw new Error("Invalid notification data format")
-			}
-		} catch (err) {
-			const errorMsg = `Error fetching notifications: ${err.message}`
-			toast.error(errorMsg)
-			setError(errorMsg)
-		} finally {
-			setIsLoading(false)
+			return (data.notifications || []).sort(
+				(a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+			)
 		}
-	}, [])
+	})
 
-	const fetchUserTimezone = useCallback(async () => {
-		try {
+	const { data: userTimezone } = useQuery({
+		queryKey: ["userTimezone"],
+		queryFn: async () => {
 			const response = await fetch("/api/user/data", { method: "POST" })
 			if (!response.ok) throw new Error("Failed to fetch user data")
 			const result = await response.json()
-			const timezone = result?.data?.personalInfo?.timezone
-			setUserTimezone(timezone)
-		} catch (err) {
-			console.error("Failed to fetch user timezone", err)
-		}
-	}, [])
+			return result?.data?.personalInfo?.timezone
+		},
+		staleTime: Infinity // Timezone is static for the session
+	})
 
-	useEffect(() => {
-		fetchNotifications()
-		fetchUserTimezone()
-	}, [fetchNotifications, fetchUserTimezone, notifRefreshKey])
-
-	const handleDelete = async (e, notificationId) => {
-		if (e && e.stopPropagation) e.stopPropagation()
-		const originalNotifications = [...notifications]
-		setNotifications(notifications.filter((n) => n.id !== notificationId))
-
-		try {
-			const response = await fetch("/api/notifications/delete", {
+	const deleteNotificationMutation = useMutation({
+		mutationFn: (notificationId) =>
+			fetch("/api/notifications/delete", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ notification_id: notificationId })
+			}).then((res) => {
+				if (!res.ok) throw new Error("Failed to delete notification")
+			}),
+		onMutate: async (notificationId) => {
+			await queryClient.cancelQueries({
+				queryKey: ["notifications", notifRefreshKey]
 			})
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(
-					errorData.error || "Failed to delete notification"
-				)
-			}
+			const previousNotifications = queryClient.getQueryData([
+				"notifications",
+				notifRefreshKey
+			])
+			queryClient.setQueryData(
+				["notifications", notifRefreshKey],
+				(old = []) => old.filter((n) => n.id !== notificationId)
+			)
+			return { previousNotifications }
+		},
+		onSuccess: () => {
 			toast.success("Notification dismissed.")
-		} catch (err) {
+		},
+		onError: (err, vars, context) => {
+			queryClient.setQueryData(
+				["notifications", notifRefreshKey],
+				context.previousNotifications
+			)
 			toast.error(`Error dismissing notification: ${err.message}`)
-			setNotifications(originalNotifications)
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["notifications", notifRefreshKey]
+			})
 		}
-	}
+	})
 
 	const handleSuggestionAction = async (notificationId, action) => {
 		const originalNotifications = [...notifications]
@@ -192,43 +192,31 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 		}
 	}
 
-	const handleNotificationClick = (e, notif) => {
-		if (e && e.stopPropagation) e.stopPropagation()
+	const handleNotificationClick = (notif) => {
 		if (notif.task_id) {
 			router.push(`/tasks?taskId=${notif.task_id}`)
 		}
 		onClose()
 	}
 
-	const handleClearAll = async () => {
-		if (
-			!window.confirm(
-				"Are you sure you want to dismiss all notifications?"
-			)
-		)
-			return
-		const originalNotifications = [...notifications]
-		setNotifications([]) // Optimistic update
-
-		try {
-			const response = await fetch("/api/notifications/delete", {
+	const clearAllMutation = useMutation({
+		mutationFn: () =>
+			fetch("/api/notifications/delete", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ delete_all: true }) // New API call
+			}).then((res) => {
+				if (!res.ok)
+					throw new Error("Failed to dismiss all notifications")
+			}),
+		onSuccess: () => {
+			toast.success("All notifications dismissed.")
+			queryClient.invalidateQueries({
+				queryKey: ["notifications", notifRefreshKey]
 			})
-
-			if (!response.ok) {
-				const errorData = await response.json()
-				throw new Error(
-					errorData.error || "Failed to dismiss all notifications"
-				)
-			}
-			toast.success("All notifications dismissed.") // Single toast
-		} catch (err) {
-			toast.error(`Error: ${err.message}`)
-			setNotifications(originalNotifications) // Revert on error
-		}
-	}
+		},
+		onError: (err) => toast.error(`Error: ${err.message}`)
+	})
 
 	const overlayVariants = {
 		hidden: { opacity: 0, y: 20, scale: 0.95 },
@@ -237,21 +225,10 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 	}
 
 	return (
-		<motion.div
-			initial={{ opacity: 0 }}
-			animate={{ opacity: 1 }}
-			exit={{ opacity: 0 }}
-			className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 flex items-center justify-center p-4"
-			onClick={onClose}
-		>
-			<motion.div
-				variants={overlayVariants}
-				initial="hidden"
-				animate="visible"
-				exit="exit"
-				transition={{ duration: 0.2, ease: "easeInOut" }}
-				onClick={(e) => e.stopPropagation()}
-				className="relative bg-neutral-900/90 backdrop-blur-xl p-4 rounded-2xl shadow-2xl w-full max-w-md border border-neutral-700 max-h-[70vh] flex flex-col"
+		<Drawer isOpen={true} onClose={onClose} className="w-full max-w-md">
+			<div
+				onClick={(e) => e.stopPropagation()} // Prevent drawer from closing when clicking inside
+				className="h-full flex flex-col p-4"
 			>
 				<header className="flex justify-between items-center mb-4 flex-shrink-0">
 					<h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -272,14 +249,14 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 								Loading...
 							</span>
 						</div>
-					) : error ? (
+					) : isError ? (
 						<div className="flex-grow flex flex-col justify-center items-center text-center p-4">
 							<IconAlertCircle className="w-10 h-10 text-red-500 mb-3" />
 							<p className="text-red-400">
 								Could not load notifications
 							</p>
 							<p className="text-neutral-500 text-sm mt-1">
-								{error}
+								{error.message}
 							</p>
 						</div>
 					) : notifications.length === 0 ? (
@@ -297,13 +274,11 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 									key={notif.id}
 									notification={notif}
 									userTimezone={userTimezone}
-									onDelete={() =>
-										handleDelete(null, notif.id)
+									onDelete={(id) =>
+										deleteNotificationMutation.mutate(id)
 									}
 									onAction={handleSuggestionAction}
-									onGeneralClick={(n) =>
-										handleNotificationClick(null, n)
-									}
+									onGeneralClick={handleNotificationClick}
 								/>
 							))}
 						</div>
@@ -311,16 +286,19 @@ const NotificationsOverlay = ({ onClose, notifRefreshKey }) => {
 				</main>
 				{notifications.length > 0 && !isLoading && (
 					<footer className="mt-4 pt-3 border-t border-neutral-800 flex-shrink-0">
-						<button
-							onClick={handleClearAll}
+						<button // prettier-ignore
+							onClick={() => {
+								if (window.confirm("Are you sure?"))
+									clearAllMutation.mutate()
+							}}
 							className="w-full text-center text-sm text-neutral-400 hover:text-white hover:bg-neutral-700/50 py-2 rounded-lg transition-colors"
 						>
 							Dismiss All
 						</button>
 					</footer>
 				)}
-			</motion.div>
-		</motion.div>
+			</div>
+		</Drawer>
 	)
 }
 

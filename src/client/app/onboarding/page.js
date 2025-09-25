@@ -16,10 +16,16 @@ import {
 	IconBrain
 } from "@tabler/icons-react"
 import InteractiveNetworkBackground from "@components/ui/InteractiveNetworkBackground"
-import ProgressBar from "@components/onboarding/ProgressBar"
+import { useMutation } from "@tanstack/react-query"
+import { useUserStore } from "@stores/app-stores"
+import ProgressBar from "@components/onboarding/ProgressBar" // Assuming this component exists
 import SparkleEffect from "@components/ui/SparkleEffect"
-import SiriSpheres from "@components/voice-visualization/SiriSpheres"
+import SiriSpheres from "@components/voice/SiriSpheres"
 import IntroSequence from "@components/onboarding/IntroSequence"
+import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
+import { Select } from "@components/ui/select"
+import { Textarea } from "@components/ui/textarea"
 
 const countryData = [
 	{ name: "United States", code: "US", dial_code: "+1", flag: "🇺🇸" },
@@ -67,10 +73,6 @@ const questionStyles = {
 	container:
 		"min-h-[100px] md:min-h-[120px] flex items-center justify-center w-full"
 }
-
-// Standard input styles
-const inputStyles =
-	"w-full px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 
 // --- Onboarding Data ---
 
@@ -231,9 +233,9 @@ const OnboardingPage = () => {
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
 	const [score, setScore] = useState(0)
-	const [maxQuestionIndexReached, setMaxQuestionIndexReached] = useState(0)
 	const [sparkleTrigger, setSparkleTrigger] = useState(0)
 	const posthog = usePostHog()
+	const { fetchUserData } = useUserStore()
 	const router = useRouter()
 	const statusChecked = useRef(false)
 	const [whatsappStatus, setWhatsappStatus] = useState("idle") // idle, checking, valid, invalid
@@ -261,29 +263,28 @@ const OnboardingPage = () => {
 		if (countryCode !== "OTHER") setCustomDialCode("")
 	}
 
-	const verifyWhatsappNumber = async (number) => {
-		if (!/^\+[1-9]\d{6,14}$/.test(number.trim())) {
-			setWhatsappStatus("invalid")
-			setWhatsappError(
-				"Please use E.164 format with country code (e.g., +14155552671)."
-			)
-			return
-		}
-		setWhatsappStatus("checking")
-		setWhatsappError("")
-		try {
-			const response = await fetch(
-				"/api/settings/whatsapp-notifications/verify",
-				{
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ phone_number: number })
-				}
-			)
-			const result = await response.json()
-			if (!response.ok) {
-				throw new Error(result.detail || "Verification request failed.")
+	const verifyWhatsappMutation = useMutation({
+		mutationFn: (number) => {
+			if (!/^\+[1-9]\d{6,14}$/.test(number.trim())) {
+				throw new Error(
+					"Please use E.164 format with country code (e.g., +14155552671)."
+				)
 			}
+			return fetch("/api/settings/whatsapp-notifications/verify", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ phone_number: number })
+			}).then(async (res) => {
+				const result = await res.json()
+				if (!res.ok) {
+					throw new Error(
+						result.detail || "Verification request failed."
+					)
+				}
+				return result
+			})
+		},
+		onSuccess: (result) => {
 			if (result.numberExists) {
 				setWhatsappStatus("valid")
 				setWhatsappError("")
@@ -293,11 +294,12 @@ const OnboardingPage = () => {
 					"This number does not appear to be on WhatsApp."
 				)
 			}
-		} catch (error) {
+		},
+		onError: (error) => {
 			setWhatsappStatus("invalid")
 			setWhatsappError(error.message)
 		}
-	}
+	})
 
 	const handleAnswer = (questionId, answer) => {
 		setAnswers((prev) => ({ ...prev, [questionId]: answer }))
@@ -308,7 +310,8 @@ const OnboardingPage = () => {
 			}
 			if (answer.trim()) {
 				debounceTimeoutRef.current = setTimeout(() => {
-					verifyWhatsappNumber(answer)
+					setWhatsappStatus("checking")
+					verifyWhatsappMutation.mutate(answer)
 				}, 800)
 			} else {
 				setWhatsappStatus("idle")
@@ -436,37 +439,36 @@ const OnboardingPage = () => {
 		return true
 	}, [answers, currentQuestionIndex, stage, whatsappStatus])
 
-	const handleSubmit = async () => {
-		setStage("submitting")
-
-		try {
-			const response = await fetch("/api/onboarding", {
+	const submitOnboardingMutation = useMutation({
+		mutationFn: (onboardingData) =>
+			fetch("/api/onboarding", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ data: answers })
-			})
-			if (!response.ok) {
-				const result = await response.json()
-				throw new Error(
-					result.message || "Failed to save onboarding data"
-				)
-			}
-			// Identify the user in PostHog as soon as we have their name
+				body: JSON.stringify({ data: onboardingData })
+			}).then(async (res) => {
+				if (!res.ok) {
+					const result = await res.json()
+					throw new Error(
+						result.message || "Failed to save onboarding data"
+					)
+				}
+				return res.json()
+			}),
+		onSuccess: async (data, submittedAnswers) => {
 			posthog?.identify(
 				(await (await fetch("/api/user/profile")).json()).sub, // Fetch user ID from session
-				{ name: answers["user-name"] }
+				{ name: submittedAnswers["user-name"] }
 			)
-			posthog?.capture("user_signed_up", {
-				signup_method: "auth0", // or derive from user profile if available
-				referral_source: "direct" // Placeholder, can be populated from URL params
-			})
+			posthog?.capture("user_signed_up", { signup_method: "auth0" })
 			posthog?.capture("onboarding_completed")
-			window.location.href = "/chat?show_demo=true"
-		} catch (error) {
+			await fetchUserData() // Refresh user data in the store
+			router.push("/chat?show_demo=true")
+		},
+		onError: (error) => {
 			toast.error(`Error: ${error.message}`)
 			setStage("questions") // Go back to questions on error
 		}
-	}
+	})
 
 	const handleNext = useCallback(() => {
 		if (!isCurrentQuestionAnswered()) return
@@ -476,18 +478,13 @@ const OnboardingPage = () => {
 		setAudioLevel(0.9) // High impact
 		setSparkleTrigger((c) => c + 1)
 
-		setTimeout(() => {
-			setModelReacting(false)
-			if (currentQuestionIndex >= maxQuestionIndexReached) {
-				setScore((s) => s + 10)
-				setMaxQuestionIndexReached(currentQuestionIndex + 1)
-			}
-		}, 400)
+		setTimeout(() => setModelReacting(false), 400)
 
 		if (currentQuestionIndex < questions.length - 1) {
 			setCurrentQuestionIndex((prev) => prev + 1)
 		} else {
-			handleSubmit()
+			setStage("submitting")
+			submitOnboardingMutation.mutate(answers)
 		}
 	}, [
 		currentQuestionIndex,
@@ -495,7 +492,6 @@ const OnboardingPage = () => {
 		handleSubmit,
 		maxQuestionIndexReached
 	])
-
 	// --- Effects ---
 
 	useEffect(() => {
@@ -700,18 +696,19 @@ const OnboardingPage = () => {
 								{/* Navigation */}
 								{currentQuestion.type !== "yes-no" && (
 									<div className="mt-4 md:mt-6">
-										<button
+										<Button
 											onClick={handleNext}
 											disabled={
 												!isCurrentQuestionAnswered()
 											}
-											className="px-8 md:px-12 py-3 md:py-4 rounded-xl bg-brand-orange text-brand-black text-base md:text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:bg-brand-orange/90 hover:scale-105 shadow-lg shadow-brand-orange/25"
+											size="lg"
+											className="rounded-xl bg-brand-orange text-brand-black text-base md:text-lg font-semibold transition-all duration-300 hover:bg-brand-orange/90 hover:scale-105 shadow-lg shadow-brand-orange/25"
 										>
 											{currentQuestionIndex ===
 											questions.length - 1
 												? "Finish"
 												: "Next"}
-										</button>
+										</Button>
 									</div>
 								)}
 							</motion.div>
@@ -721,6 +718,7 @@ const OnboardingPage = () => {
 
 			case "submitting":
 				return (
+					// prettier-ignore
 					<motion.div
 						key="submitting"
 						initial={{ opacity: 0 }}
@@ -771,12 +769,12 @@ const OnboardingPage = () => {
 						<div className="relative w-full max-w-lg mx-auto space-y-4">
 							<div className="flex items-center gap-0 w-full bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus-within:ring-2 focus-within:ring-brand-orange/50 focus-within:border-brand-orange/50 transition-all duration-300 shadow-lg shadow-black/20">
 								<div className="relative border-r border-neutral-700/50">
-									<select
+									<Select
 										value={whatsappCountry.code}
 										onChange={(e) => {
 											handleCountryChange(e.target.value)
 										}}
-										className="bg-transparent pl-4 pr-10 py-4 md:py-5 text-base appearance-none focus:outline-none cursor-pointer min-w-[120px]"
+										className="bg-transparent pl-4 pr-10 py-4 md:py-5 text-base appearance-none focus:outline-none cursor-pointer min-w-[120px] border-none h-auto"
 									>
 										{countryData.map((country) => (
 											<option
@@ -788,7 +786,7 @@ const OnboardingPage = () => {
 												{country.dial_code || "Other"}
 											</option>
 										))}
-									</select>
+									</Select>
 									<div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-neutral-400">
 										<svg
 											className="h-4 w-4 fill-current"
@@ -799,17 +797,17 @@ const OnboardingPage = () => {
 									</div>
 								</div>
 								{showCustomDialCode && (
-									<input
+									<Input
 										type="text"
 										value={customDialCode}
 										onChange={(e) =>
 											setCustomDialCode(e.target.value)
 										}
 										placeholder="+XXX"
-										className="bg-transparent px-4 py-4 md:py-5 text-base focus:outline-none border-r border-neutral-700/50 w-20"
+										className="bg-transparent px-4 py-4 md:py-5 text-base focus:outline-none border-r border-neutral-700/50 w-20 h-auto rounded-none border-none"
 									/>
 								)}
-								<input
+								<Input
 									type="tel"
 									value={whatsappLocalNumber}
 									onChange={(e) =>
@@ -818,7 +816,7 @@ const OnboardingPage = () => {
 									placeholder="Your number"
 									required={currentQuestion.required}
 									autoFocus
-									className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg placeholder:text-neutral-500 focus:outline-none"
+									className="flex-1 bg-transparent px-4 py-4 md:py-5 text-base md:text-lg placeholder:text-neutral-500 focus:outline-none border-none h-auto"
 								/>
 							</div>
 
@@ -860,7 +858,7 @@ const OnboardingPage = () => {
 				}
 				return (
 					<div className="relative w-full max-w-lg mx-auto">
-						<input
+						<Input
 							type="text"
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
@@ -869,7 +867,7 @@ const OnboardingPage = () => {
 							placeholder={currentQuestion.placeholder}
 							required={currentQuestion.required}
 							autoFocus
-							className={inputStyles}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 						/>
 					</div>
 				)
@@ -906,7 +904,7 @@ const OnboardingPage = () => {
 
 					return (
 						<div className="w-full max-w-xl mx-auto text-center">
-							<select
+							<Select
 								value={answers[currentQuestion.id] || ""}
 								onChange={(e) =>
 									handleAnswer(
@@ -916,7 +914,7 @@ const OnboardingPage = () => {
 								}
 								required={currentQuestion.required}
 								disabled={timezoneDetected === true}
-								className={cn(inputStyles, "appearance-none")}
+								className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 appearance-none"
 							>
 								{timezoneOptions.map((option) => (
 									<option
@@ -928,7 +926,7 @@ const OnboardingPage = () => {
 										{option.label}
 									</option>
 								))}
-							</select>
+							</Select>
 							{timezoneDetected === true && (
 								<p className="text-green-400 text-sm mt-3 bg-green-400/10 border border-green-400/20 rounded-lg px-4 py-2">
 									We've automatically detected your timezone.
@@ -946,13 +944,13 @@ const OnboardingPage = () => {
 				// Default select rendering for other questions
 				return (
 					<div className="w-full max-w-xl mx-auto">
-						<select
+						<Select
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
 								handleAnswer(currentQuestion.id, e.target.value)
 							}
 							required={currentQuestion.required}
-							className={cn(inputStyles, "appearance-none")}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 appearance-none"
 						>
 							{currentQuestion.options.map((option) => (
 								<option
@@ -964,18 +962,18 @@ const OnboardingPage = () => {
 									{option.label}
 								</option>
 							))}
-						</select>
+						</Select>
 					</div>
 				)
 			case "textarea":
 				return (
 					<div className="w-full max-w-3xl mx-auto">
-						<textarea
+						<Textarea
 							value={answers[currentQuestion.id] || ""}
 							onChange={(e) =>
 								handleAnswer(currentQuestion.id, e.target.value)
 							}
-							className="w-full h-32 md:h-40 px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border border-neutral-700/50 rounded-xl focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-none transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
+							className="w-full h-32 md:h-40 px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 resize-none transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20"
 							placeholder={currentQuestion.placeholder}
 							autoFocus
 							rows={4}
@@ -985,7 +983,7 @@ const OnboardingPage = () => {
 			case "location":
 				return (
 					<div className="flex flex-col sm:flex-row items-center justify-center gap-4 md:gap-6 w-full max-w-3xl mx-auto">
-						<input
+						<Input
 							type="text"
 							placeholder="Enter Locality, City, State..."
 							value={
@@ -996,7 +994,7 @@ const OnboardingPage = () => {
 							onChange={(e) =>
 								handleAnswer("location", e.target.value)
 							}
-							className={cn(inputStyles, "sm:flex-grow")}
+							className="px-6 py-4 md:py-5 bg-neutral-900/60 backdrop-blur-sm border-neutral-700/50 rounded-xl focus:ring-brand-orange/50 focus:border-brand-orange/50 transition-all duration-300 text-center text-base md:text-lg placeholder:text-neutral-500 shadow-lg shadow-black/20 sm:flex-grow"
 						/>
 						<span className="hidden sm:inline text-neutral-400 text-base font-medium">
 							or
@@ -1004,49 +1002,52 @@ const OnboardingPage = () => {
 						<span className="sm:hidden text-neutral-400 text-base">
 							or
 						</span>
-						<button
+						<Button
 							type="button"
 							onClick={handleGetLocation}
 							disabled={locationState.loading}
-							className="px-6 py-3 md:py-4 bg-brand-orange/10 border border-brand-orange/30 rounded-xl text-brand-orange hover:bg-brand-orange/20 transition-all duration-300 whitespace-nowrap disabled:opacity-50 font-medium"
+							variant="outline"
+							className="px-6 py-3 md:py-4 rounded-xl transition-all duration-300 whitespace-nowrap disabled:opacity-50 font-medium border-brand-orange/30 text-brand-orange hover:bg-brand-orange/10"
 						>
 							{locationState.loading
 								? "Detecting..."
 								: "Detect Current Location"}
-						</button>
+						</Button>
 					</div>
 				)
 			case "yes-no":
 				return (
 					<div className="flex gap-4 md:gap-6 justify-center w-full max-w-lg mx-auto">
-						<button
+						<Button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "yes")
 								setTimeout(handleNext, 150)
 							}}
+							size="lg"
 							className={cn(
-								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
+								"flex-1 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "yes"
 									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
-									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50 text-white"
 							)}
 						>
 							Yes
-						</button>
-						<button
+						</Button>
+						<Button
 							onClick={() => {
 								handleAnswer(currentQuestion.id, "no")
 								setTimeout(handleNext, 150)
 							}}
+							size="lg"
 							className={cn(
-								"flex-1 px-6 md:px-8 py-4 md:py-5 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
+								"flex-1 rounded-xl font-semibold transition-all duration-300 text-base md:text-lg backdrop-blur-sm shadow-lg",
 								answers[currentQuestion.id] === "no"
 									? "bg-brand-orange text-brand-black shadow-brand-orange/30 scale-105"
-									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50"
+									: "bg-neutral-800/60 border border-neutral-700/50 hover:bg-neutral-700/60 hover:border-neutral-600/50 text-white"
 							)}
 						>
 							No
-						</button>
+						</Button>
 					</div>
 				)
 

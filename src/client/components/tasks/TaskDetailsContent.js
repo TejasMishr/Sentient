@@ -21,12 +21,21 @@ import {
 	IconPlayerPlay
 } from "@tabler/icons-react"
 import ScheduleEditor from "./ScheduleEditor"
-import ChatBubble from "@components/ChatBubble"
-import CollapsibleSection from "./CollapsibleSection"
+import ChatBubble from "@components/chat/ChatBubble"
 import ReactMarkdown from "react-markdown"
 import ExecutionUpdate from "./ExecutionUpdate"
 import { TextShimmer } from "@components/ui/text-shimmer"
 import { motion, AnimatePresence } from "framer-motion"
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger
+} from "@components/ui/accordion"
+import { Textarea } from "@components/ui/textarea"
+import { Select } from "@components/ui/select"
+import { Button } from "@components/ui/button"
+import { Input } from "@components/ui/input"
 
 // --- NEW COMPONENT: WaitingStateDisplay (integrated into flowchart node) ---
 const WaitingNodeDetails = ({
@@ -56,7 +65,7 @@ const WaitingNodeDetails = ({
 			dateString = timeoutVal.$date
 		}
 
-		// Case 3: It's a string. Parse it robustly to avoid timezone ambiguity.
+		// Case 3: It's a string. Parse it robustly to avoid ambiguity.
 		if (typeof dateString === "string") {
 			const match = dateString.match(
 				/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/
@@ -154,13 +163,14 @@ const WaitingNodeDetails = ({
 				Time remaining:{" "}
 				<span className="font-mono font-semibold">{timeLeft}</span>
 			</p>
-			<button
+			<Button
 				onClick={() => onResumeTask(taskId)}
-				className="text-sm flex items-center gap-2 px-3 py-1.5 mt-2 rounded-lg transition-colors bg-blue-600 text-white hover:bg-blue-500"
+				className="mt-2 gap-2 bg-blue-600 hover:bg-blue-500"
+				size="sm"
 			>
 				<IconPlayerPlay size={16} />
 				Resume Now
-			</button>
+			</Button>
 		</div>
 	)
 }
@@ -557,7 +567,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 							{q.text}
 						</label>
 						{isInputMode ? (
-							<textarea
+							<Textarea
 								value={answers[q.question_id] || ""}
 								onChange={(e) =>
 									handleAnswerChange(
@@ -566,7 +576,6 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 									)
 								}
 								rows={2}
-								className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 								placeholder="Your answer..."
 							/>
 						) : (
@@ -582,10 +591,11 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 				))}
 				{isInputMode && (
 					<div className="flex justify-end">
-						<button
+						<Button
 							onClick={handleSubmit}
 							disabled={isSubmitting}
-							className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+							className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+							size="sm"
 						>
 							{isSubmitting && (
 								<IconLoader
@@ -594,7 +604,7 @@ const QnaSection = ({ questions, task, onAnswerClarifications }) => {
 								/>
 							)}
 							{isSubmitting ? "Submitting..." : "Submit Answers"}
-						</button>
+						</Button>
 					</div>
 				)}
 			</div>
@@ -698,7 +708,7 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 						<label className="block text-sm font-medium text-neutral-300 mb-2 whitespace-pre-wrap">
 							{req.question}
 						</label>
-						<textarea
+						<Textarea
 							value={answers[req.request_id] || ""}
 							onChange={(e) =>
 								handleAnswerChange(
@@ -707,14 +717,14 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 								)
 							}
 							rows={3}
-							className="w-full p-2 bg-neutral-800 border border-neutral-700 rounded-md text-sm text-white transition-colors focus:border-yellow-400 focus:ring-0"
 							placeholder="Your answer..."
 						/>
 						<div className="flex justify-end mt-2">
-							<button
+							<Button
 								onClick={() => handleSubmit(req.request_id)}
 								disabled={isSubmitting === req.request_id}
-								className="px-4 py-2 text-sm font-semibold bg-yellow-400 text-black rounded-md hover:bg-yellow-300 disabled:opacity-50 flex items-center gap-2"
+								className="gap-2 bg-yellow-400 text-black hover:bg-yellow-300"
+								size="sm"
 							>
 								{isSubmitting === req.request_id && (
 									<IconLoader
@@ -725,7 +735,7 @@ const LongFormQnaSection = ({ requests, task, onAnswer }) => {
 								{isSubmitting === req.request_id
 									? "Submitting..."
 									: "Submit Answer"}
-							</button>
+							</Button>
 						</div>
 					</div>
 				))}
@@ -883,13 +893,14 @@ const TaskChatSection = ({ task, onSendChatMessage }) => {
 					placeholder="Describe the changes you need..."
 					className="flex-grow p-2 bg-neutral-800 border border-neutral-700 rounded-lg text-sm"
 				/>
-				<button
+				<Button
 					onClick={handleSend}
-					className="p-2 bg-blue-600 rounded-lg text-white hover:bg-blue-500 disabled:opacity-50"
+					className="bg-blue-600 hover:bg-blue-500"
+					size="icon"
 					disabled={!message.trim()}
 				>
 					<IconSend size={16} />
-				</button>
+				</Button>
 			</div>
 		</div>
 	)
@@ -936,12 +947,16 @@ const TaskDetailsContent = ({
 			<div className="space-y-6">
 				{/* Show context from the last run before this new plan */}
 				{latestRun?.result && (
-					<CollapsibleSection
-						title="Context from Previous Run"
-						defaultOpen={true}
-					>
-						<TaskResultDisplay result={latestRun.result} />
-					</CollapsibleSection>
+					<Accordion type="single" collapsible defaultValue="item-1">
+						<AccordionItem value="item-1">
+							<AccordionTrigger>
+								Context from Previous Run
+							</AccordionTrigger>
+							<AccordionContent>
+								<TaskResultDisplay result={latestRun.result} />
+							</AccordionContent>
+						</AccordionItem>
+					</Accordion>
 				)}
 				{/* Show the new plan that needs approval */}
 				<CurrentPlanSection task={displayTask} />
@@ -975,16 +990,25 @@ const TaskDetailsContent = ({
 					</div>
 				</div>
 				{latestRun?.progress_updates?.length > 0 && (
-					<CollapsibleSection
-						title="Execution Log (Advanced)"
-						defaultOpen={false}
-					>
-						<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
-							{latestRun.progress_updates.map((update, index) => (
-								<ExecutionUpdate key={index} update={update} />
-							))}
-						</div>
-					</CollapsibleSection>
+					<Accordion type="single" collapsible>
+						<AccordionItem value="item-1">
+							<AccordionTrigger>
+								Execution Log (Advanced)
+							</AccordionTrigger>
+							<AccordionContent>
+								<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
+									{latestRun.progress_updates.map(
+										(update, index) => (
+											<ExecutionUpdate
+												key={index}
+												update={update}
+											/>
+										)
+									)}
+								</div>
+							</AccordionContent>
+						</AccordionItem>
+					</Accordion>
 				)}
 			</div>
 		)
@@ -1084,7 +1108,7 @@ const TaskDetailsContent = ({
 							Priority:
 						</span>
 						{isEditing ? (
-							<select
+							<Select
 								value={editableTask.priority}
 								onChange={(e) =>
 									handleFieldChange(
@@ -1092,12 +1116,12 @@ const TaskDetailsContent = ({
 										Number(e.target.value)
 									)
 								}
-								className="bg-neutral-700/50 border border-neutral-600 rounded-md px-2 py-1 text-xs appearance-none"
+								className="px-2 py-1 text-xs h-auto"
 							>
 								<option value={0}>High</option>
 								<option value={1}>Medium</option>
 								<option value={2}>Low</option>
-							</select>
+							</Select>
 						) : (
 							<span
 								className={cn(
@@ -1118,12 +1142,11 @@ const TaskDetailsContent = ({
 					Description
 				</label>
 				{isEditing ? (
-					<textarea
+					<Textarea
 						value={editableTask.description}
 						onChange={(e) =>
 							handleFieldChange("description", e.target.value)
 						}
-						className="w-full p-3 bg-neutral-800/50 border border-neutral-700 rounded-lg transition-colors focus:border-[var(--color-accent-blue)]"
 						rows={4}
 						placeholder="Detailed task description..."
 					/>
@@ -1172,7 +1195,7 @@ const TaskDetailsContent = ({
 							className="flex items-center gap-3 p-3 bg-neutral-800/50 rounded-lg"
 						>
 							<IconGripVertical className="h-5 w-5 text-neutral-500 cursor-grab flex-shrink-0" />
-							<select
+							<Select
 								value={step.tool}
 								onChange={(e) =>
 									handleStepChange(
@@ -1181,7 +1204,7 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="w-1/3 p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80 appearance-none"
+								className="w-1/3 p-2.5 h-auto"
 							>
 								<option value="">Select tool...</option>
 								{allTools.map((tool) => (
@@ -1189,8 +1212,8 @@ const TaskDetailsContent = ({
 										{tool.display_name}
 									</option>
 								))}
-							</select>
-							<input
+							</Select>
+							<Input
 								type="text"
 								value={step.description}
 								onChange={(e) =>
@@ -1200,7 +1223,7 @@ const TaskDetailsContent = ({
 										e.target.value
 									)
 								}
-								className="flex-grow p-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-orange/50 focus:border-brand-orange/80"
+								className="flex-grow p-2.5 h-auto"
 								placeholder="Step description..."
 							/>
 							<button
@@ -1226,196 +1249,221 @@ const TaskDetailsContent = ({
 					{/* --- NEW: Show previous result if re-planning, collapsed by default --- */}
 					{displayTask.status === "approval_pending" &&
 						latestRun?.result && (
-							<CollapsibleSection
-								title="Context from Previous Run"
-								defaultOpen={false}
-							>
-								<TaskResultDisplay result={latestRun.result} />
-							</CollapsibleSection>
+							<Accordion type="single" collapsible>
+								<AccordionItem value="item-1">
+									<AccordionTrigger>
+										Context from Previous Run
+									</AccordionTrigger>
+									<AccordionContent>
+										<TaskResultDisplay
+											result={latestRun.result}
+										/>
+									</AccordionContent>
+								</AccordionItem>
+							</Accordion>
 						)}
 
 					{runs.length > 0 && (
-						<CollapsibleSection
-							title="Full Run History"
-							// Collapse history if a new plan is pending approval to reduce clutter
-							defaultOpen={
+						<Accordion
+							type="single"
+							collapsible
+							defaultValue={
 								displayTask.status !== "approval_pending"
+									? "run-history"
+									: undefined
 							}
 						>
-							{runs
-								.slice()
-								.reverse()
-								.map(
-									(
-										run,
-										index // Show newest run first
-									) => (
-										<div
-											key={run.run_id || `run-${index}`}
-											className="space-y-4 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
-										>
-											<div className="flex justify-between items-center text-xs text-neutral-500">
-												<span>
-													Run #{runs.length - index}
-												</span>
-												{run.execution_start_time && (
-													<span>
-														Executed:{" "}
-														{new Date(
-															run.execution_start_time
-														).toLocaleString()}
-													</span>
-												)}
-											</div>
+							<AccordionItem value="run-history">
+								<AccordionTrigger>
+									Full Run History
+								</AccordionTrigger>
+								<AccordionContent>
+									{runs
+										.slice()
+										.reverse()
+										.map(
+											(
+												run,
+												index // Show newest run first
+											) => (
+												<div
+													key={
+														run.run_id ||
+														`run-${index}`
+													}
+													className="space-y-4 border-t border-neutral-800 pt-4 mt-4 first:border-t-0 first:pt-0 first:mt-0"
+												>
+													<div className="flex justify-between items-center text-xs text-neutral-500">
+														<span>
+															Run #
+															{runs.length -
+																index}
+														</span>
+														{run.execution_start_time && (
+															<span>
+																Executed:{" "}
+																{new Date(
+																	run.execution_start_time
+																).toLocaleString()}
+															</span>
+														)}
+													</div>
 
-											{run.plan &&
-												run.plan.length > 0 && (
-													<>
-														{displayTask.task_type ===
-														"swarm" ? (
-															<SwarmPlanSection
-																plan={run.plan}
-															/>
-														) : (
+													{run.plan &&
+														run.plan.length > 0 && (
+															<>
+																{displayTask.task_type ===
+																"swarm" ? (
+																	<SwarmPlanSection
+																		plan={
+																			run.plan
+																		}
+																	/>
+																) : (
+																	<div>
+																		<h4 className="font-semibold text-neutral-300 mb-2">
+																			Executed
+																			Plan
+																		</h4>
+																		<div className="space-y-2">
+																			{run.plan.map(
+																				(
+																					step,
+																					stepIndex
+																				) => (
+																					<div
+																						key={
+																							stepIndex
+																						}
+																						className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
+																					>
+																						<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
+																							{stepIndex +
+																								1}
+																						</div>
+																						<div>
+																							<p className="text-sm font-medium text-neutral-100">
+																								{
+																									step.tool
+																								}
+																							</p>
+																							<p className="text-sm text-neutral-400">
+																								{
+																									step.description
+																								}
+																							</p>
+																						</div>
+																					</div>
+																				)
+																			)}
+																		</div>
+																	</div>
+																)}
+															</>
+														)}
+
+													{run.progress_updates &&
+														run.progress_updates
+															.length > 0 && (
 															<div>
 																<h4 className="font-semibold text-neutral-300 mb-2">
-																	Executed
-																	Plan
+																	Execution
+																	Log
+																	(Advanced)
 																</h4>
-																<div className="space-y-2">
-																	{run.plan.map(
+																<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
+																	{run.progress_updates.map(
 																		(
-																			step,
-																			stepIndex
-																		) => (
-																			<div
-																				key={
-																					stepIndex
-																				}
-																				className="flex items-start gap-3 p-3 bg-neutral-900/50 rounded-lg border border-neutral-700/50"
-																			>
-																				<div className="flex-shrink-0 w-5 h-5 bg-neutral-700 rounded-full flex items-center justify-center text-xs font-bold">
-																					{stepIndex +
-																						1}
-																				</div>
-																				<div>
-																					<p className="text-sm font-medium text-neutral-100">
-																						{
-																							step.tool
+																			update,
+																			index
+																		) => {
+																			const isLastUpdate =
+																				index ===
+																				run
+																					.progress_updates
+																					.length -
+																					1
+																			const isExecuting =
+																				[
+																					"processing",
+																					"planning"
+																				].includes(
+																					run.status
+																				)
+																			const messageContent =
+																				update
+																					.message
+																					?.content ||
+																				update.message
+
+																			if (
+																				isLastUpdate &&
+																				isExecuting &&
+																				update
+																					.message
+																					?.type ===
+																					"info" &&
+																				typeof messageContent ===
+																					"string"
+																			) {
+																				return (
+																					<TextShimmer
+																						key={
+																							index
 																						}
-																					</p>
-																					<p className="text-sm text-neutral-400">
-																						{
-																							step.description
+																						className="font-mono text-sm text-brand-white"
+																						duration={
+																							2
 																						}
-																					</p>
-																				</div>
-																			</div>
-																		)
+																					>
+																						{
+																							messageContent
+																						}
+																					</TextShimmer>
+																				)
+																			}
+																			return (
+																				<ExecutionUpdate
+																					key={
+																						index
+																					}
+																					update={
+																						update
+																					}
+																				/>
+																			)
+																		}
 																	)}
 																</div>
 															</div>
 														)}
-													</>
-												)}
 
-											{run.progress_updates &&
-												run.progress_updates.length >
-													0 && (
-													<div>
-														<h4 className="font-semibold text-neutral-300 mb-2">
-															Execution Log
-															(Advanced)
-														</h4>
-														<div className="bg-neutral-800/50 p-4 rounded-lg border border-neutral-700/50 space-y-4">
-															{run.progress_updates.map(
-																(
-																	update,
-																	index
-																) => {
-																	const isLastUpdate =
-																		index ===
-																		run
-																			.progress_updates
-																			.length -
-																			1
-																	const isExecuting =
-																		[
-																			"processing",
-																			"planning"
-																		].includes(
-																			run.status
-																		)
-																	const messageContent =
-																		update
-																			.message
-																			?.content ||
-																		update.message
-
-																	if (
-																		isLastUpdate &&
-																		isExecuting &&
-																		update
-																			.message
-																			?.type ===
-																			"info" &&
-																		typeof messageContent ===
-																			"string"
-																	) {
-																		return (
-																			<TextShimmer
-																				key={
-																					index
-																				}
-																				className="font-mono text-sm text-brand-white"
-																				duration={
-																					2
-																				}
-																			>
-																				{
-																					messageContent
-																				}
-																			</TextShimmer>
-																		)
-																	}
-																	return (
-																		<ExecutionUpdate
-																			key={
-																				index
-																			}
-																			update={
-																				update
-																			}
-																		/>
-																	)
+													{run.result && (
+														<div className="mt-4">
+															<TaskResultDisplay
+																result={
+																	run.result
 																}
-															)}
+															/>
 														</div>
-													</div>
-												)}
+													)}
 
-											{run.result && (
-												<div className="mt-4">
-													<TaskResultDisplay
-														result={run.result}
-													/>
+													{run.error && (
+														<div>
+															<h4 className="font-semibold text-neutral-300 mb-2">
+																Error
+															</h4>
+															<p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-lg">
+																{run.error}
+															</p>
+														</div>
+													)}
 												</div>
-											)}
-
-											{run.error && (
-												<div>
-													<h4 className="font-semibold text-neutral-300 mb-2">
-														Error
-													</h4>
-													<p className="text-sm bg-red-500/10 border border-red-500/20 text-red-300 p-3 rounded-lg">
-														{run.error}
-													</p>
-												</div>
-											)}
-										</div>
-									)
-								)}
-						</CollapsibleSection>
+											)
+										)}
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 					)}
 				</>
 			)}

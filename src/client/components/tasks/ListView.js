@@ -7,6 +7,8 @@ import WelcomePanel from "./WelcomePanel"
 import { startOfWeek, isToday, isWithinInterval, startOfMonth } from "date-fns"
 import { cn } from "@utils/cn"
 import useClickOutside from "@hooks/useClickOutside"
+import { Input } from "@components/ui/input"
+import { Button } from "@components/ui/button"
 
 const ListView = ({
 	tasks,
@@ -122,10 +124,10 @@ const ListView = ({
 				(task) =>
 					(task.name || "")
 						.toLowerCase()
-						.includes(searchQuery.toLowerCase()) ||
+						.includes(searchQuery?.toLowerCase()) ||
 					(task.description || "")
 						.toLowerCase()
-						.includes(searchQuery.toLowerCase())
+						.includes(searchQuery?.toLowerCase())
 			)
 		}
 
@@ -176,19 +178,21 @@ const ListView = ({
 	}
 
 	const FilterButton = ({ value, label, currentFilter, setFilter }) => {
+		// eslint-disable-line
 		const isActive = currentFilter === value
 		return (
-			<button
+			<Button
 				onClick={() => setFilter(value)}
+				variant={isActive ? "default" : "secondary"}
+				size="sm"
 				className={cn(
-					"px-3 py-1.5 text-xs font-medium rounded-full transition-colors flex-grow sm:flex-grow-0 text-center border",
-					isActive
-						? "bg-brand-orange text-brand-black border-brand-orange/50"
-						: "bg-neutral-800 border-neutral-700/80 hover:bg-neutral-700/70 text-neutral-300"
+					"rounded-full flex-grow sm:flex-grow-0",
+					isActive &&
+						"bg-brand-orange text-brand-black hover:bg-brand-orange/90"
 				)}
 			>
 				{label}
-			</button>
+			</Button>
 		)
 	}
 
@@ -333,19 +337,20 @@ const ListView = ({
 						className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
 						size={20}
 					/>
-					<input
+					<Input
 						type="text"
 						value={searchQuery}
 						onChange={(e) => onSearchChange(e.target.value)}
 						placeholder="Search tasks..."
-						className="w-full bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-neutral-500 focus:ring-2 focus:ring-brand-orange"
+						className="w-full bg-neutral-900/50 backdrop-blur-sm pl-10 pr-4"
 					/>
 				</div>
 
 				<div className="relative flex-shrink-0" ref={filterMenuRef}>
-					<button
+					<Button
 						onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
-						className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-neutral-900/50 backdrop-blur-sm border border-neutral-700 rounded-lg text-white hover:border-brand-orange transition-colors"
+						variant="outline"
+						className="w-full md:w-auto justify-center gap-2 bg-neutral-900/50 backdrop-blur-sm hover:border-brand-orange"
 					>
 						<IconFilter size={16} />
 						<span>Filters</span>
@@ -356,7 +361,7 @@ const ListView = ({
 								isFilterMenuOpen && "rotate-180"
 							)}
 						/>
-					</button>
+					</Button>
 					<AnimatePresence>
 						{isFilterMenuOpen && filterContent}
 					</AnimatePresence>
